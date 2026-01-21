@@ -1,0 +1,14 @@
+node_modules
+dist
+test-out
+.nyc_output
+.vs/
+.vscode/
+*.njsproj
+*.tsbuildinfo
+.idea
+.env
+.env.*
+*.env
+temp/
+pipeline.config.json*

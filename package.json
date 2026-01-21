@@ -1,0 +1,47 @@
+{
+  "name": "spoken-to-text-pipeline",
+  "version": "1.0.0",
+  "description": "A Node.js CLI tool that automates the transformation of spoken audio into structured, editable text through transcription and controlled post-processing stages.",
+  "keywords": [
+    "audio",
+    "speech-to-text",
+    "transcription",
+    "asr",
+    "whisper",
+    "pipeline",
+    "automation",
+    "cli",
+    "nodejs",
+    "text-processing",
+    "editorial",
+    "markdown",
+    "batch-processing",
+    "workflow"
+  ],
+  "license": "ISC",
+  "author": "sidec15",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "spoken-to-text-pipeline": "dist/index.js"
+  },
+  "scripts": {
+    "format": "prettier --write .",
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "clean": "rimraf dist"
+  },
+  "devDependencies": {
+    "@types/cli-progress": "^3.11.6",
+    "@types/node": "^25.0.9",
+    "prettier": "^3.8.0",
+    "rimraf": "^6.1.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "cli-progress": "^3.12.0",
+    "winston": "^3.19.0"
+  }
+}

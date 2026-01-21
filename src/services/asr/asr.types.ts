@@ -20,6 +20,11 @@ export interface AsrTranscribeOptions {
   timeoutMs?: number;
 }
 
+export interface ResolvedWhisperConfig {
+  serverUrl: string;
+  options: AsrTranscribeOptions;
+}
+
 export interface AsrService {
   transcribeFileAsync(inputPath: string, opts: AsrTranscribeOptions): Promise<Buffer>;
 }

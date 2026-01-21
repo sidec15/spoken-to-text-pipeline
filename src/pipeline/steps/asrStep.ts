@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Step, StepContext } from "../step.js";
 import { WhisperAsrService } from "../../services/asr/whisperAsrService.js";
+import { resolveWhisperConfig } from "../../services/asr/resolveWhisperConfig.js";
 
 export class AsrStep implements Step {
   readonly name = "asr";
@@ -65,17 +66,21 @@ export class AsrStep implements Step {
     config: StepContext["config"],
     logger: StepContext["logger"],
   ): Promise<void> {
-    // Placeholder: real implementation will call Whisper
-    logger.silly(`(mock) Transcribing ${inputPath} → ${outputPath}`);
+    const inputFileName = path.basename(inputPath);
 
-    // add a random delay between 1 and 3 seconds
-    await new Promise((resolve) => setTimeout(resolve, Math.random() * 2000 + 1000));
+    logger.info(`Transcribing '${inputFileName}'`);
 
-    // TEMPORARY mock to demonstrate idempotency
-    await fs.promises.writeFile(
-      outputPath,
-      `TRANSCRIPTION PLACEHOLDER for ${path.basename(inputPath)}`,
-      "utf-8",
+    const whisperOptions = resolveWhisperConfig(config);
+
+    const asrService = new WhisperAsrService(whisperOptions.serverUrl, logger);
+
+    const transcriptionBuffer = await asrService.transcribeFileAsync(
+      inputPath,
+      whisperOptions.options,
     );
+
+    await fs.promises.writeFile(outputPath, transcriptionBuffer);
+
+    logger.info(`Transcription saved to '${outputPath}'`);
   }
 }

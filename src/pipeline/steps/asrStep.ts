@@ -68,7 +68,7 @@ export class AsrStep implements Step {
   ): Promise<void> {
     const inputFileName = path.basename(inputPath);
 
-    logger.info(`Transcribing '${inputFileName}'`);
+    logger.debug(`Transcribing '${inputFileName}'`);
 
     const whisperOptions = resolveWhisperConfig(config);
 
@@ -81,6 +81,6 @@ export class AsrStep implements Step {
 
     await fs.promises.writeFile(outputPath, transcriptionBuffer);
 
-    logger.info(`Transcription saved to '${outputPath}'`);
+    logger.debug(`Transcription saved to '${outputPath}'`);
   }
 }

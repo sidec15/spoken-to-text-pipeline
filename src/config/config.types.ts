@@ -1,6 +1,26 @@
-export type SupportedProfile = "lecture";
-export type SupportedAiProvider = "cursor";
+export type SupportedProfile = "lecture" | "meeting" | "other";
+export type SupportedAiProvider = "cursor" | "openai";
 export type SupportedAsrProvider = "whisper";
+
+export interface CursorAiConfig {
+  cursor: {
+    cliPath: string;
+    workspace: string;
+  };
+}
+
+export interface OpenAiConfig {
+  openai: {
+    apiKey: string;
+    model: string;
+    overrides: {
+      temperature?: number;
+      maxTokens?: number;
+    };
+  };
+}
+
+export type AiConfig = CursorAiConfig | OpenAiConfig;
 
 export interface PipelineConfig {
   profile: SupportedProfile;
@@ -46,17 +66,30 @@ export interface PipelineConfig {
 
   ai: {
     provider: SupportedAiProvider;
-    cursor: {
-      cliPath: string;
-      workspace: string;
-    };
+    config: AiConfig;
+  };
+
+  context?: {
+    textSources?: string[]; // .txt / .md only
   };
 
   profiles: {
     lecture: {
       prompts: {
         cleaning: string;
-        dispensa: string;
+        handout: string;
+        summary: string;
+      };
+    };
+    meeting: {
+      prompts: {
+        cleaning: string;
+        summary: string;
+      };
+    };
+    other: {
+      prompts: {
+        cleaning: string;
         summary: string;
       };
     };

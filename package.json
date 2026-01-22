@@ -42,6 +42,7 @@
   },
   "dependencies": {
     "cli-progress": "^3.12.0",
+    "openai": "^6.16.0",
     "winston": "^3.19.0"
   }
 }

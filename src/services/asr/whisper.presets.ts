@@ -1,6 +1,6 @@
 import type { AsrTranscribeOptions } from "./asr.types.js";
 
-export type ProfileName = "lecture" | "meeting";
+export type ProfileName = "lecture" | "meeting" | "other";
 
 export const WHISPER_PROFILE_PRESETS: Record<ProfileName, AsrTranscribeOptions> = {
   lecture: {
@@ -28,6 +28,20 @@ export const WHISPER_PROFILE_PRESETS: Record<ProfileName, AsrTranscribeOptions> 
       threshold: 0.6,
       minSilenceMs: 500,
       maxSpeechS: 30,
+    },
+  },
+
+  other: {
+    task: "transcribe",
+    outputFormat: "txt",
+    temperature: 0,
+    beamSize: 5,
+    bestOf: 5,
+    vad: {
+      enabled: true,
+      threshold: 0.5,
+      minSilenceMs: 600,
+      maxSpeechS: 45,
     },
   },
 };

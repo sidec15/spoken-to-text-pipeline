@@ -34,7 +34,7 @@ IMPORTANT RULES:
 - Do NOT rewrite, summarize, or modify it
 - Do NOT repeat it in the output
 - Do NOT explicitly refer to it
-- Use it only to better understand the transcript being cleaned
+- Use it only to better understand the content being processed
 
 ---
 ${options.manualContextText}
@@ -43,12 +43,12 @@ ${options.manualContextText}
       });
     }
 
-    // 3. Optional previous cleaned excerpt (Prompt 3 – future-proof)
+    // 3. Optional previous output excerpt (Prompt 3)
     if (options.previousOutputExcerpt?.trim()) {
       input.push({
         role: "user",
         content: `
-PREVIOUS CLEANED EXCERPT (REFERENCE ONLY)
+PREVIOUS OUTPUT EXCERPT (REFERENCE ONLY)
 
 Provided only to preserve stylistic and conceptual continuity.
 Do NOT rewrite, summarize, or repeat this content.
@@ -60,11 +60,11 @@ ${options.previousOutputExcerpt}
       });
     }
 
-    // 4. Current raw transcript (Prompt 4 – mandatory)
+    // 4. Main input content (Prompt 4 – mandatory)
     input.push({
       role: "user",
       content: `
-CURRENT RAW TRANSCRIPT (TO CLEAN)
+INPUT CONTENT
 
 ---
 ${options.userPrompt}

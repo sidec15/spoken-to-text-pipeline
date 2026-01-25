@@ -1,7 +1,7 @@
 import type { PipelineConfig } from "../../../config/config.types.js";
 import { OPENAI_PROFILE_PRESETS } from "./openai.presets.js";
 
-export function resolveOpenAiConfig(config: PipelineConfig, step: "cleaning" | "summary") {
+export function resolveOpenAiConfig(config: PipelineConfig, step: "cleaning" | "handout" | "summary") {
   if (config.ai.provider !== "openai") {
     throw new Error("AI provider is not OpenAI");
   }
@@ -9,7 +9,9 @@ export function resolveOpenAiConfig(config: PipelineConfig, step: "cleaning" | "
   const preset = OPENAI_PROFILE_PRESETS[config.profile]?.[step];
 
   if (!preset) {
-    throw new Error(`No OpenAI preset for profile '${config.profile}', step '${step}'`);
+    throw new Error(
+      `No OpenAI preset for profile '${config.profile}', step '${step}'. This step may not be supported for this profile.`,
+    );
   }
 
   const overrides =

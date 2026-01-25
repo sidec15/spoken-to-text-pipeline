@@ -3,6 +3,7 @@ import path from "node:path";
 import type { Step, StepContext } from "../step.js";
 import { WhisperAsrService } from "../../services/asr/whisperAsrService.js";
 import { resolveWhisperConfig } from "../../services/asr/resolveWhisperConfig.js";
+import { resolveOutputDir } from "../../utils/resolveOutputDir.js";
 
 export class AsrStep implements Step {
   readonly name = "asr";
@@ -10,12 +11,12 @@ export class AsrStep implements Step {
   async runAsync(ctx: StepContext): Promise<void> {
     const { config, logger, progress } = ctx;
 
-    const inputDir = config.paths.audioInputDir;
-    const outputDir = config.paths.rawOutputDir;
+    const inputDir = config.paths.inputDir;
+    const outputDir = resolveOutputDir(config);
 
     logger.info("Starting ASR step");
     logger.debug(`Audio input dir: ${inputDir}`);
-    logger.debug(`Raw output dir: ${outputDir}`);
+    logger.debug(`Output dir: ${outputDir}`);
 
     fs.mkdirSync(outputDir, { recursive: true });
 

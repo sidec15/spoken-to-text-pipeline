@@ -71,10 +71,27 @@ function validateConfig(config: unknown, configPath: string): asserts config is 
     errors.push("Missing or invalid 'paths' field");
   } else {
     const paths = c.paths as Record<string, unknown>;
-    const requiredPaths = ["audioInputDir", "rawOutputDir", "cleanOutputDir", "finalOutputDir"];
-    for (const pathKey of requiredPaths) {
-      if (typeof paths[pathKey] !== "string") {
-        errors.push(`Missing or invalid 'paths.${pathKey}' field`);
+    if (typeof paths.inputDir !== "string") {
+      errors.push("Missing or invalid 'paths.inputDir' field");
+    }
+    if (typeof paths.outputDir !== "string") {
+      errors.push("Missing or invalid 'paths.outputDir' field");
+    }
+  }
+
+  // Validate output (optional)
+  if ("output" in c && c.output !== undefined) {
+    if (typeof c.output !== "object" || c.output === null) {
+      errors.push("Invalid 'output' field (must be an object)");
+    } else {
+      const output = c.output as Record<string, unknown>;
+      if ("addTimestamp" in output && typeof output.addTimestamp !== "boolean") {
+        errors.push("Invalid 'output.addTimestamp' field (must be boolean)");
+      }
+      if ("summaryWordCount" in output) {
+        if (typeof output.summaryWordCount !== "number" || output.summaryWordCount <= 0) {
+          errors.push("Invalid 'output.summaryWordCount' field (must be a positive number)");
+        }
       }
     }
   }

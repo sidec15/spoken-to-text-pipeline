@@ -36,10 +36,13 @@ export interface PipelineConfig {
   };
 
   paths: {
-    audioInputDir: string;
-    rawOutputDir: string;
-    cleanOutputDir: string;
-    finalOutputDir: string;
+    inputDir: string; // Audio input directory
+    outputDir: string; // Base output directory (all outputs go here)
+  };
+
+  output?: {
+    addTimestamp?: boolean; // Add yyyyMMddHHmmss suffix to outputDir (default: false)
+    summaryWordCount?: number; // Target word count for summary (default: 1000)
   };
 
   asr: {

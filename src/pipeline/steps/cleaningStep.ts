@@ -4,6 +4,7 @@ import type { Step, StepContext } from "../step.js";
 import { OpenAiService } from "../../services/ai/openai/openaiAiService.js";
 import { loadContextText } from "../../utils/loadContextText.js";
 import { resolveOpenAiConfig } from "../../services/ai/openai/resolveOpenAiConfig.js";
+import { resolveOutputDir } from "../../utils/resolveOutputDir.js";
 
 export class CleaningStep implements Step {
   readonly name = "cleaning";
@@ -13,13 +14,12 @@ export class CleaningStep implements Step {
 
     logger.info("Starting Cleaning step");
 
-    const inputDir = config.paths.rawOutputDir;
-    const outputDir = config.paths.cleanOutputDir;
+    const outputDir = resolveOutputDir(config);
 
     fs.mkdirSync(outputDir, { recursive: true });
 
     const rawFiles = fs
-      .readdirSync(inputDir)
+      .readdirSync(outputDir)
       .filter((f) => f.endsWith(".txt"))
       .sort();
 
@@ -57,7 +57,7 @@ export class CleaningStep implements Step {
     for (let i = 0; i < filesToProcess.length; i++) {
       const file = filesToProcess[i];
       const base = path.parse(file).name;
-      const inputPath = path.join(inputDir, file);
+      const inputPath = path.join(outputDir, file);
       const outputPath = path.join(outputDir, `${base}.md`);
 
       const fileLogger = logger.withContext({ file });

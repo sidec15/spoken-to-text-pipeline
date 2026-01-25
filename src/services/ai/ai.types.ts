@@ -1,6 +1,13 @@
 export interface AiGenerateOptions {
-  systemPrompt?: string;
+  systemPrompt: string;
+
+  // Optional reference-only inputs
+  manualContextText?: string;
+  previousOutputExcerpt?: string;
+
+  // Mandatory
   userPrompt: string;
+
   temperature?: number;
   maxTokens?: number;
 }

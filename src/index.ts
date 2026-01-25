@@ -6,6 +6,7 @@ import { PipelineRunner } from "./pipeline/pipelineRunner.js";
 import { LoadProfileStep } from "./pipeline/steps/loadProfileStep.js";
 import { CliProgressReporter } from "./services/cliProgressReporter.js";
 import { AsrStep } from "./pipeline/steps/asrStep.js";
+import { CleaningStep } from "./pipeline/steps/cleaningStep.js";
 
 async function main(): Promise<void> {
   const config = loadConfig("pipeline.config.json");
@@ -19,6 +20,7 @@ async function main(): Promise<void> {
   const runner = new PipelineRunner([
     new LoadProfileStep(),
     new AsrStep(),
+    new CleaningStep(),
     // next steps will go here
   ]);
 

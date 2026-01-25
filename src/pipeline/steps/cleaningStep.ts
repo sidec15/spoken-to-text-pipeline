@@ -18,7 +18,10 @@ export class CleaningStep implements Step {
 
     fs.mkdirSync(outputDir, { recursive: true });
 
-    const rawFiles = fs.readdirSync(inputDir).filter((f) => f.endsWith(".txt"));
+    const rawFiles = fs
+      .readdirSync(inputDir)
+      .filter((f) => f.endsWith(".txt"))
+      .sort();
 
     if (rawFiles.length === 0) {
       logger.warn("No raw transcripts found, skipping Cleaning step");
@@ -48,7 +51,11 @@ export class CleaningStep implements Step {
 
     progress?.start(filesToProcess.length, "Cleaning transcripts");
 
-    for (const file of filesToProcess) {
+    // Track the last cleaned file to provide continuity between sequential processing
+    let lastCleanedPath: string | undefined;
+
+    for (let i = 0; i < filesToProcess.length; i++) {
+      const file = filesToProcess[i];
       const base = path.parse(file).name;
       const inputPath = path.join(inputDir, file);
       const outputPath = path.join(outputDir, `${base}.md`);
@@ -57,13 +64,28 @@ export class CleaningStep implements Step {
 
       const rawText = fs.readFileSync(inputPath, "utf-8");
 
-      const userPrompt = `
-Context:
-${contextText}
+      // Load previous cleaned excerpt from the file cleaned in the previous iteration
+      // This provides context from the immediately previous cleaned file to maintain style consistency
+      let previousOutputExcerpt: string | undefined;
+      if (lastCleanedPath && fs.existsSync(lastCleanedPath)) {
+        const previousCleanedText = fs.readFileSync(lastCleanedPath, "utf-8");
+        // Take the last ~2000 characters as excerpt (roughly last paragraph/section)
+        // This provides context without overwhelming the prompt with full history
+        previousOutputExcerpt = previousCleanedText.slice(-2000).trim() || undefined;
+      } else {
+        // If no previous file was cleaned in this run, check if there's a previous file in sequence
+        const currentFileIndex = rawFiles.indexOf(file);
+        if (currentFileIndex > 0) {
+          const previousFile = rawFiles[currentFileIndex - 1];
+          const previousBase = path.parse(previousFile).name;
+          const previousCleanedPath = path.join(outputDir, `${previousBase}.md`);
 
-Transcript:
-${rawText}
-      `.trim();
+          if (fs.existsSync(previousCleanedPath)) {
+            const previousCleanedText = fs.readFileSync(previousCleanedPath, "utf-8");
+            previousOutputExcerpt = previousCleanedText.slice(-2000).trim() || undefined;
+          }
+        }
+      }
 
       // Estimate maxTokens based on input length
       // Rough estimate: 1 token ≈ 4 characters
@@ -73,14 +95,20 @@ ${rawText}
       const maxTokens = aiOptions.maxTokens ?? calculatedMaxTokens; // Use override if provided, otherwise calculated
 
       const cleaned = await aiService.generateTextAsync({
-        ...aiOptions,
-        userPrompt,
+        systemPrompt: aiOptions.systemPrompt,
+        manualContextText: contextText || undefined,
+        previousOutputExcerpt,
+        userPrompt: rawText,
+        temperature: aiOptions.temperature,
         maxTokens,
       });
 
       await fs.promises.writeFile(outputPath, cleaned, "utf-8");
 
-      fileLogger.info(`Cleaned transcript saved to '${outputPath}'`);
+      // Update the last cleaned path for the next iteration
+      lastCleanedPath = outputPath;
+
+      fileLogger.debug(`Cleaned transcript saved to '${outputPath}'`);
       progress?.increment();
     }
 

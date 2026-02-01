@@ -8,6 +8,7 @@ import { CliProgressReporter } from "./services/cliProgressReporter.js";
 import { AsrStep } from "./pipeline/steps/asrStep.js";
 import { CleaningStep } from "./pipeline/steps/cleaningStep.js";
 import { HandoutStep } from "./pipeline/steps/handoutStep.js";
+import { SummaryStep } from "./pipeline/steps/summaryStep.js";
 
 async function main(): Promise<void> {
   const config = loadConfig("pipeline.config.json");
@@ -23,7 +24,7 @@ async function main(): Promise<void> {
     new AsrStep(),
     new CleaningStep(),
     new HandoutStep(),
-    // Summary step will go here
+    new SummaryStep(),
   ]);
 
   await runner.run({ config, logger, progress: new CliProgressReporter() });

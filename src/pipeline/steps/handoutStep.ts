@@ -97,20 +97,16 @@ export class HandoutStep implements Step {
       );
     } else {
       // Single pass - process all content at once
-      progress?.start(1, "Generating handout");
+      logger.info("Processing input content in a single pass");
       handout = await aiService.generateTextAsync({
         systemPrompt: aiOptions.systemPrompt,
         userPrompt: mergedContent,
         temperature: aiOptions.temperature,
         maxTokens,
       });
-      progress?.increment();
     }
 
     await fs.promises.writeFile(handoutPath, handout, "utf-8");
-
-    // Progress bar is already incremented in chunking method or single pass
-    progress?.stop();
 
     logger.info(`Handout saved to '${handoutPath}'`);
   }
@@ -130,10 +126,6 @@ export class HandoutStep implements Step {
     maxTokens: number,
     progress?: StepContext["progress"],
   ): Promise<string> {
-    // Calculate chunk size (leave buffer for system prompt and output)
-    const CHUNK_SIZE_TOKENS = 80000; // Safe chunk size
-    const CHUNK_SIZE_CHARS = CHUNK_SIZE_TOKENS * 4; // Rough conversion
-
     logger.info(`Processing ${cleanedFiles.length} files in chunks`);
 
     // Read all file contents
@@ -142,12 +134,44 @@ export class HandoutStep implements Step {
       content: fs.readFileSync(path.join(outputDir, file), "utf-8"),
     }));
 
-    // Group files into chunks
+    const chunks = this.groupFilesIntoChunks(fileContents, logger, progress);
+    const chunkResults = await this.processChunks(
+      aiService,
+      aiOptions,
+      chunks,
+      maxTokens,
+      logger,
+      progress,
+    );
+
+    if (chunkResults.length === 1) {
+      return chunkResults[0];
+    }
+
+    return this.mergeChunkResults(aiService, aiOptions, chunkResults);
+  }
+
+  /**
+   * Groups files into chunks based on token limits.
+   */
+  private groupFilesIntoChunks(
+    fileContents: Array<{ name: string; content: string }>,
+    logger: StepContext["logger"],
+    progress?: StepContext["progress"],
+  ): Array<Array<{ name: string; content: string }>> {
+    const CHUNK_SIZE_TOKENS = 80000; // Safe chunk size
+    const CHUNK_SIZE_CHARS = CHUNK_SIZE_TOKENS * 4; // Rough conversion
+
     const chunks: Array<Array<(typeof fileContents)[0]>> = [];
     let currentChunk: typeof fileContents = [];
     let currentChunkSize = 0;
+    const totalFiles = fileContents.length;
 
-    for (const file of fileContents) {
+    // Start progress bar for grouping files
+    progress?.start(totalFiles, "Grouping files into chunks");
+
+    for (let i = 0; i < fileContents.length; i++) {
+      const file = fileContents[i];
       const fileSize = file.content.length;
       const separatorSize = 50; // Size of separator text
 
@@ -158,23 +182,40 @@ export class HandoutStep implements Step {
         chunks.push([...currentChunk]);
         currentChunk = [file];
         currentChunkSize = fileSize;
+        progress?.updateMessage(`Grouping files into chunks - Created ${chunks.length} chunk(s)`);
       } else {
         currentChunk.push(file);
         currentChunkSize += fileSize + separatorSize;
       }
+
+      progress?.increment();
     }
 
     if (currentChunk.length > 0) {
       chunks.push(currentChunk);
     }
 
+    progress?.stop();
     logger.info(`Split into ${chunks.length} chunks`);
 
+    return chunks;
+  }
+
+  /**
+   * Processes each chunk independently to generate handout sections.
+   */
+  private async processChunks(
+    aiService: OpenAiService,
+    aiOptions: { systemPrompt: string; temperature?: number },
+    chunks: Array<Array<{ name: string; content: string }>>,
+    maxTokens: number,
+    logger: StepContext["logger"],
+    progress?: StepContext["progress"],
+  ): Promise<string[]> {
     // Total steps: chunks + final merge (if multiple chunks)
     const totalSteps = chunks.length + (chunks.length > 1 ? 1 : 0);
     progress?.start(totalSteps, "Generating handout (chunking)");
 
-    // Process each chunk
     const chunkResults: string[] = [];
 
     for (let i = 0; i < chunks.length; i++) {
@@ -186,7 +227,6 @@ export class HandoutStep implements Step {
         })
         .join("\n\n");
 
-      logger.info(`Processing chunk ${i + 1}/${chunks.length} (${chunk.length} files)`);
       progress?.updateMessage(
         `Generating handout (chunking) - Chunk ${i + 1}/${chunks.length} (${chunk.length} files)`,
       );
@@ -202,21 +242,27 @@ export class HandoutStep implements Step {
       progress?.increment();
     }
 
-    // Merge chunk results
+    // Stop progress bar if single chunk (no merge needed)
     if (chunkResults.length === 1) {
-      return chunkResults[0];
+      progress?.stop();
     }
 
-    // Final pass: merge all chunk results into cohesive handout
-    if (chunkResults.length > 1) {
-      logger.info("Merging chunk results into final handout");
-      progress?.updateMessage("Generating handout (chunking) - Merging chunks");
-      const mergedChunks = chunkResults
-        .map((content, index) => `---\n## Chunk ${index + 1}\n\n${content}\n`)
-        .join("\n\n");
+    return chunkResults;
+  }
 
-      const finalHandout = await aiService.generateTextAsync({
-        systemPrompt: `You are merging multiple handout sections into a single, cohesive handout.
+  /**
+   * Merges multiple chunk results into a single cohesive handout.
+   */
+  private async mergeChunkResults(
+    aiService: OpenAiService,
+    aiOptions: { systemPrompt: string; temperature?: number },
+    chunkResults: string[],
+  ): Promise<string> {
+    const mergedChunks = chunkResults
+      .map((content, index) => `---\n## Chunk ${index + 1}\n\n${content}\n`)
+      .join("\n\n");
+
+    const mergeSystemPrompt = `You are merging multiple handout sections into a single, cohesive handout.
 
 The following sections were generated from different parts of a lecture.
 Your task is to:
@@ -226,16 +272,15 @@ Your task is to:
 4. Maintain the table of contents structure
 5. Preserve all important content
 
-Output a complete, unified handout with table of contents.`,
-        userPrompt: mergedChunks,
-        temperature: aiOptions.temperature,
-        maxTokens: Math.ceil((mergedChunks.length / 4) * 1.5),
-      });
+Output a complete, unified handout with table of contents.`;
 
-      progress?.increment();
-      return finalHandout;
-    }
+    const finalHandout = await aiService.generateTextAsync({
+      systemPrompt: mergeSystemPrompt,
+      userPrompt: mergedChunks,
+      temperature: aiOptions.temperature,
+      maxTokens: Math.ceil((mergedChunks.length / 4) * 1.5),
+    });
 
-    return chunkResults[0];
+    return finalHandout;
   }
 }

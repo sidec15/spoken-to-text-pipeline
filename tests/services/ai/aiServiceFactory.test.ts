@@ -139,6 +139,26 @@ describe('aiServiceFactory', () => {
       // Act & Assert
       expect(() => createAiService(config, 'cleaning')).toThrow(/Unsupported provider/);
     });
+
+    it('should throw error for missing DeepSeek provider', () => {
+      // Arrange
+      const config = createMockConfig();
+      config.ai.default.provider = 'deepseek';
+      config.ai.providers = { openai: { apiKey: 'sk-test' } };
+
+      // Act & Assert
+      expect(() => createAiService(config, 'cleaning')).toThrow(/DeepSeek provider not configured/);
+    });
+
+    it('should throw error for unsupported AI provider in createAiService', () => {
+      // Arrange
+      const config = createMockConfig();
+      config.ai.default.provider = 'invalid-provider' as any;
+      config.ai.providers = { invalid: { apiKey: 'test' } as any };
+
+      // Act & Assert
+      expect(() => createAiService(config, 'cleaning')).toThrow(/Unsupported provider/);
+    });
   });
 
   describe('resolveAiConfig', () => {

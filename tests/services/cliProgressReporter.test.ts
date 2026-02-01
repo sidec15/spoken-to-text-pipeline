@@ -116,4 +116,85 @@ describe('CliProgressReporter', () => {
     // Act & Assert - Should not throw
     expect(() => reporter.stop()).not.toThrow();
   });
+
+  it('should format progress bar correctly', async () => {
+    // Arrange
+    const mockSingleBarCtor = jest.fn().mockImplementation(() => ({
+      start: mockStart,
+      increment: mockIncrement,
+      update: mockUpdate,
+      stop: mockStop,
+      value: 0,
+    }));
+    
+    // Clear module cache and re-mock
+    jest.resetModules();
+    jest.unstable_mockModule('cli-progress', () => ({
+      default: {
+        SingleBar: mockSingleBarCtor,
+        Presets: {
+          shades_classic: {},
+        },
+      },
+      SingleBar: mockSingleBarCtor,
+      Presets: {
+        shades_classic: {},
+      },
+    }));
+
+    // Re-import to get new mock
+    const module = await import('../../src/services/cliProgressReporter.js');
+    const CliProgressReporter = module.CliProgressReporter;
+    const testReporter = new CliProgressReporter();
+
+    // Act
+    testReporter.start(100, 'Test message');
+
+    // Assert
+    expect(mockSingleBarCtor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        format: expect.any(Function),
+        clearOnComplete: true,
+      }),
+      {}
+    );
+  });
+
+  it('should update message and trigger redraw', async () => {
+    // Arrange
+    const mockBar = {
+      start: mockStart,
+      increment: mockIncrement,
+      update: mockUpdate,
+      stop: mockStop,
+      value: 50,
+    };
+    const mockSingleBarCtor = jest.fn().mockReturnValue(mockBar);
+    
+    // Clear module cache and re-mock
+    jest.resetModules();
+    jest.unstable_mockModule('cli-progress', () => ({
+      default: {
+        SingleBar: mockSingleBarCtor,
+        Presets: {
+          shades_classic: {},
+        },
+      },
+      SingleBar: mockSingleBarCtor,
+      Presets: {
+        shades_classic: {},
+      },
+    }));
+
+    // Re-import to get new mock
+    const module = await import('../../src/services/cliProgressReporter.js');
+    const CliProgressReporter = module.CliProgressReporter;
+    const testReporter = new CliProgressReporter();
+
+    testReporter.start(100, 'Initial');
+    testReporter.updateMessage('Updated');
+
+    // Assert
+    expect(mockUpdate).toHaveBeenCalledWith(50);
+  });
 });

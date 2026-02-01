@@ -410,5 +410,262 @@ describe('loadConfig', () => {
       expect(() => loadConfig(validConfigPath)).toThrow(/Config validation failed/);
       expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'profile' value/);
     });
+
+    it('should throw error when config is not an object', () => {
+      // Arrange
+      mockReadFileSync.mockReturnValue('"not an object"');
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Config must be an object/);
+    });
+
+    it('should throw error when config is null', () => {
+      // Arrange
+      mockReadFileSync.mockReturnValue('null');
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Config must be an object/);
+    });
+
+    it('should throw error for missing profile field', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      delete configObj.profile;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'profile' field/);
+    });
+
+    it('should throw error for missing language.input', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      delete configObj.language.input;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'language.input'/);
+    });
+
+    it('should throw error for missing language.output', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      delete configObj.language.output;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'language.output'/);
+    });
+
+    it('should throw error for missing logging.singleLine', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      delete configObj.logging.singleLine;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'logging.singleLine'/);
+    });
+
+    it('should throw error for missing paths.inputDir', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      delete configObj.paths.inputDir;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'paths.inputDir'/);
+    });
+
+    it('should throw error for missing paths.outputDir', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      delete configObj.paths.outputDir;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'paths.outputDir'/);
+    });
+
+    it('should throw error for invalid output.addTimestamp', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.output.addTimestamp = 'not-boolean';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'output.addTimestamp'/);
+    });
+
+    it('should throw error for invalid output.summaryWordCount', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.output.summaryWordCount = -1;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'output.summaryWordCount'/);
+    });
+
+    it('should throw error for missing asr.whisper', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      delete configObj.asr.whisper;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'asr.whisper'/);
+    });
+
+    it('should throw error for missing asr.whisper.serverUrl', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      delete configObj.asr.whisper.serverUrl;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'asr.whisper.serverUrl'/);
+    });
+
+    it('should throw error for invalid asr.whisper.vad', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.asr.whisper.vad = 'not-object';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'asr.whisper.vad'/);
+    });
+
+    it('should throw error for missing asr.whisper.vad.enabled', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.asr.whisper.vad = {};
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'asr.whisper.vad.enabled'/);
+    });
+
+    it('should throw error for invalid ai.providers.openai', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.ai.providers.openai = 'not-object';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'ai.providers.openai'/);
+    });
+
+    it('should throw error for missing ai.providers.openai.apiKey', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      delete configObj.ai.providers.openai.apiKey;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'ai.providers.openai.apiKey'/);
+    });
+
+    it('should throw error for invalid ai.default.provider', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.ai.default.provider = 'invalid';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'ai.default.provider'/);
+    });
+
+    it('should throw error for missing ai.default.model', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      delete configObj.ai.default.model;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'ai.default.model'/);
+    });
+
+    it('should throw error for invalid ai.default.overrides.temperature', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.ai.default.overrides = { temperature: 'not-number' };
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'ai.default.overrides.temperature'/);
+    });
+
+    it('should throw error for invalid ai.default.overrides.maxTokens', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.ai.default.overrides = { maxTokens: 'not-number' };
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'ai.default.overrides.maxTokens'/);
+    });
+
+    it('should throw error for invalid ai.steps field', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.ai.steps = 'not-object';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'ai.steps'/);
+    });
+
+    it('should throw error for invalid ai.steps.cleaning.provider', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.ai.steps.cleaning.provider = 'invalid';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'ai.steps.cleaning.provider'/);
+    });
+
+    it('should throw error when step provider not in providers pool', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.ai.steps.cleaning.provider = 'deepseek';
+      configObj.ai.providers = { openai: { apiKey: 'test' } };
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Step 'cleaning' provider 'deepseek' is not configured/);
+    });
+
+    it('should throw error for invalid ai.steps.cleaning.model', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.ai.steps.cleaning.model = 123;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'ai.steps.cleaning.model'/);
+    });
+
+    it('should throw error for invalid context field', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.context = 'not-object';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'context'/);
+    });
+
+    it('should throw error for invalid context.textSources array element', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.context = { textSources: [123, 'valid'] };
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'context.textSources\[0\]'/);
+    });
   });
 });

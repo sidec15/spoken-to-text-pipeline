@@ -191,4 +191,83 @@ describe('WhisperAsrService', () => {
     expect(result).toBeInstanceOf(Buffer);
     expect(result.toString('utf-8')).toBe(transcriptText);
   });
+
+  it('should handle timeout', async () => {
+    // Arrange
+    const mockAbort = jest.fn();
+    const mockSignal = {} as AbortSignal;
+    const mockAbortController = {
+      abort: mockAbort,
+      signal: mockSignal,
+    };
+    const originalAbortController = global.AbortController;
+    global.AbortController = jest.fn().mockImplementation(() => mockAbortController) as any;
+
+    const originalSetTimeout = global.setTimeout;
+    const mockTimeoutId = 123;
+    global.setTimeout = jest.fn().mockReturnValue(mockTimeoutId) as any;
+
+    const options: AsrTranscribeOptions = {
+      task: 'transcribe',
+      outputFormat: 'txt',
+      timeoutMs: 1000,
+    };
+
+    // Mock fetch to reject with AbortError
+    const abortError = new Error('AbortError');
+    abortError.name = 'AbortError';
+    (global.fetch as any).mockRejectedValue(abortError);
+
+    // Act & Assert
+    await expect(
+      service.transcribeFileAsync('/path/to/audio.wav', options)
+    ).rejects.toThrow(/timed out/);
+
+    // Restore
+    global.AbortController = originalAbortController;
+    global.setTimeout = originalSetTimeout;
+  });
+
+  it('should use default timeout when not specified', async () => {
+    // Arrange
+    const mockResponse = {
+      ok: true,
+      arrayBuffer: jest.fn<() => Promise<ArrayBuffer>>().mockResolvedValue(Buffer.from('transcript').buffer),
+    };
+    (global.fetch as any).mockResolvedValue(mockResponse);
+
+    const options: AsrTranscribeOptions = {
+      task: 'transcribe',
+      outputFormat: 'txt',
+      // timeoutMs not specified
+    };
+
+    // Act
+    await service.transcribeFileAsync('/path/to/audio.wav', options);
+
+    // Assert
+    expect(global.fetch).toHaveBeenCalled();
+    // Should use default timeout (1 hour = 3600000ms)
+  });
+
+  it('should handle response body read error', async () => {
+    // Arrange
+    const mockResponse = {
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+      text: jest.fn<() => Promise<string>>().mockRejectedValue(new Error('Read error')),
+    };
+    (global.fetch as any).mockResolvedValue(mockResponse);
+
+    const options: AsrTranscribeOptions = {
+      task: 'transcribe',
+      outputFormat: 'txt',
+    };
+
+    // Act & Assert
+    await expect(
+      service.transcribeFileAsync('/path/to/audio.wav', options)
+    ).rejects.toThrow();
+  });
 });

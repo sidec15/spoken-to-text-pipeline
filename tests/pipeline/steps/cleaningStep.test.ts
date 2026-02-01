@@ -169,4 +169,125 @@ describe('CleaningStep', () => {
     expect(mockContext.progress.increment).toHaveBeenCalled();
     expect(mockContext.progress.stop).toHaveBeenCalled();
   });
+
+  it('should skip if no raw transcripts found', async () => {
+    // Arrange
+    mockReaddirSync.mockReturnValue([] as any);
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    expect(mockContext.logger.warn).toHaveBeenCalledWith(
+      'No raw transcripts found, skipping Cleaning step'
+    );
+    expect(mockCreateAiService).not.toHaveBeenCalled();
+  });
+
+  it('should skip if all transcripts already cleaned', async () => {
+    // Arrange
+    mockReaddirSync.mockReturnValue(['transcript1.txt'] as any);
+    mockExistsSync.mockReturnValue(true); // .md files already exist
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    expect(mockContext.logger.info).toHaveBeenCalledWith(
+      'All transcripts already cleaned, skipping'
+    );
+    expect(mockCreateAiService).not.toHaveBeenCalled();
+  });
+
+  it('should use previous output excerpt from last cleaned file', async () => {
+    // Arrange
+    mockReaddirSync.mockReturnValue(['transcript1.txt', 'transcript2.txt'] as any);
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('transcript1.md'); // First file already cleaned
+    });
+    mockReadFileSync
+      .mockReturnValueOnce('previous cleaned content with last 2000 chars')
+      .mockReturnValueOnce('raw transcript text');
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    // Should read previous cleaned file to get excerpt
+    expect(mockReadFileSync).toHaveBeenCalledWith(
+      expect.stringMatching(/transcript1\.md/),
+      'utf-8'
+    );
+    // Should pass previousOutputExcerpt to AI service
+    expect(mockGenerateTextAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        previousOutputExcerpt: expect.any(String),
+      })
+    );
+  });
+
+  it('should use previous file excerpt if no file was cleaned in this run', async () => {
+    // Arrange
+    mockReaddirSync.mockReturnValue(['transcript1.txt', 'transcript2.txt'] as any);
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('transcript1.md'); // Previous file exists but wasn't cleaned in this run
+    });
+    mockReadFileSync
+      .mockReturnValueOnce('previous cleaned content')
+      .mockReturnValueOnce('raw transcript text');
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    // Should read previous file to get excerpt
+    expect(mockReadFileSync).toHaveBeenCalledWith(
+      expect.stringMatching(/transcript1\.md/),
+      'utf-8'
+    );
+  });
+
+  it('should not use previous excerpt if no previous file exists', async () => {
+    // Arrange
+    mockReaddirSync.mockReturnValue(['transcript1.txt'] as any);
+    mockExistsSync.mockReturnValue(false);
+    mockReadFileSync.mockReturnValue('raw transcript text');
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    expect(mockGenerateTextAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        previousOutputExcerpt: undefined,
+      })
+    );
+  });
+
+  it('should calculate maxTokens based on input length', async () => {
+    // Arrange
+    const longText = 'x'.repeat(10000); // ~2500 tokens
+    mockReaddirSync.mockReturnValue(['transcript1.txt'] as any);
+    mockExistsSync.mockReturnValue(false);
+    mockReadFileSync.mockReturnValue(longText);
+    mockResolveAiConfig.mockReturnValue({
+      systemPrompt: 'Clean the text',
+      temperature: 0,
+      // maxTokens not provided, should be calculated
+    });
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    expect(mockGenerateTextAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        maxTokens: expect.any(Number),
+      })
+    );
+    // Should be approximately 2x input tokens (5000 tokens)
+    const call = mockGenerateTextAsync.mock.calls[0][0];
+    expect(call.maxTokens).toBeGreaterThan(4000);
+    expect(call.maxTokens).toBeLessThan(6000);
+  });
 });

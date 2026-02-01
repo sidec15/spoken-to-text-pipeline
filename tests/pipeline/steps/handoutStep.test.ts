@@ -176,4 +176,124 @@ describe('HandoutStep', () => {
       expect.stringContaining('skipped')
     );
   });
+
+  it('should skip if handout already exists', async () => {
+    // Arrange
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('handout.md'); // handout.md exists
+    });
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    expect(mockContext.logger.info).toHaveBeenCalledWith(
+      'Handout already exists, skipping Handout step'
+    );
+    expect(mockCreateAiService).not.toHaveBeenCalled();
+  });
+
+  it('should skip if no cleaned files found', async () => {
+    // Arrange
+    mockReaddirSync.mockReturnValue(['handout.md', 'summary.md'] as any);
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('handout.md') ? false : true;
+    });
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    expect(mockContext.logger.warn).toHaveBeenCalledWith(
+      'No cleaned transcript files found, skipping Handout step'
+    );
+    expect(mockCreateAiService).not.toHaveBeenCalled();
+  });
+
+  it('should sort files by numeric part correctly', async () => {
+    // Arrange
+    mockReaddirSync.mockReturnValue(['part-10.md', 'part-2.md', 'part-1.md'] as any);
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('handout.md') ? false : true;
+    });
+    mockReadFileSync.mockReturnValue('content');
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    // Verify files were read in correct order (part-1, part-2, part-10)
+    const readCalls = mockReadFileSync.mock.calls.filter((call: any[]) =>
+      call[0].includes('part-')
+    );
+    expect(readCalls.length).toBeGreaterThan(0);
+    // Check that part-1 was read before part-10
+    const part1Index = readCalls.findIndex((call: any[]) => call[0].includes('part-1.md'));
+    const part10Index = readCalls.findIndex((call: any[]) => call[0].includes('part-10.md'));
+    expect(part1Index).toBeLessThan(part10Index);
+  });
+
+  it('should use chunking strategy for large content', async () => {
+    // Arrange
+    const largeContent = 'x'.repeat(400000); // ~100K tokens (exceeds MAX_SAFE_INPUT_TOKENS)
+    mockReaddirSync.mockReturnValue(['part-1.md', 'part-2.md'] as any);
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('handout.md') ? false : true;
+    });
+    mockReadFileSync.mockReturnValue(largeContent);
+    mockResolveAiConfig.mockReturnValue({
+      systemPrompt: 'Create handout',
+      temperature: 0,
+      maxTokens: 150000,
+    });
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    expect(mockContext.logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('exceeds safe limit')
+    );
+    expect(mockContext.logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('chunks')
+    );
+  });
+
+  it('should handle files without numeric parts', async () => {
+    // Arrange
+    mockReaddirSync.mockReturnValue(['cleaned.md', 'other.md'] as any);
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('handout.md') ? false : true;
+    });
+    mockReadFileSync.mockReturnValue('content');
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    // Files without numbers should still be processed (sorted to end)
+    expect(mockReadFileSync).toHaveBeenCalled();
+  });
+
+  it('should filter out handout.md and summary.md from cleaned files', async () => {
+    // Arrange
+    mockReaddirSync.mockReturnValue(['part-1.md', 'handout.md', 'summary.md', 'part-2.md'] as any);
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('handout.md') ? false : true;
+    });
+    mockReadFileSync.mockReturnValue('content');
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    // Should only process part-1.md and part-2.md, not handout.md or summary.md
+    const readCalls = mockReadFileSync.mock.calls.filter((call: any[]) =>
+      call[0].includes('.md')
+    );
+    const handoutCall = readCalls.find((call: any[]) => call[0].includes('handout.md'));
+    const summaryCall = readCalls.find((call: any[]) => call[0].includes('summary.md'));
+    expect(handoutCall).toBeUndefined();
+    expect(summaryCall).toBeUndefined();
+  });
 });

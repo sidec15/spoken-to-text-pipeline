@@ -139,4 +139,102 @@ describe('DeepSeekAiService', () => {
     // Assert
     expect(result).toBe('');
   });
+
+  it('should include manual context text when provided', async () => {
+    // Arrange
+    const options: AiGenerateOptions = {
+      systemPrompt: 'Test',
+      userPrompt: 'Test',
+      manualContextText: 'Reference context',
+    };
+    mockCreate.mockResolvedValue({
+      choices: [{ message: { content: 'Response' } }],
+    });
+
+    // Act
+    await service.generateTextAsync(options);
+
+    // Assert
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: 'user',
+            content: expect.stringContaining('MANUAL CONTEXT'),
+          }),
+        ]),
+      })
+    );
+  });
+
+  it('should include previous output excerpt when provided', async () => {
+    // Arrange
+    const options: AiGenerateOptions = {
+      systemPrompt: 'Test',
+      userPrompt: 'Test',
+      previousOutputExcerpt: 'Previous output',
+    };
+    mockCreate.mockResolvedValue({
+      choices: [{ message: { content: 'Response' } }],
+    });
+
+    // Act
+    await service.generateTextAsync(options);
+
+    // Assert
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: 'user',
+            content: expect.stringContaining('PREVIOUS OUTPUT EXCERPT'),
+          }),
+        ]),
+      })
+    );
+  });
+
+  it('should not include manual context when empty', async () => {
+    // Arrange
+    const options: AiGenerateOptions = {
+      systemPrompt: 'Test',
+      userPrompt: 'Test',
+      manualContextText: '   ', // Whitespace only
+    };
+    mockCreate.mockResolvedValue({
+      choices: [{ message: { content: 'Response' } }],
+    });
+
+    // Act
+    await service.generateTextAsync(options);
+
+    // Assert
+    const messages = mockCreate.mock.calls[0][0].messages;
+    const hasManualContext = messages.some((m: any) =>
+      m.content?.includes('MANUAL CONTEXT')
+    );
+    expect(hasManualContext).toBe(false);
+  });
+
+  it('should not include previous excerpt when empty', async () => {
+    // Arrange
+    const options: AiGenerateOptions = {
+      systemPrompt: 'Test',
+      userPrompt: 'Test',
+      previousOutputExcerpt: '   ', // Whitespace only
+    };
+    mockCreate.mockResolvedValue({
+      choices: [{ message: { content: 'Response' } }],
+    });
+
+    // Act
+    await service.generateTextAsync(options);
+
+    // Assert
+    const messages = mockCreate.mock.calls[0][0].messages;
+    const hasPreviousExcerpt = messages.some((m: any) =>
+      m.content?.includes('PREVIOUS OUTPUT EXCERPT')
+    );
+    expect(hasPreviousExcerpt).toBe(false);
+  });
 });

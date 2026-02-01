@@ -180,4 +180,182 @@ describe('SummaryStep', () => {
     expect(mockContext.progress.increment).toHaveBeenCalled();
     expect(mockContext.progress.stop).toHaveBeenCalled();
   });
+
+  it('should skip if summary already exists', async () => {
+    // Arrange
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('summary.md'); // summary.md exists
+    });
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    expect(mockContext.logger.info).toHaveBeenCalledWith(
+      'Summary already exists, skipping Summary step'
+    );
+    expect(mockCreateAiService).not.toHaveBeenCalled();
+  });
+
+  it('should skip if no input content found for lecture profile', async () => {
+    // Arrange
+    mockConfig.profile = 'lecture';
+    mockReaddirSync.mockReturnValue([] as any);
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('summary.md') ? false : false; // handout.md doesn't exist
+    });
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    expect(mockContext.logger.warn).toHaveBeenCalledWith(
+      'Handout not found, cannot generate summary for lecture profile'
+    );
+    expect(mockCreateAiService).not.toHaveBeenCalled();
+  });
+
+  it('should skip if no cleaned files found for meeting profile', async () => {
+    // Arrange
+    mockConfig.profile = 'meeting';
+    mockReaddirSync.mockReturnValue(['handout.md', 'summary.md'] as any);
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('summary.md') ? false : true;
+    });
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    expect(mockContext.logger.warn).toHaveBeenCalledWith(
+      'No cleaned transcript files found, cannot generate summary'
+    );
+    expect(mockCreateAiService).not.toHaveBeenCalled();
+  });
+
+  it('should read handout.md for lecture profile', async () => {
+    // Arrange
+    mockConfig.profile = 'lecture';
+    mockReaddirSync.mockReturnValue(['handout.md'] as any);
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('summary.md') ? false : path.includes('handout.md');
+    });
+    mockReadFileSync.mockReturnValue('handout content');
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    expect(mockReadFileSync).toHaveBeenCalledWith(
+      expect.stringMatching(/handout\.md/),
+      'utf-8'
+    );
+    expect(mockContext.logger.info).toHaveBeenCalledWith(
+      'Reading handout.md for summary input'
+    );
+  });
+
+  it('should merge cleaned files for meeting profile', async () => {
+    // Arrange
+    mockConfig.profile = 'meeting';
+    mockReaddirSync.mockReturnValue(['part-1.md', 'part-2.md'] as any);
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('summary.md') ? false : true;
+    });
+    mockReadFileSync.mockReturnValue('part content');
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    expect(mockReadFileSync).toHaveBeenCalledTimes(2);
+    expect(mockContext.logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('cleaned transcript parts to merge')
+    );
+  });
+
+  it('should use chunking strategy for large content', async () => {
+    // Arrange
+    const largeContent = 'x'.repeat(400000); // ~100K tokens (exceeds MAX_SAFE_INPUT_TOKENS)
+    mockReaddirSync.mockReturnValue(['handout.md'] as any);
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('summary.md') ? false : true;
+    });
+    mockReadFileSync.mockReturnValue(largeContent);
+    mockResolveAiConfig.mockReturnValue({
+      systemPrompt: 'Create summary',
+      temperature: 0.2,
+      maxTokens: 1300,
+    });
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    expect(mockContext.logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('exceeds safe limit')
+    );
+    expect(mockContext.logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('chunks')
+    );
+  });
+
+  it('should enhance prompt with word count', async () => {
+    // Arrange
+    mockConfig.output = { summaryWordCount: 500 };
+    mockReaddirSync.mockReturnValue(['handout.md'] as any);
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('summary.md') ? false : true;
+    });
+    mockReadFileSync.mockReturnValue('handout content');
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    expect(mockGenerateTextAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        systemPrompt: expect.stringContaining('500 words'),
+      })
+    );
+  });
+
+  it('should use default word count if not specified', async () => {
+    // Arrange
+    mockReaddirSync.mockReturnValue(['handout.md'] as any);
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('summary.md') ? false : true;
+    });
+    mockReadFileSync.mockReturnValue('handout content');
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    expect(mockGenerateTextAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        systemPrompt: expect.stringContaining('1000 words'),
+      })
+    );
+  });
+
+  it('should sort files by numeric part for meeting profile', async () => {
+    // Arrange
+    mockConfig.profile = 'meeting';
+    mockReaddirSync.mockReturnValue(['part-10.md', 'part-2.md', 'part-1.md'] as any);
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('summary.md') ? false : true;
+    });
+    mockReadFileSync.mockReturnValue('content');
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    // Verify files were read in correct order
+    const readCalls = mockReadFileSync.mock.calls.filter((call: any[]) =>
+      call[0].includes('part-')
+    );
+    expect(readCalls.length).toBe(3);
+  });
 });

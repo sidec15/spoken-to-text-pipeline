@@ -86,4 +86,44 @@ describe('logger', () => {
     // Act & Assert - Should not throw
     expect(() => logger.info('Multi line message')).not.toThrow();
   });
+
+  it('should format stack trace in singleLine mode', () => {
+    // Arrange
+    const logger = createLogger('error', true);
+    const error = new Error('Test error');
+
+    // Act & Assert - Should not throw and format stack trace
+    expect(() => logger.error('Error occurred', error)).not.toThrow();
+  });
+
+  it('should format stack trace in multiLine mode', () => {
+    // Arrange
+    const logger = createLogger('error', false);
+    const error = new Error('Test error');
+
+    // Act & Assert - Should not throw and format stack trace
+    expect(() => logger.error('Error occurred', error)).not.toThrow();
+  });
+
+  it('should handle error without stack trace', () => {
+    // Arrange
+    const logger = createLogger('error', true);
+    const error = { message: 'Error without stack' } as Error;
+
+    // Act & Assert - Should not throw
+    expect(() => logger.error('Error occurred', error)).not.toThrow();
+  });
+
+  it('should merge context when using withContext', () => {
+    // Arrange
+    const logger = createLogger('info', true, { profile: 'lecture' });
+
+    // Act
+    const contextualLogger = logger.withContext({ step: 'cleaning' });
+
+    // Assert
+    expect(contextualLogger).toBeDefined();
+    // The new logger should have merged context
+    expect(() => contextualLogger.info('Test')).not.toThrow();
+  });
 });

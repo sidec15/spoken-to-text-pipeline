@@ -3,6 +3,7 @@ import path from "node:path";
 import type { Step, StepContext } from "../step.js";
 import { createAiService, resolveAiConfig } from "../../services/ai/aiServiceFactory.js";
 import { resolveOutputDir } from "../../utils/resolveOutputDir.js";
+import type { AiService } from "../../services/ai/ai.types.js";
 
 export class SummaryStep implements Step {
   readonly name = "summary";
@@ -67,12 +68,15 @@ export class SummaryStep implements Step {
     } else {
       // Single pass - process all content at once
       logger.info("Processing input content in a single pass");
+      progress?.start(1, "Generating summary");
       summary = await aiService.generateTextAsync({
         systemPrompt: enhancedSystemPrompt,
         userPrompt: inputContent,
         temperature: aiOptions.temperature,
         maxTokens,
       });
+      progress?.increment();
+      progress?.stop();
     }
 
     await fs.promises.writeFile(summaryPath, summary, "utf-8");
@@ -146,7 +150,7 @@ export class SummaryStep implements Step {
    * 2. Merge summaries into final cohesive summary
    */
   private async generateSummaryWithChunking(
-    aiService: OpenAiService,
+    aiService: AiService,
     aiOptions: { systemPrompt: string; temperature?: number },
     inputContent: string,
     wordCount: number,
@@ -230,7 +234,7 @@ export class SummaryStep implements Step {
    * Summarizes each chunk independently with proportional word count targets.
    */
   private async summarizeChunks(
-    aiService: OpenAiService,
+    aiService: AiService,
     aiOptions: { systemPrompt: string; temperature?: number },
     chunks: string[],
     wordCount: number,
@@ -275,7 +279,7 @@ export class SummaryStep implements Step {
    * Merges multiple chunk summaries into a single cohesive summary.
    */
   private async mergeChunkSummaries(
-    aiService: OpenAiService,
+    aiService: AiService,
     aiOptions: { systemPrompt: string; temperature?: number },
     chunkSummaries: string[],
     wordCount: number,

@@ -1,0 +1,69 @@
+{
+  "profile": "lecture",
+  "language": {
+    "input": "it",
+    "output": "it"
+  },
+  "logging": {
+    "level": "info",
+    "singleLine": true
+  },
+  "paths": {
+    "inputDir": "./input",
+    "outputDir": "./output"
+  },
+  "output": {
+    "addTimestamp": false,
+    "summaryWordCount": 1000
+  },
+  "asr": {
+    "provider": "whisper",
+    "whisper": {
+      "serverUrl": "http://localhost:9000/asr",
+      "vad": {
+        "enabled": true
+      }
+    }
+  },
+  "ai": {
+    "providers": {
+      "openai": {
+        "apiKey": "sk-test-key-12345"
+      },
+      "deepseek": {
+        "apiKey": "sk-deepseek-test-key-12345"
+      }
+    },
+    "default": {
+      "provider": "openai",
+      "model": "gpt-4o-mini"
+    },
+    "steps": {
+      "cleaning": {
+        "provider": "openai",
+        "model": "gpt-4o-mini"
+      }
+    }
+  },
+  "profiles": {
+    "lecture": {
+      "prompts": {
+        "cleaning": "Clean lecture transcript",
+        "handout": "Create handout from cleaned transcript",
+        "summary": "Create summary from handout"
+      }
+    },
+    "meeting": {
+      "prompts": {
+        "cleaning": "Clean meeting transcript",
+        "summary": "Create meeting summary"
+      }
+    },
+    "other": {
+      "prompts": {
+        "cleaning": "Clean transcript",
+        "summary": "Create summary"
+      }
+    }
+  }
+}

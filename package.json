@@ -30,13 +30,21 @@
     "build": "tsc",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --passWithNoTests",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
+    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage --passWithNoTests",
+    "test:ci": "node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --coverage --maxWorkers=2"
   },
   "devDependencies": {
+    "@jest/globals": "^30.2.0",
     "@types/cli-progress": "^3.11.6",
+    "@types/jest": "^30.0.0",
     "@types/node": "^25.0.9",
+    "jest": "^30.2.0",
     "prettier": "^3.8.0",
     "rimraf": "^6.1.2",
+    "ts-jest": "^29.4.6",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },

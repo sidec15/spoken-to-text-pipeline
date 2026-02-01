@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Step, StepContext } from "../step.js";
-import { OpenAiService } from "../../services/ai/openai/openaiAiService.js";
-import { resolveOpenAiConfig } from "../../services/ai/openai/resolveOpenAiConfig.js";
+import type { AiService } from "../../services/ai/ai.types.js";
+import { createAiService, resolveAiConfig } from "../../services/ai/aiServiceFactory.js";
 import { resolveOutputDir } from "../../utils/resolveOutputDir.js";
 
 export class HandoutStep implements Step {
@@ -62,18 +62,13 @@ export class HandoutStep implements Step {
     const estimatedInputTokens = Math.ceil(mergedContent.length / 4);
     logger.info(`Estimated input tokens: ${estimatedInputTokens}`);
 
-    const aiOptions = resolveOpenAiConfig(config, "handout");
+    const aiOptions = resolveAiConfig(config, "handout");
 
     // Conservative context limit: most models support at least 100K tokens
     // Reserve space for system prompt (~500 tokens) and output buffer
     const MAX_SAFE_INPUT_TOKENS = 90000; // Leave room for system prompt and output
 
-    const aiService =
-      config.ai.provider === "openai" && "openai" in config.ai.config
-        ? new OpenAiService(config.ai.config.openai.apiKey, config.ai.config.openai.model)
-        : (() => {
-            throw new Error("Unsupported AI provider");
-          })();
+    const aiService = createAiService(config);
 
     // Estimate maxTokens based on input length
     // For handout, output is typically similar or slightly longer than input
@@ -118,7 +113,7 @@ export class HandoutStep implements Step {
    * 2. Reorganize and merge into final handout
    */
   private async generateHandoutWithChunking(
-    aiService: OpenAiService,
+    aiService: AiService,
     aiOptions: { systemPrompt: string; temperature?: number },
     cleanedFiles: string[],
     outputDir: string,
@@ -205,7 +200,7 @@ export class HandoutStep implements Step {
    * Processes each chunk independently to generate handout sections.
    */
   private async processChunks(
-    aiService: OpenAiService,
+    aiService: AiService,
     aiOptions: { systemPrompt: string; temperature?: number },
     chunks: Array<Array<{ name: string; content: string }>>,
     maxTokens: number,
@@ -254,7 +249,7 @@ export class HandoutStep implements Step {
    * Merges multiple chunk results into a single cohesive handout.
    */
   private async mergeChunkResults(
-    aiService: OpenAiService,
+    aiService: AiService,
     aiOptions: { systemPrompt: string; temperature?: number },
     chunkResults: string[],
   ): Promise<string> {

@@ -129,8 +129,8 @@ function validateConfig(config: unknown, configPath: string): asserts config is 
     errors.push("Missing or invalid 'ai' field");
   } else {
     const ai = c.ai as Record<string, unknown>;
-    if (typeof ai.provider !== "string" || !["cursor", "openai"].includes(ai.provider)) {
-      errors.push("Missing or invalid 'ai.provider' field (must be: cursor or openai)");
+    if (typeof ai.provider !== "string" || !["openai", "deepseek"].includes(ai.provider)) {
+      errors.push("Missing or invalid 'ai.provider' field (must be: openai or deepseek)");
     }
     if (!("config" in ai) || typeof ai.config !== "object" || ai.config === null) {
       errors.push("Missing or invalid 'ai.config' field");
@@ -148,16 +148,16 @@ function validateConfig(config: unknown, configPath: string): asserts config is 
             errors.push("Missing or invalid 'ai.config.openai.model' field");
           }
         }
-      } else if (ai.provider === "cursor") {
-        if (!("cursor" in aiConfig) || typeof aiConfig.cursor !== "object" || aiConfig.cursor === null) {
-          errors.push("Missing or invalid 'ai.config.cursor' field");
+      } else if (ai.provider === "deepseek") {
+        if (!("deepseek" in aiConfig) || typeof aiConfig.deepseek !== "object" || aiConfig.deepseek === null) {
+          errors.push("Missing or invalid 'ai.config.deepseek' field");
         } else {
-          const cursor = aiConfig.cursor as Record<string, unknown>;
-          if (typeof cursor.cliPath !== "string") {
-            errors.push("Missing or invalid 'ai.config.cursor.cliPath' field");
+          const deepseek = aiConfig.deepseek as Record<string, unknown>;
+          if (typeof deepseek.apiKey !== "string") {
+            errors.push("Missing or invalid 'ai.config.deepseek.apiKey' field");
           }
-          if (typeof cursor.workspace !== "string") {
-            errors.push("Missing or invalid 'ai.config.cursor.workspace' field");
+          if (typeof deepseek.model !== "string") {
+            errors.push("Missing or invalid 'ai.config.deepseek.model' field");
           }
         }
       }

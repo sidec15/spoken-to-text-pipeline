@@ -9,7 +9,7 @@ export type SupportedProfile = "lecture" | "meeting" | "other";
 /**
  * Supported AI providers for text processing steps (cleaning, handout, summary).
  */
-export type SupportedAiProvider = "cursor" | "openai";
+export type SupportedAiProvider = "openai" | "deepseek";
 
 /**
  * Supported ASR (Automatic Speech Recognition) providers.
@@ -43,9 +43,35 @@ export interface OpenAiConfig {
 }
 
 /**
+ * Configuration for DeepSeek provider.
+ */
+export interface DeepSeekConfig {
+  deepseek: {
+    /** DeepSeek API key */
+    apiKey: string;
+    /** DeepSeek model identifier (e.g., "deepseek-chat", "deepseek-reasoner") */
+    model: string;
+    /** Optional overrides for AI generation parameters */
+    overrides: {
+      /**
+       * Temperature for text generation (0-2).
+       * Lower values make output more deterministic, higher values more creative.
+       * Defaults to profile-specific preset values.
+       */
+      temperature?: number;
+      /**
+       * Maximum tokens in the generated output.
+       * If not specified, calculated based on input length and step type.
+       */
+      maxTokens?: number;
+    };
+  };
+}
+
+/**
  * Union type for AI provider configurations.
  */
-export type AiConfig = OpenAiConfig;
+export type AiConfig = OpenAiConfig | DeepSeekConfig;
 
 /**
  * Main pipeline configuration interface.

@@ -1,8 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Step, StepContext } from "../step.js";
-import { OpenAiService } from "../../services/ai/openai/openaiAiService.js";
-import { resolveOpenAiConfig } from "../../services/ai/openai/resolveOpenAiConfig.js";
+import { createAiService, resolveAiConfig } from "../../services/ai/aiServiceFactory.js";
 import { resolveOutputDir } from "../../utils/resolveOutputDir.js";
 
 export class SummaryStep implements Step {
@@ -34,7 +33,7 @@ export class SummaryStep implements Step {
     const estimatedInputTokens = Math.ceil(inputContent.length / 4);
     logger.info(`Estimated input tokens: ${estimatedInputTokens}`);
 
-    const aiOptions = resolveOpenAiConfig(config, "summary");
+    const aiOptions = resolveAiConfig(config, "summary");
     const wordCount = config.output?.summaryWordCount ?? 1000;
 
     // Enhance system prompt with word count target
@@ -44,12 +43,7 @@ export class SummaryStep implements Step {
     // Reserve space for system prompt (~500 tokens) and output buffer
     const MAX_SAFE_INPUT_TOKENS = 90000; // Leave room for system prompt and output
 
-    const aiService =
-      config.ai.provider === "openai" && "openai" in config.ai.config
-        ? new OpenAiService(config.ai.config.openai.apiKey, config.ai.config.openai.model)
-        : (() => {
-            throw new Error("Unsupported AI provider");
-          })();
+    const aiService = createAiService(config);
 
     // Estimate maxTokens based on word count target (roughly 1 word ≈ 1.3 tokens)
     const targetTokens = Math.ceil(wordCount * 1.3);

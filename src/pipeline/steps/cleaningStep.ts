@@ -1,9 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Step, StepContext } from "../step.js";
-import { OpenAiService } from "../../services/ai/openai/openaiAiService.js";
+import { createAiService, resolveAiConfig } from "../../services/ai/aiServiceFactory.js";
 import { loadContextText } from "../../utils/loadContextText.js";
-import { resolveOpenAiConfig } from "../../services/ai/openai/resolveOpenAiConfig.js";
 import { resolveOutputDir } from "../../utils/resolveOutputDir.js";
 
 export class CleaningStep implements Step {
@@ -38,14 +37,8 @@ export class CleaningStep implements Step {
       return;
     }
 
-    const aiOptions = resolveOpenAiConfig(config, "cleaning");
-
-    const aiService =
-      config.ai.provider === "openai" && "openai" in config.ai.config
-        ? new OpenAiService(config.ai.config.openai.apiKey, config.ai.config.openai.model)
-        : (() => {
-            throw new Error("Unsupported AI provider");
-          })();
+    const aiOptions = resolveAiConfig(config, "cleaning");
+    const aiService = createAiService(config);
 
     const contextText = loadContextText(config.context?.textSources);
 

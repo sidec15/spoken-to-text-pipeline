@@ -1,13 +1,16 @@
-import type { PipelineConfig } from "../../../config/config.types.js";
-import type { AiGenerateOptions } from "../ai.types.js";
+import type { PipelineConfig } from "./config.types.js";
+import type { AiGenerateOptions } from "../services/ai/ai.types.js";
 
 export type AiStepName = "cleaning" | "handout" | "summary";
 
-export const DEEPSEEK_PROFILE_PRESETS: Record<
+/**
+ * Default AI presets organized by profile and step.
+ * These are provider-agnostic defaults that can be overridden via config.
+ */
+export const AI_PROFILE_PRESETS: Record<
   PipelineConfig["profile"],
   Partial<Record<AiStepName, Omit<AiGenerateOptions, "userPrompt">>>
 > = {
-  // todo_here: is it needed to have presetps per provider? Maybe we can have presets only per profile?
   lecture: {
     cleaning: {
       temperature: 0,

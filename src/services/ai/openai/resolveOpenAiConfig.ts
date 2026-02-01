@@ -1,6 +1,6 @@
 import type { PipelineConfig } from "../../../config/config.types.js";
 import type { AiGenerateOptions } from "../ai.types.js";
-import { OPENAI_PROFILE_PRESETS } from "./openai.presets.js";
+import { AI_PROFILE_PRESETS } from "../../../config/profilePresets.js";
 
 export function resolveOpenAiConfig(
   config: PipelineConfig,
@@ -10,7 +10,7 @@ export function resolveOpenAiConfig(
     throw new Error("AI provider is not OpenAI");
   }
 
-  const preset = OPENAI_PROFILE_PRESETS[config.profile]?.[step];
+  const preset = AI_PROFILE_PRESETS[config.profile]?.[step];
 
   if (!preset) {
     throw new Error(

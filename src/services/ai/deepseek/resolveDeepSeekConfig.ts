@@ -1,6 +1,6 @@
 import type { PipelineConfig } from "../../../config/config.types.js";
 import type { AiGenerateOptions } from "../ai.types.js";
-import { DEEPSEEK_PROFILE_PRESETS } from "./deepseek.presets.js";
+import { AI_PROFILE_PRESETS } from "../../../config/profilePresets.js";
 
 export function resolveDeepSeekConfig(
   config: PipelineConfig,
@@ -10,7 +10,7 @@ export function resolveDeepSeekConfig(
     throw new Error("AI provider is not DeepSeek");
   }
 
-  const preset = DEEPSEEK_PROFILE_PRESETS[config.profile]?.[step];
+  const preset = AI_PROFILE_PRESETS[config.profile]?.[step];
 
   if (!preset) {
     throw new Error(

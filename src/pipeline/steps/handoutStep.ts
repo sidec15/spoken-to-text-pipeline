@@ -13,7 +13,9 @@ export class HandoutStep implements Step {
 
     // Handout is only for lecture profile
     if (config.profile !== "lecture") {
-      logger.info(`Handout step skipped for profile '${config.profile}' (only available for lecture)`);
+      logger.info(
+        `Handout step skipped for profile '${config.profile}' (only available for lecture)`,
+      );
       return;
     }
 
@@ -28,11 +30,18 @@ export class HandoutStep implements Step {
       return;
     }
 
-    // Read all cleaned files
+    // Read all cleaned files and sort by numeric part index
     const cleanedFiles = fs
       .readdirSync(outputDir)
       .filter((f) => f.endsWith(".md") && f !== "handout.md" && f !== "summary.md")
-      .sort();
+      .sort((a, b) => {
+        // Extract numeric part from filenames (e.g., "part-1.md" -> 1, "part-01.md" -> 1, "part-10.md" -> 10)
+        const extractNumber = (filename: string): number => {
+          const match = filename.match(/(\d+)/);
+          return match ? parseInt(match[1], 10) : Infinity;
+        };
+        return extractNumber(a) - extractNumber(b);
+      });
 
     if (cleanedFiles.length === 0) {
       logger.warn("No cleaned transcript files found, skipping Handout step");
@@ -58,8 +67,6 @@ export class HandoutStep implements Step {
     // Conservative context limit: most models support at least 100K tokens
     // Reserve space for system prompt (~500 tokens) and output buffer
     const MAX_SAFE_INPUT_TOKENS = 90000; // Leave room for system prompt and output
-    const estimatedSystemPromptTokens = Math.ceil(aiOptions.systemPrompt.length / 4);
-    const totalEstimatedTokens = estimatedInputTokens + estimatedSystemPromptTokens;
 
     const aiService =
       config.ai.provider === "openai" && "openai" in config.ai.config
@@ -136,7 +143,7 @@ export class HandoutStep implements Step {
     }));
 
     // Group files into chunks
-    const chunks: Array<Array<typeof fileContents[0]>> = [];
+    const chunks: Array<Array<(typeof fileContents)[0]>> = [];
     let currentChunk: typeof fileContents = [];
     let currentChunkSize = 0;
 
@@ -144,7 +151,10 @@ export class HandoutStep implements Step {
       const fileSize = file.content.length;
       const separatorSize = 50; // Size of separator text
 
-      if (currentChunkSize + fileSize + separatorSize > CHUNK_SIZE_CHARS && currentChunk.length > 0) {
+      if (
+        currentChunkSize + fileSize + separatorSize > CHUNK_SIZE_CHARS &&
+        currentChunk.length > 0
+      ) {
         chunks.push([...currentChunk]);
         currentChunk = [file];
         currentChunkSize = fileSize;
@@ -177,7 +187,9 @@ export class HandoutStep implements Step {
         .join("\n\n");
 
       logger.info(`Processing chunk ${i + 1}/${chunks.length} (${chunk.length} files)`);
-      progress?.updateMessage(`Generating handout (chunking) - Chunk ${i + 1}/${chunks.length} (${chunk.length} files)`);
+      progress?.updateMessage(
+        `Generating handout (chunking) - Chunk ${i + 1}/${chunks.length} (${chunk.length} files)`,
+      );
 
       const chunkHandout = await aiService.generateTextAsync({
         systemPrompt: aiOptions.systemPrompt,
@@ -199,7 +211,9 @@ export class HandoutStep implements Step {
     if (chunkResults.length > 1) {
       logger.info("Merging chunk results into final handout");
       progress?.updateMessage("Generating handout (chunking) - Merging chunks");
-      const mergedChunks = chunkResults.map((content, index) => `---\n## Chunk ${index + 1}\n\n${content}\n`).join("\n\n");
+      const mergedChunks = chunkResults
+        .map((content, index) => `---\n## Chunk ${index + 1}\n\n${content}\n`)
+        .join("\n\n");
 
       const finalHandout = await aiService.generateTextAsync({
         systemPrompt: `You are merging multiple handout sections into a single, cohesive handout.

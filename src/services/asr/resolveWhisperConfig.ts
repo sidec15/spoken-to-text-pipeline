@@ -16,7 +16,7 @@ export function resolveWhisperConfig(config: PipelineConfig): ResolvedWhisperCon
     options: {
       ...preset,
       ...overrides,
-      language: overrides.language ?? preset.language ?? config.language.input,
+      language: config.language.input,
     },
   };
 }

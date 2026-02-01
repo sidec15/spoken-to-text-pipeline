@@ -1,12 +1,13 @@
-import type { PipelineConfig } from "../../../config/config.types.js";
+import type { PipelineConfig, StepAiConfig } from "../../../config/config.types.js";
 import type { AiGenerateOptions } from "../ai.types.js";
 import { AI_PROFILE_PRESETS } from "../../../config/profilePresets.js";
 
 export function resolveOpenAiConfig(
   config: PipelineConfig,
   step: "cleaning" | "handout" | "summary",
+  stepConfig: StepAiConfig,
 ): Omit<AiGenerateOptions, "userPrompt"> {
-  if (config.ai.provider !== "openai") {
+  if (stepConfig.provider !== "openai") {
     throw new Error("AI provider is not OpenAI");
   }
 
@@ -14,12 +15,11 @@ export function resolveOpenAiConfig(
 
   if (!preset) {
     throw new Error(
-      `No OpenAI preset for profile '${config.profile}', step '${step}'. This step may not be supported for this profile.`,
+      `No preset for profile '${config.profile}', step '${step}'. This step may not be supported for this profile.`,
     );
   }
 
-  const overrides =
-    "openai" in config.ai.config ? config.ai.config.openai.overrides ?? {} : {};
+  const overrides = stepConfig.overrides ?? {};
 
   // Enhance system prompt with language.output instruction
   const languageInstruction = `\n\nIMPORTANT: All output must be in ${config.language.output}. Write all content, including headings, annotations, and any text, exclusively in ${config.language.output}.`;

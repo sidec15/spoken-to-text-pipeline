@@ -129,35 +129,119 @@ function validateConfig(config: unknown, configPath: string): asserts config is 
     errors.push("Missing or invalid 'ai' field");
   } else {
     const ai = c.ai as Record<string, unknown>;
-    if (typeof ai.provider !== "string" || !["openai", "deepseek"].includes(ai.provider)) {
-      errors.push("Missing or invalid 'ai.provider' field (must be: openai or deepseek)");
-    }
-    if (!("config" in ai) || typeof ai.config !== "object" || ai.config === null) {
-      errors.push("Missing or invalid 'ai.config' field");
+
+    // Validate providers pool
+    if (!("providers" in ai) || typeof ai.providers !== "object" || ai.providers === null) {
+      errors.push("Missing or invalid 'ai.providers' field");
     } else {
-      const aiConfig = ai.config as Record<string, unknown>;
-      if (ai.provider === "openai") {
-        if (!("openai" in aiConfig) || typeof aiConfig.openai !== "object" || aiConfig.openai === null) {
-          errors.push("Missing or invalid 'ai.config.openai' field");
+      const providers = ai.providers as Record<string, unknown>;
+      let hasAtLeastOneProvider = false;
+
+      if ("openai" in providers && providers.openai !== undefined) {
+        if (typeof providers.openai !== "object" || providers.openai === null) {
+          errors.push("Invalid 'ai.providers.openai' field (must be an object)");
         } else {
-          const openai = aiConfig.openai as Record<string, unknown>;
+          const openai = providers.openai as Record<string, unknown>;
           if (typeof openai.apiKey !== "string") {
-            errors.push("Missing or invalid 'ai.config.openai.apiKey' field");
-          }
-          if (typeof openai.model !== "string") {
-            errors.push("Missing or invalid 'ai.config.openai.model' field");
+            errors.push("Missing or invalid 'ai.providers.openai.apiKey' field");
+          } else {
+            hasAtLeastOneProvider = true;
           }
         }
-      } else if (ai.provider === "deepseek") {
-        if (!("deepseek" in aiConfig) || typeof aiConfig.deepseek !== "object" || aiConfig.deepseek === null) {
-          errors.push("Missing or invalid 'ai.config.deepseek' field");
+      }
+
+      if ("deepseek" in providers && providers.deepseek !== undefined) {
+        if (typeof providers.deepseek !== "object" || providers.deepseek === null) {
+          errors.push("Invalid 'ai.providers.deepseek' field (must be an object)");
         } else {
-          const deepseek = aiConfig.deepseek as Record<string, unknown>;
+          const deepseek = providers.deepseek as Record<string, unknown>;
           if (typeof deepseek.apiKey !== "string") {
-            errors.push("Missing or invalid 'ai.config.deepseek.apiKey' field");
+            errors.push("Missing or invalid 'ai.providers.deepseek.apiKey' field");
+          } else {
+            hasAtLeastOneProvider = true;
           }
-          if (typeof deepseek.model !== "string") {
-            errors.push("Missing or invalid 'ai.config.deepseek.model' field");
+        }
+      }
+
+      if (!hasAtLeastOneProvider) {
+        errors.push("At least one provider must be configured in 'ai.providers'");
+      }
+    }
+
+    // Validate default configuration
+    if (!("default" in ai) || typeof ai.default !== "object" || ai.default === null) {
+      errors.push("Missing or invalid 'ai.default' field");
+    } else {
+      const defaultConfig = ai.default as Record<string, unknown>;
+      if (typeof defaultConfig.provider !== "string" || !["openai", "deepseek"].includes(defaultConfig.provider)) {
+        errors.push("Missing or invalid 'ai.default.provider' field (must be: openai or deepseek)");
+      } else {
+        // Validate that default provider exists in providers pool
+        const providerName = defaultConfig.provider as string;
+        const providers = ai.providers as Record<string, unknown>;
+        if (!(providerName in providers) || providers[providerName] === undefined) {
+          errors.push(`Default provider '${providerName}' is not configured in 'ai.providers'`);
+        }
+      }
+      if (typeof defaultConfig.model !== "string") {
+        errors.push("Missing or invalid 'ai.default.model' field");
+      }
+      if ("overrides" in defaultConfig && defaultConfig.overrides !== undefined) {
+        if (typeof defaultConfig.overrides !== "object" || defaultConfig.overrides === null) {
+          errors.push("Invalid 'ai.default.overrides' field (must be an object)");
+        } else {
+          const overrides = defaultConfig.overrides as Record<string, unknown>;
+          if ("temperature" in overrides && typeof overrides.temperature !== "number") {
+            errors.push("Invalid 'ai.default.overrides.temperature' field (must be a number)");
+          }
+          if ("maxTokens" in overrides && typeof overrides.maxTokens !== "number") {
+            errors.push("Invalid 'ai.default.overrides.maxTokens' field (must be a number)");
+          }
+        }
+      }
+    }
+
+    // Validate step overrides (optional)
+    if ("steps" in ai && ai.steps !== undefined) {
+      if (typeof ai.steps !== "object" || ai.steps === null) {
+        errors.push("Invalid 'ai.steps' field (must be an object)");
+      } else {
+        const steps = ai.steps as Record<string, unknown>;
+        const validStepNames = ["cleaning", "handout", "summary"];
+
+        for (const stepName of validStepNames) {
+          if (stepName in steps && steps[stepName] !== undefined) {
+            const stepConfig = steps[stepName] as Record<string, unknown>;
+            const providers = ai.providers as Record<string, unknown>;
+
+            if ("provider" in stepConfig) {
+              if (typeof stepConfig.provider !== "string" || !["openai", "deepseek"].includes(stepConfig.provider)) {
+                errors.push(`Invalid 'ai.steps.${stepName}.provider' field (must be: openai or deepseek)`);
+              } else {
+                const providerName = stepConfig.provider as string;
+                if (!(providerName in providers) || providers[providerName] === undefined) {
+                  errors.push(`Step '${stepName}' provider '${providerName}' is not configured in 'ai.providers'`);
+                }
+              }
+            }
+
+            if ("model" in stepConfig && typeof stepConfig.model !== "string") {
+              errors.push(`Invalid 'ai.steps.${stepName}.model' field (must be a string)`);
+            }
+
+            if ("overrides" in stepConfig && stepConfig.overrides !== undefined) {
+              if (typeof stepConfig.overrides !== "object" || stepConfig.overrides === null) {
+                errors.push(`Invalid 'ai.steps.${stepName}.overrides' field (must be an object)`);
+              } else {
+                const overrides = stepConfig.overrides as Record<string, unknown>;
+                if ("temperature" in overrides && typeof overrides.temperature !== "number") {
+                  errors.push(`Invalid 'ai.steps.${stepName}.overrides.temperature' field (must be a number)`);
+                }
+                if ("maxTokens" in overrides && typeof overrides.maxTokens !== "number") {
+                  errors.push(`Invalid 'ai.steps.${stepName}.overrides.maxTokens' field (must be a number)`);
+                }
+              }
+            }
           }
         }
       }

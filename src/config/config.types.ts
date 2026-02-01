@@ -17,61 +17,75 @@ export type SupportedAiProvider = "openai" | "deepseek";
 export type SupportedAsrProvider = "whisper";
 
 /**
- * Configuration for OpenAI provider.
+ * AI provider pool configuration.
+ * Contains API keys for all providers that may be used.
  */
-export interface OpenAiConfig {
-  openai: {
+export interface AiProviderPool {
+  /** OpenAI provider configuration */
+  openai?: {
     /** OpenAI API key */
     apiKey: string;
-    /** OpenAI model identifier (e.g., "gpt-4", "gpt-3.5-turbo") */
-    model: string;
-    /** Optional overrides for AI generation parameters */
-    overrides: {
-      /**
-       * Temperature for text generation (0-2).
-       * Lower values make output more deterministic, higher values more creative.
-       * Defaults to profile-specific preset values.
-       */
-      temperature?: number;
-      /**
-       * Maximum tokens in the generated output.
-       * If not specified, calculated based on input length and step type.
-       */
-      maxTokens?: number;
-    };
   };
-}
-
-/**
- * Configuration for DeepSeek provider.
- */
-export interface DeepSeekConfig {
-  deepseek: {
+  /** DeepSeek provider configuration */
+  deepseek?: {
     /** DeepSeek API key */
     apiKey: string;
-    /** DeepSeek model identifier (e.g., "deepseek-chat", "deepseek-reasoner") */
-    model: string;
-    /** Optional overrides for AI generation parameters */
-    overrides: {
-      /**
-       * Temperature for text generation (0-2).
-       * Lower values make output more deterministic, higher values more creative.
-       * Defaults to profile-specific preset values.
-       */
-      temperature?: number;
-      /**
-       * Maximum tokens in the generated output.
-       * If not specified, calculated based on input length and step type.
-       */
-      maxTokens?: number;
-    };
   };
 }
 
 /**
- * Union type for AI provider configurations.
+ * Step-specific AI configuration.
+ * Defines provider, model, and optional parameter overrides for a step.
  */
-export type AiConfig = OpenAiConfig | DeepSeekConfig;
+export interface StepAiConfig {
+  /** AI provider to use */
+  provider: SupportedAiProvider;
+  /** Model identifier (e.g., "gpt-4o-mini", "deepseek-chat") */
+  model: string;
+  /** Optional overrides for AI generation parameters */
+  overrides?: {
+    /**
+     * Temperature for text generation (0-2).
+     * Lower values make output more deterministic, higher values more creative.
+     * Defaults to profile-specific preset values.
+     */
+    temperature?: number;
+    /**
+     * Maximum tokens in the generated output.
+     * If not specified, calculated based on input length and step type.
+     */
+    maxTokens?: number;
+  };
+}
+
+/**
+ * AI configuration for text processing steps.
+ */
+export interface AiConfig {
+  /**
+   * Provider pool containing API keys for all providers that may be used.
+   * At least one provider must be configured.
+   */
+  providers: AiProviderPool;
+  /**
+   * Default provider, model, and overrides to use for all steps.
+   * Used when a step doesn't have a specific override.
+   */
+  default: StepAiConfig;
+  /**
+   * Optional per-step overrides.
+   * Each step can override provider, model, or overrides.
+   * If not specified, the step uses the default configuration.
+   */
+  steps?: {
+    /** Override configuration for cleaning step */
+    cleaning?: Partial<StepAiConfig>;
+    /** Override configuration for handout step */
+    handout?: Partial<StepAiConfig>;
+    /** Override configuration for summary step */
+    summary?: Partial<StepAiConfig>;
+  };
+}
 
 /**
  * Main pipeline configuration interface.
@@ -239,13 +253,9 @@ export interface PipelineConfig {
 
   /**
    * AI provider configuration for text processing steps.
+   * Supports provider pool, default configuration, and per-step overrides.
    */
-  ai: {
-    /** AI provider to use for cleaning, handout, and summary steps */
-    provider: SupportedAiProvider;
-    /** Provider-specific configuration */
-    config: AiConfig;
-  };
+  ai: AiConfig;
 
   /**
    * Optional context configuration for improving AI processing.

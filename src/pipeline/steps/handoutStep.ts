@@ -68,7 +68,7 @@ export class HandoutStep implements Step {
     // Reserve space for system prompt (~500 tokens) and output buffer
     const MAX_SAFE_INPUT_TOKENS = 90000; // Leave room for system prompt and output
 
-    const aiService = createAiService(config);
+    const aiService = createAiService(config, "handout");
 
     // Estimate maxTokens based on input length
     // For handout, output is typically similar or slightly longer than input

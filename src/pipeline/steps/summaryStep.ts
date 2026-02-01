@@ -43,7 +43,7 @@ export class SummaryStep implements Step {
     // Reserve space for system prompt (~500 tokens) and output buffer
     const MAX_SAFE_INPUT_TOKENS = 90000; // Leave room for system prompt and output
 
-    const aiService = createAiService(config);
+    const aiService = createAiService(config, "summary");
 
     // Estimate maxTokens based on word count target (roughly 1 word ≈ 1.3 tokens)
     const targetTokens = Math.ceil(wordCount * 1.3);

@@ -38,7 +38,7 @@ export class CleaningStep implements Step {
     }
 
     const aiOptions = resolveAiConfig(config, "cleaning");
-    const aiService = createAiService(config);
+    const aiService = createAiService(config, "cleaning");
 
     const contextText = loadContextText(config.context?.textSources);
 

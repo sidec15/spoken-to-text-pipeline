@@ -168,4 +168,20 @@ describe('AsrStep', () => {
     expect(mockContext.logger.warn).toHaveBeenCalledWith('No audio files found, skipping ASR step');
     expect(mockContext.progress.start).not.toHaveBeenCalled();
   });
+
+  it('should skip when all audio files already transcribed', async () => {
+    // Arrange
+    mockReaddirSync.mockReturnValue(['audio1.wav', 'audio2.wav'] as any);
+    mockExistsSync.mockReturnValue(true); // All .txt files already exist
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    expect(mockContext.logger.info).toHaveBeenCalledWith(
+      'All audio files already transcribed, skipping ASR step'
+    );
+    expect(mockTranscribeFileAsync).not.toHaveBeenCalled();
+    expect(mockContext.progress.start).not.toHaveBeenCalled();
+  });
 });

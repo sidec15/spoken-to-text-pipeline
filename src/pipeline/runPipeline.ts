@@ -1,0 +1,75 @@
+import type { PipelineOptions, PipelineResult } from "../types.js";
+import { createLogger } from "../services/logger.js";
+import { PipelineRunner } from "./pipelineRunner.js";
+import { LoadProfileStep } from "./steps/loadProfileStep.js";
+import { AsrStep } from "./steps/asrStep.js";
+import { CleaningStep } from "./steps/cleaningStep.js";
+import { HandoutStep } from "./steps/handoutStep.js";
+import { SummaryStep } from "./steps/summaryStep.js";
+import type { ProgressReporter } from "../services/progress.js";
+
+/**
+ * No-op progress reporter for programmatic usage when no progress reporter is provided.
+ */
+class NoOpProgressReporter implements ProgressReporter {
+  start(): void {
+    // No-op
+  }
+  increment(): void {
+    // No-op
+  }
+  updateMessage(): void {
+    // No-op
+  }
+  stop(): void {
+    // No-op
+  }
+}
+
+/**
+ * Runs the spoken-to-text pipeline with the provided options.
+ *
+ * @param options - Pipeline options including config, logger, and progress reporter
+ * @returns Promise that resolves when the pipeline completes successfully
+ * @throws Error if the pipeline fails
+ */
+export async function runPipeline(options: PipelineOptions): Promise<PipelineResult> {
+  const { config, logger: providedLogger, progress: providedProgress } = options;
+
+  // Create logger if not provided
+  const logger =
+    providedLogger ??
+    createLogger({
+      level: config.logging.level,
+      singleLine: config.logging.singleLine,
+      baseContext: {
+        profile: config.profile,
+      },
+    });
+
+  // Create no-op progress reporter if not provided
+  const progress: ProgressReporter = providedProgress ?? new NoOpProgressReporter();
+
+  logger.info("Starting pipeline");
+
+  const runner = new PipelineRunner([
+    new LoadProfileStep(),
+    new AsrStep(),
+    new CleaningStep(),
+    new HandoutStep(),
+    new SummaryStep(),
+  ]);
+
+  try {
+    await runner.run({ config, logger, progress });
+    logger.info("Pipeline completed successfully");
+    return { success: true };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error("Pipeline failed", error);
+    return {
+      success: false,
+      error: errorMessage,
+    };
+  }
+}

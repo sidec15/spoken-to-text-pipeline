@@ -197,4 +197,94 @@ describe('CliProgressReporter', () => {
     // Assert
     expect(mockUpdate).toHaveBeenCalledWith(50);
   });
+
+  it('should format progress bar with correct percentage and bar', async () => {
+    // Arrange
+    let formatFn: any;
+    const mockSingleBarCtor = jest.fn().mockImplementation((options: any) => {
+      formatFn = options.format;
+      return {
+        start: mockStart,
+        increment: mockIncrement,
+        update: mockUpdate,
+        stop: mockStop,
+        value: 0,
+      };
+    });
+    
+    jest.resetModules();
+    jest.unstable_mockModule('cli-progress', () => ({
+      default: {
+        SingleBar: mockSingleBarCtor,
+        Presets: {
+          shades_classic: {},
+        },
+      },
+      SingleBar: mockSingleBarCtor,
+      Presets: {
+        shades_classic: {},
+      },
+    }));
+
+    // Re-import to get new mock
+    const module = await import('../../src/services/cliProgressReporter.js');
+    const CliProgressReporter = module.CliProgressReporter;
+    const testReporter = new CliProgressReporter();
+
+    // Act
+    testReporter.start(100, 'Test Progress');
+
+    // Assert
+    expect(formatFn).toBeDefined();
+    const formatted = formatFn({}, { value: 50, total: 100 });
+    expect(formatted).toContain('50%');
+    expect(formatted).toContain('50/100');
+    expect(formatted).toContain('Test Progress');
+  });
+
+  it('should handle format function with edge cases', async () => {
+    // Arrange
+    let formatFn: any;
+    const mockSingleBarCtor = jest.fn().mockImplementation((options: any) => {
+      formatFn = options.format;
+      return {
+        start: mockStart,
+        increment: mockIncrement,
+        update: mockUpdate,
+        stop: mockStop,
+        value: 0,
+      };
+    });
+    
+    jest.resetModules();
+    jest.unstable_mockModule('cli-progress', () => ({
+      default: {
+        SingleBar: mockSingleBarCtor,
+        Presets: {
+          shades_classic: {},
+        },
+      },
+      SingleBar: mockSingleBarCtor,
+      Presets: {
+        shades_classic: {},
+      },
+    }));
+
+    // Re-import to get new mock
+    const module = await import('../../src/services/cliProgressReporter.js');
+    const CliProgressReporter = module.CliProgressReporter;
+    const testReporter = new CliProgressReporter();
+
+    testReporter.start(100, 'Test');
+
+    // Act & Assert - Test format with 0 progress
+    const formattedZero = formatFn({}, { value: 0, total: 100 });
+    expect(formattedZero).toContain('0%');
+    expect(formattedZero).toContain('0/100');
+
+    // Act & Assert - Test format with 100% progress
+    const formattedComplete = formatFn({}, { value: 100, total: 100 });
+    expect(formattedComplete).toContain('100%');
+    expect(formattedComplete).toContain('100/100');
+  });
 });

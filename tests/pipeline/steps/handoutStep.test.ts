@@ -296,4 +296,62 @@ describe('HandoutStep', () => {
     expect(handoutCall).toBeUndefined();
     expect(summaryCall).toBeUndefined();
   });
+
+  it('should handle chunking when content exceeds token limits', async () => {
+    // Arrange
+    // Create content large enough to trigger chunking
+    // CHUNK_SIZE_CHARS = 80000 * 4 = 320000, so we need > 320000 chars
+    const largeContent = 'x'.repeat(400000);
+    mockReaddirSync.mockReturnValue(['part-1.md', 'part-2.md'] as any);
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('handout.md') ? false : true;
+    });
+    mockReadFileSync.mockReturnValue(largeContent);
+    mockResolveAiConfig.mockReturnValue({
+      systemPrompt: 'Create handout',
+      temperature: 0,
+      maxTokens: 150000,
+    });
+    // Mock chunk result
+    mockGenerateTextAsync.mockResolvedValue('chunk handout');
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    // Should use chunking strategy
+    expect(mockContext.logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('exceeds safe limit')
+    );
+    expect(mockWriteFile).toHaveBeenCalled();
+  });
+
+  it('should handle multiple chunks and merge', async () => {
+    // Arrange
+    // Create content large enough to trigger multiple chunks
+    const largeContent = 'x'.repeat(700000); // Large enough for multiple chunks
+    mockReaddirSync.mockReturnValue(['part-1.md', 'part-2.md', 'part-3.md'] as any);
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('handout.md') ? false : true;
+    });
+    mockReadFileSync.mockReturnValue(largeContent);
+    mockResolveAiConfig.mockReturnValue({
+      systemPrompt: 'Create handout',
+      temperature: 0,
+      maxTokens: 150000,
+    });
+    // Mock multiple chunk results and final merge
+    mockGenerateTextAsync
+      .mockResolvedValueOnce('chunk 1 handout')
+      .mockResolvedValueOnce('chunk 2 handout')
+      .mockResolvedValueOnce('merged final handout');
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    // Should call generateTextAsync multiple times (chunks + merge)
+    expect(mockGenerateTextAsync.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(mockWriteFile).toHaveBeenCalled();
+  });
 });

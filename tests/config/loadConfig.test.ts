@@ -667,5 +667,199 @@ describe('loadConfig', () => {
       // Act & Assert
       expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'context.textSources\[0\]'/);
     });
+
+    it('should throw error for invalid output field (not an object)', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.output = 'not-object';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'output' field \(must be an object\)/);
+    });
+
+    it('should throw error for missing ai.providers field', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      delete configObj.ai.providers;
+      // Also remove default and steps to avoid the code trying to access undefined providers
+      delete configObj.ai.default;
+      delete configObj.ai.steps;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      // The validation checks providers first (line 134-135)
+      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'ai.providers' field/);
+    });
+
+    it('should throw error for invalid ai.providers.deepseek field (not an object)', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.ai.providers.deepseek = 'not-object';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'ai.providers.deepseek' field \(must be an object\)/);
+    });
+
+    it('should throw error for missing ai.providers.deepseek.apiKey', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.ai.providers.deepseek = {};
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'ai.providers.deepseek.apiKey' field/);
+    });
+
+    it('should throw error for missing ai.default field', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      delete configObj.ai.default;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'ai.default' field/);
+    });
+
+    it('should throw error for invalid ai.default.overrides field (not an object)', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.ai.default.overrides = 'not-object';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'ai.default.overrides' field \(must be an object\)/);
+    });
+
+    it('should throw error for invalid ai.steps.cleaning.overrides field (not an object)', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.ai.steps.cleaning.overrides = 'not-object';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'ai.steps.cleaning.overrides' field \(must be an object\)/);
+    });
+
+    it('should throw error for invalid ai.steps.cleaning.overrides.temperature', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.ai.steps.cleaning.overrides = { temperature: 'not-number' };
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'ai.steps.cleaning.overrides.temperature' field \(must be a number\)/);
+    });
+
+    it('should throw error for invalid ai.steps.cleaning.overrides.maxTokens', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.ai.steps.cleaning.overrides = { maxTokens: 'not-number' };
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'ai.steps.cleaning.overrides.maxTokens' field \(must be a number\)/);
+    });
+
+    it('should throw error for missing profiles.lecture field', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      delete configObj.profiles.lecture;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'profiles.lecture' field/);
+    });
+
+    it('should throw error for missing profiles.meeting field', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      delete configObj.profiles.meeting;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'profiles.meeting' field/);
+    });
+
+    it('should throw error for missing profiles.other field', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      delete configObj.profiles.other;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'profiles.other' field/);
+    });
+
+    it('should throw error for missing profiles.lecture.prompts field', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      delete configObj.profiles.lecture.prompts;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'profiles.lecture.prompts' field/);
+    });
+
+    it('should throw error for missing profiles.meeting.prompts field', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      delete configObj.profiles.meeting.prompts;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'profiles.meeting.prompts' field/);
+    });
+
+    it('should throw error for missing profiles.other.prompts field', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      delete configObj.profiles.other.prompts;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'profiles.other.prompts' field/);
+    });
+
+    it('should throw error for missing profiles.meeting.prompts.cleaning', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      delete configObj.profiles.meeting.prompts.cleaning;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'profiles.meeting.prompts.cleaning' field/);
+    });
+
+    it('should throw error for missing profiles.meeting.prompts.summary', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      delete configObj.profiles.meeting.prompts.summary;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'profiles.meeting.prompts.summary' field/);
+    });
+
+    it('should throw error for missing profiles.other.prompts.cleaning', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      delete configObj.profiles.other.prompts.cleaning;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'profiles.other.prompts.cleaning' field/);
+    });
+
+    it('should throw error for missing profiles.other.prompts.summary', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      delete configObj.profiles.other.prompts.summary;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'profiles.other.prompts.summary' field/);
+    });
   });
 });

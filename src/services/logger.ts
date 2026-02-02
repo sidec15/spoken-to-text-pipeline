@@ -8,6 +8,17 @@ export interface LoggerContext {
   service?: string;
 }
 
+export interface LoggerOptions {
+  /** Minimum log level to display */
+  level?: string;
+  /** If true, logs are displayed in single-line format */
+  singleLine?: boolean;
+  /** Base context to include in all log messages */
+  baseContext?: LoggerContext;
+  /** If true, suppresses all log output. Defaults to checking NODE_ENV and JEST_WORKER_ID */
+  silent?: boolean;
+}
+
 export interface Logger {
   error(message: string, err?: unknown): void;
   warn(message: string): void;
@@ -17,11 +28,14 @@ export interface Logger {
   withContext(ctx: LoggerContext): Logger;
 }
 
-export function createLogger(
-  level: string = "info",
-  singleLine: boolean = true,
-  baseContext: LoggerContext = {},
-): Logger {
+export function createLogger(options: LoggerOptions = {}): Logger {
+  const {
+    level = "info",
+    singleLine = true,
+    baseContext = {},
+    silent = process.env.SILENT === 'true',
+  } = options;
+
   const format = winston.format.printf((info) => {
     const ctx = info.context ?? {};
     const ctxString = Object.entries(ctx)
@@ -47,12 +61,16 @@ export function createLogger(
       winston.format.colorize(),
       format,
     ),
-    transports: [new winston.transports.Console()],
+    transports: [
+      new winston.transports.Console({
+        silent,
+      }),
+    ],
   });
 
   function withContext(extra: LoggerContext): Logger {
     const merged = { ...baseContext, ...extra };
-    return createLogger(level, singleLine, merged);
+    return createLogger({ level, singleLine, baseContext: merged, silent });
   }
 
   return {

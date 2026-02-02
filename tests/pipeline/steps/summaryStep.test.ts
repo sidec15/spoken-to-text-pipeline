@@ -358,4 +358,93 @@ describe('SummaryStep', () => {
     );
     expect(readCalls.length).toBe(3);
   });
+
+  it('should return single chunk summary when only one chunk is generated', async () => {
+    // Arrange
+    const largeContent = 'x'.repeat(400000); // ~100K tokens
+    mockReaddirSync.mockReturnValue(['handout.md'] as any);
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('summary.md') ? false : true;
+    });
+    mockReadFileSync.mockReturnValue(largeContent);
+    mockResolveAiConfig.mockReturnValue({
+      systemPrompt: 'Create summary',
+      temperature: 0.2,
+      maxTokens: 1300,
+    });
+    // Mock to return single chunk summary (simulating chunking that results in one chunk)
+    mockGenerateTextAsync.mockResolvedValueOnce('single chunk summary');
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    expect(mockWriteFile).toHaveBeenCalledWith(
+      expect.stringContaining('summary.md'),
+      'single chunk summary',
+      'utf-8'
+    );
+  });
+
+  it('should merge multiple chunk summaries when content is very large', async () => {
+    // Arrange
+    // Create content large enough to trigger chunking with multiple chunks
+    // CHUNK_SIZE_CHARS = 80000 * 4 = 320000, so we need > 320000 chars for multiple chunks
+    // But the check is based on tokens (estimatedInputTokens > MAX_SAFE_INPUT_TOKENS = 90000)
+    // So we need > 90000 * 4 = 360000 chars to trigger chunking
+    // And then need enough to create multiple chunks (> 320000 per chunk)
+    const largeContent = 'x'.repeat(700000); // Large enough to create multiple chunks
+    mockReaddirSync.mockReturnValue(['handout.md'] as any);
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('summary.md') ? false : true;
+    });
+    mockReadFileSync.mockReturnValue(largeContent);
+    mockResolveAiConfig.mockReturnValue({
+      systemPrompt: 'Create summary',
+      temperature: 0.2,
+      maxTokens: 1300,
+    });
+    // Mock multiple chunk summaries and final merge
+    // The chunking will split into multiple chunks, each generating a summary, then merge
+    mockGenerateTextAsync
+      .mockResolvedValueOnce('chunk 1 summary')
+      .mockResolvedValueOnce('chunk 2 summary')
+      .mockResolvedValueOnce('merged final summary');
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    // Should use chunking strategy
+    expect(mockContext.logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('exceeds safe limit')
+    );
+    expect(mockWriteFile).toHaveBeenCalled();
+    // The actual number of calls depends on how many chunks are created
+    expect(mockGenerateTextAsync.mock.calls.length).toBeGreaterThan(0);
+  });
+
+  it('should handle progress updates during chunking', async () => {
+    // Arrange
+    const largeContent = 'x'.repeat(500000);
+    mockReaddirSync.mockReturnValue(['handout.md'] as any);
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('summary.md') ? false : true;
+    });
+    mockReadFileSync.mockReturnValue(largeContent);
+    mockResolveAiConfig.mockReturnValue({
+      systemPrompt: 'Create summary',
+      temperature: 0.2,
+      maxTokens: 1300,
+    });
+    mockGenerateTextAsync.mockResolvedValue('summary');
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    expect(mockContext.progress.start).toHaveBeenCalled();
+    expect(mockContext.progress.increment).toHaveBeenCalled();
+    expect(mockContext.progress.stop).toHaveBeenCalled();
+  });
 });

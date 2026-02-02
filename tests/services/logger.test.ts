@@ -18,7 +18,7 @@ describe('logger', () => {
 
   it('should log at different levels', () => {
     // Arrange
-    const logger = createLogger('debug');
+    const logger = createLogger({ level: 'debug' });
 
     // Act & Assert - Should not throw
     expect(() => logger.error('Error message')).not.toThrow();
@@ -30,7 +30,7 @@ describe('logger', () => {
 
   it('should create logger with context', () => {
     // Arrange
-    const logger = createLogger('info', true, { profile: 'lecture' });
+    const logger = createLogger({ level: 'info', singleLine: true, baseContext: { profile: 'lecture' } });
 
     // Act
     const contextualLogger = logger.withContext({ step: 'cleaning' });
@@ -42,7 +42,7 @@ describe('logger', () => {
 
   it('should format log messages', () => {
     // Arrange
-    const logger = createLogger('info', true);
+    const logger = createLogger({ level: 'info', singleLine: true });
 
     // Act & Assert - Should not throw when logging
     expect(() => {
@@ -52,7 +52,7 @@ describe('logger', () => {
 
   it('should handle error logging with error object', () => {
     // Arrange
-    const logger = createLogger('error');
+    const logger = createLogger({ level: 'error' });
     const error = new Error('Test error');
 
     // Act & Assert - Should not throw
@@ -61,7 +61,7 @@ describe('logger', () => {
 
   it('should respect log level', () => {
     // Arrange
-    const logger = createLogger('warn');
+    const logger = createLogger({ level: 'warn' });
 
     // Act & Assert - Should not throw
     expect(() => logger.error('Error')).not.toThrow();
@@ -73,7 +73,7 @@ describe('logger', () => {
 
   it('should support singleLine format', () => {
     // Arrange
-    const logger = createLogger('info', true);
+    const logger = createLogger({ level: 'info', singleLine: true });
 
     // Act & Assert - Should not throw
     expect(() => logger.info('Single line message')).not.toThrow();
@@ -81,7 +81,7 @@ describe('logger', () => {
 
   it('should support multiLine format', () => {
     // Arrange
-    const logger = createLogger('info', false);
+    const logger = createLogger({ level: 'info', singleLine: false });
 
     // Act & Assert - Should not throw
     expect(() => logger.info('Multi line message')).not.toThrow();
@@ -89,7 +89,7 @@ describe('logger', () => {
 
   it('should format stack trace in singleLine mode', () => {
     // Arrange
-    const logger = createLogger('error', true);
+    const logger = createLogger({ level: 'error', singleLine: true });
     const error = new Error('Test error');
 
     // Act & Assert - Should not throw and format stack trace
@@ -98,7 +98,7 @@ describe('logger', () => {
 
   it('should format stack trace in multiLine mode', () => {
     // Arrange
-    const logger = createLogger('error', false);
+    const logger = createLogger({ level: 'error', singleLine: false });
     const error = new Error('Test error');
 
     // Act & Assert - Should not throw and format stack trace
@@ -107,7 +107,7 @@ describe('logger', () => {
 
   it('should handle error without stack trace', () => {
     // Arrange
-    const logger = createLogger('error', true);
+    const logger = createLogger({ level: 'error', singleLine: true });
     const error = { message: 'Error without stack' } as Error;
 
     // Act & Assert - Should not throw
@@ -116,7 +116,7 @@ describe('logger', () => {
 
   it('should merge context when using withContext', () => {
     // Arrange
-    const logger = createLogger('info', true, { profile: 'lecture' });
+    const logger = createLogger({ level: 'info', singleLine: true, baseContext: { profile: 'lecture' } });
 
     // Act
     const contextualLogger = logger.withContext({ step: 'cleaning' });
@@ -125,5 +125,31 @@ describe('logger', () => {
     expect(contextualLogger).toBeDefined();
     // The new logger should have merged context
     expect(() => contextualLogger.info('Test')).not.toThrow();
+  });
+
+  it('should format stack trace correctly in singleLine mode', () => {
+    // Arrange
+    const logger = createLogger({ level: 'error', singleLine: true });
+    const error = new Error('Test error');
+    error.stack = 'Error: Test error\n    at test.js:1:1\n    at test.js:2:2';
+
+    // Act
+    logger.error('Error occurred', error);
+
+    // Assert - Should not throw and should format stack trace
+    expect(() => logger.error('Error occurred', error)).not.toThrow();
+  });
+
+  it('should format stack trace correctly in multiLine mode', () => {
+    // Arrange
+    const logger = createLogger({ level: 'error', singleLine: false });
+    const error = new Error('Test error');
+    error.stack = 'Error: Test error\n    at test.js:1:1\n    at test.js:2:2';
+
+    // Act
+    logger.error('Error occurred', error);
+
+    // Assert - Should not throw and should format stack trace
+    expect(() => logger.error('Error occurred', error)).not.toThrow();
   });
 });

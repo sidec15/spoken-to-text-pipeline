@@ -15,7 +15,11 @@ export function resolveStepConfig(
   config: PipelineConfig,
   step: AiStepName,
 ): StepAiConfig {
-  const defaultConfig = config.ai.default;
+  // Default to OpenAI gpt-5-mini if ai.default is not provided
+  const defaultConfig: StepAiConfig = config.ai.default ?? {
+    provider: "openai",
+    model: "gpt-5-mini",
+  };
   const stepOverride = config.ai.steps?.[step];
 
   // Merge default with step override

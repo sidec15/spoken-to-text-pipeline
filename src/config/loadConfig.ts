@@ -168,34 +168,36 @@ function validateConfig(config: unknown, configPath: string): asserts config is 
       }
     }
 
-    // Validate default configuration
-    if (!("default" in ai) || typeof ai.default !== "object" || ai.default === null) {
-      errors.push("Missing or invalid 'ai.default' field");
-    } else {
-      const defaultConfig = ai.default as Record<string, unknown>;
-      if (typeof defaultConfig.provider !== "string" || !["openai", "deepseek"].includes(defaultConfig.provider)) {
-        errors.push("Missing or invalid 'ai.default.provider' field (must be: openai or deepseek)");
+    // Validate default configuration (optional)
+    if ("default" in ai && ai.default !== undefined) {
+      if (typeof ai.default !== "object" || ai.default === null) {
+        errors.push("Invalid 'ai.default' field (must be an object)");
       } else {
-        // Validate that default provider exists in providers pool
-        const providerName = defaultConfig.provider as string;
-        const providers = ai.providers as Record<string, unknown>;
-        if (!(providerName in providers) || providers[providerName] === undefined) {
-          errors.push(`Default provider '${providerName}' is not configured in 'ai.providers'`);
-        }
-      }
-      if (typeof defaultConfig.model !== "string") {
-        errors.push("Missing or invalid 'ai.default.model' field");
-      }
-      if ("overrides" in defaultConfig && defaultConfig.overrides !== undefined) {
-        if (typeof defaultConfig.overrides !== "object" || defaultConfig.overrides === null) {
-          errors.push("Invalid 'ai.default.overrides' field (must be an object)");
+        const defaultConfig = ai.default as Record<string, unknown>;
+        if (typeof defaultConfig.provider !== "string" || !["openai", "deepseek"].includes(defaultConfig.provider)) {
+          errors.push("Missing or invalid 'ai.default.provider' field (must be: openai or deepseek)");
         } else {
-          const overrides = defaultConfig.overrides as Record<string, unknown>;
-          if ("temperature" in overrides && typeof overrides.temperature !== "number") {
-            errors.push("Invalid 'ai.default.overrides.temperature' field (must be a number)");
+          // Validate that default provider exists in providers pool
+          const providerName = defaultConfig.provider as string;
+          const providers = ai.providers as Record<string, unknown>;
+          if (!(providerName in providers) || providers[providerName] === undefined) {
+            errors.push(`Default provider '${providerName}' is not configured in 'ai.providers'`);
           }
-          if ("maxTokens" in overrides && typeof overrides.maxTokens !== "number") {
-            errors.push("Invalid 'ai.default.overrides.maxTokens' field (must be a number)");
+        }
+        if (typeof defaultConfig.model !== "string") {
+          errors.push("Missing or invalid 'ai.default.model' field");
+        }
+        if ("overrides" in defaultConfig && defaultConfig.overrides !== undefined) {
+          if (typeof defaultConfig.overrides !== "object" || defaultConfig.overrides === null) {
+            errors.push("Invalid 'ai.default.overrides' field (must be an object)");
+          } else {
+            const overrides = defaultConfig.overrides as Record<string, unknown>;
+            if ("temperature" in overrides && typeof overrides.temperature !== "number") {
+              errors.push("Invalid 'ai.default.overrides.temperature' field (must be a number)");
+            }
+            if ("maxTokens" in overrides && typeof overrides.maxTokens !== "number") {
+              errors.push("Invalid 'ai.default.overrides.maxTokens' field (must be a number)");
+            }
           }
         }
       }

@@ -595,81 +595,75 @@ The following table provides a quick reference for all configuration parameters:
 
 | Parameter | Type | Required | Default | Allowed Values | Notes |
 |-----------|------|----------|---------|----------------|-------|
-| **`profile`** | `string` | ✅ Yes | - | `"lecture"`, `"meeting"`, `"other"` | Determines processing behavior and available steps |
-| **`language`** | `object` | ❌ No | `{ input: "en", output: "en" }` | - | Language configuration |
-| `language.input` | `string` | ❌ No | `"en"` | Valid Whisper language codes (`"it"`, `"en"`, `"es"`, `"fr"`, `"de"`, `"pt"`, `"ru"`, `"ja"`, `"zh"`, `"ko"`, etc.) | Input audio language |
-| `language.output` | `string` | ❌ No | `"en"` | Valid language codes | Output text language |
-| **`logging`** | `object` | ❌ No | `{ level: "info", singleLine: false }` | - | Logging configuration |
-| `logging.level` | `string` | ❌ No | `"info"` | `"error"`, `"warn"`, `"info"`, `"debug"` | Minimum log level |
-| `logging.singleLine` | `boolean` | ❌ No | `false` | `true`, `false` | Single-line vs multi-line format |
-| **`paths`** | `object` | ❌ No | `{ inputDir: "./input", outputDir: "./output" }` | - | File system paths |
-| `paths.inputDir` | `string` | ❌ No | `"./input"` | Valid directory path | Input audio directory |
-| `paths.outputDir` | `string` | ❌ No | `"./output"` | Valid directory path | Output directory (timestamp suffix added if `output.addTimestamp` is true) |
-| **`output`** | `object` | ❌ No | `{ addTimestamp: false, summaryWordCount: undefined }` | - | Output configuration |
-| `output.addTimestamp` | `boolean` | ❌ No | `false` | `true`, `false` | Append timestamp to outputDir |
-| `output.summaryWordCount` | `number` | ❌ No | `undefined` (dynamic) | Positive integer | Target word count for summaries (200-5000 range when calculated dynamically) |
-| **`asr`** | `object` | ❌ No | Profile-specific | - | ASR configuration |
-| `asr.provider` | `string` | ❌ No | `"whisper"` | `"whisper"` | ASR provider (currently only Whisper supported) |
-| `asr.whisper` | `object` | ❌ No | Profile-specific | - | Whisper-specific configuration |
-| `asr.whisper.serverUrl` | `string` | ❌ No | `"http://localhost:9000/asr"` | Valid URL | Whisper server endpoint |
-| `asr.whisper.task` | `string` | ❌ No | `"transcribe"` (profile-specific) | `"transcribe"`, `"translate"` | ASR task type |
-| `asr.whisper.outputFormat` | `string` | ❌ No | `"txt"` (profile-specific) | `"txt"`, `"json"`, `"srt"`, `"vtt"`, `"tsv"` | Output format |
-| `asr.whisper.temperature` | `number` | ❌ No | Profile-specific (lecture: 0, meeting: 0.2, other: 0) | 0-1 | ASR decoding temperature |
-| `asr.whisper.beamSize` | `number` | ❌ No | Profile-specific (lecture: 5, meeting: 3, other: 5) | Positive integer | Beam search size |
-| `asr.whisper.bestOf` | `number` | ❌ No | Profile-specific (lecture: 5, meeting: 3, other: 5) | Positive integer | Number of candidates |
-| `asr.whisper.vad` | `object` | ❌ No | Profile-specific (enabled: true) | - | Voice Activity Detection |
-| `asr.whisper.vad.enabled` | `boolean` | ❌ No | `true` (profile-specific) | `true`, `false` | Enable VAD |
-| `asr.whisper.vad.threshold` | `number` | ❌ No | Profile-specific (lecture: 0.45, meeting: 0.6, other: 0.5) | 0-1 | VAD threshold |
-| `asr.whisper.vad.minSilenceMs` | `number` | ❌ No | Profile-specific (lecture: 700, meeting: 500, other: 600) | Positive integer | Min silence duration (ms) |
-| `asr.whisper.vad.maxSpeechS` | `number` | ❌ No | Profile-specific (lecture: 60, meeting: 30, other: 45) | Positive integer | Max speech segment (seconds) |
-| `asr.whisper.requestTimeoutMs` | `number` | ❌ No | `undefined` (server default) | Positive integer | Request timeout (ms), recommended: 900000 |
-| **`ai`** | `object` | ❌ No | `{ providers: {}, default: { provider: "openai", model: "gpt-5-mini" } }` | - | AI provider configuration |
-| `ai.providers` | `object` | ⚠️ Required* | `{}` | - | Provider pool (at least one provider with API key required) |
-| `ai.providers.openai` | `object` | ❌ No | `undefined` | - | OpenAI provider config |
-| `ai.providers.openai.apiKey` | `string` | ⚠️ Required** | - | Valid API key (starts with `sk-`) | OpenAI API key (required if openai provider is configured) |
-| `ai.providers.deepseek` | `object` | ❌ No | `undefined` | - | DeepSeek provider config |
-| `ai.providers.deepseek.apiKey` | `string` | ⚠️ Required** | - | Valid API key | DeepSeek API key (required if deepseek provider is configured) |
-| `ai.default` | `object` | ❌ No | `{ provider: "openai", model: "gpt-5-mini" }` | - | Default AI configuration |
-| `ai.default.provider` | `string` | ❌ No | `"openai"` | `"openai"`, `"deepseek"` | Default provider |
-| `ai.default.model` | `string` | ❌ No | `"gpt-5-mini"` | Valid model identifier | Default model |
-| `ai.default.overrides` | `object` | ❌ No | `undefined` | - | Default parameter overrides |
-| `ai.default.overrides.temperature` | `number` | ❌ No | Profile-specific presets | 0-2 | Temperature override |
-| `ai.default.overrides.maxTokens` | `number` | ❌ No | Calculated dynamically | Positive integer | Max tokens override |
-| `ai.steps` | `object` | ❌ No | `undefined` | - | Per-step overrides |
-| `ai.steps.cleaning` | `object` | ❌ No | `undefined` | - | Cleaning step override |
-| `ai.steps.cleaning.provider` | `string` | ❌ No | Uses `ai.default.provider` | `"openai"`, `"deepseek"` | Override provider |
-| `ai.steps.cleaning.model` | `string` | ❌ No | Uses `ai.default.model` | Valid model identifier | Override model |
-| `ai.steps.cleaning.overrides` | `object` | ❌ No | Uses `ai.default.overrides` | - | Override parameters |
-| `ai.steps.handout` | `object` | ❌ No | `undefined` | - | Handout step override (lecture profile only) |
-| `ai.steps.handout.provider` | `string` | ❌ No | Uses `ai.default.provider` | `"openai"`, `"deepseek"` | Override provider |
-| `ai.steps.handout.model` | `string` | ❌ No | Uses `ai.default.model` | Valid model identifier | Override model |
-| `ai.steps.handout.overrides` | `object` | ❌ No | Uses `ai.default.overrides` | - | Override parameters |
-| `ai.steps.summary` | `object` | ❌ No | `undefined` | - | Summary step override |
-| `ai.steps.summary.provider` | `string` | ❌ No | Uses `ai.default.provider` | `"openai"`, `"deepseek"` | Override provider |
-| `ai.steps.summary.model` | `string` | ❌ No | Uses `ai.default.model` | Valid model identifier | Override model |
-| `ai.steps.summary.overrides` | `object` | ❌ No | Uses `ai.default.overrides` | - | Override parameters |
-| **`context`** | `object` | ❌ No | `undefined` | - | Context materials |
-| `context.textSources` | `string[]` | ❌ No | `undefined` | Array of file paths | Reference text files (.txt or .md) |
-| **`profiles`** | `object` | ❌ No | `undefined` | - | Custom profile prompts |
-| `profiles.lecture` | `object` | ❌ No | `undefined` | - | Lecture profile prompts |
-| `profiles.lecture.prompts` | `object` | ❌ No | Uses built-in prompts | - | Custom prompts |
-| `profiles.lecture.prompts.cleaning` | `string` | ❌ No | Built-in prompt | Any string (empty string uses default) | Cleaning prompt |
-| `profiles.lecture.prompts.handout` | `string` | ❌ No | Built-in prompt | Any string (empty string uses default) | Handout prompt |
-| `profiles.lecture.prompts.summary` | `string` | ❌ No | Built-in prompt | Any string (empty string uses default) | Summary prompt |
-| `profiles.meeting` | `object` | ❌ No | `undefined` | - | Meeting profile prompts |
-| `profiles.meeting.prompts` | `object` | ❌ No | Uses built-in prompts | - | Custom prompts |
-| `profiles.meeting.prompts.cleaning` | `string` | ❌ No | Built-in prompt | Any string (empty string uses default) | Cleaning prompt |
-| `profiles.meeting.prompts.summary` | `string` | ❌ No | Built-in prompt | Any string (empty string uses default) | Summary prompt |
-| `profiles.other` | `object` | ❌ No | `undefined` | - | Other profile prompts |
-| `profiles.other.prompts` | `object` | ❌ No | Uses built-in prompts | - | Custom prompts |
-| `profiles.other.prompts.cleaning` | `string` | ❌ No | Built-in prompt | Any string (empty string uses default) | Cleaning prompt |
-| `profiles.other.prompts.summary` | `string` | ❌ No | Built-in prompt | Any string (empty string uses default) | Summary prompt |
-
-**Legend:**
-- ✅ **Required**: Must be provided in configuration
-- ❌ **Optional**: Has a default value if not provided
-- ⚠️ **Required***: `ai.providers` object must contain at least one provider with its API key configured
-- ⚠️ **Required****: API key is required if the corresponding provider is configured in `ai.providers`
+| **`profile`** | `string` | Yes | - | `"lecture"`, `"meeting"`, `"other"` | Determines processing behavior and available steps |
+| **`language`** | `object` | No | `{ input: "en", output: "en" }` | - | Language configuration |
+| `language.input` | `string` | No | `"en"` | Valid Whisper language codes (`"it"`, `"en"`, `"es"`, `"fr"`, `"de"`, `"pt"`, `"ru"`, `"ja"`, `"zh"`, `"ko"`, etc.) | Input audio language |
+| `language.output` | `string` | No | `"en"` | Valid language codes | Output text language |
+| **`logging`** | `object` | No | `{ level: "info", singleLine: false }` | - | Logging configuration |
+| `logging.level` | `string` | No | `"info"` | `"error"`, `"warn"`, `"info"`, `"debug"` | Minimum log level |
+| `logging.singleLine` | `boolean` | No | `false` | `true`, `false` | Single-line vs multi-line format |
+| **`paths`** | `object` | No | `{ inputDir: "./input", outputDir: "./output" }` | - | File system paths |
+| `paths.inputDir` | `string` | No | `"./input"` | Valid directory path | Input audio directory |
+| `paths.outputDir` | `string` | No | `"./output"` | Valid directory path | Output directory (timestamp suffix added if `output.addTimestamp` is true) |
+| **`output`** | `object` | No | `{ addTimestamp: false, summaryWordCount: undefined }` | - | Output configuration |
+| `output.addTimestamp` | `boolean` | No | `false` | `true`, `false` | Append timestamp to outputDir |
+| `output.summaryWordCount` | `number` | No | `undefined` (dynamic) | Positive integer | Target word count for summaries (200-5000 range when calculated dynamically) |
+| **`asr`** | `object` | No | Profile-specific | - | ASR configuration |
+| `asr.provider` | `string` | No | `"whisper"` | `"whisper"` | ASR provider (currently only Whisper supported) |
+| `asr.whisper` | `object` | No | Profile-specific | - | Whisper-specific configuration |
+| `asr.whisper.serverUrl` | `string` | No | `"http://localhost:9000/asr"` | Valid URL | Whisper server endpoint |
+| `asr.whisper.task` | `string` | No | `"transcribe"` (profile-specific) | `"transcribe"`, `"translate"` | ASR task type |
+| `asr.whisper.outputFormat` | `string` | No | `"txt"` (profile-specific) | `"txt"`, `"json"`, `"srt"`, `"vtt"`, `"tsv"` | Output format |
+| `asr.whisper.temperature` | `number` | No | Profile-specific (lecture: 0, meeting: 0.2, other: 0) | 0-1 | ASR decoding temperature |
+| `asr.whisper.beamSize` | `number` | No | Profile-specific (lecture: 5, meeting: 3, other: 5) | Positive integer | Beam search size |
+| `asr.whisper.bestOf` | `number` | No | Profile-specific (lecture: 5, meeting: 3, other: 5) | Positive integer | Number of candidates |
+| `asr.whisper.vad` | `object` | No | Profile-specific (enabled: true) | - | Voice Activity Detection |
+| `asr.whisper.vad.enabled` | `boolean` | No | `true` (profile-specific) | `true`, `false` | Enable VAD |
+| `asr.whisper.vad.threshold` | `number` | No | Profile-specific (lecture: 0.45, meeting: 0.6, other: 0.5) | 0-1 | VAD threshold |
+| `asr.whisper.vad.minSilenceMs` | `number` | No | Profile-specific (lecture: 700, meeting: 500, other: 600) | Positive integer | Min silence duration (ms) |
+| `asr.whisper.vad.maxSpeechS` | `number` | No | Profile-specific (lecture: 60, meeting: 30, other: 45) | Positive integer | Max speech segment (seconds) |
+| `asr.whisper.requestTimeoutMs` | `number` | No | `undefined` (server default) | Positive integer | Request timeout (ms), recommended: 900000 |
+| **`ai`** | `object` | No | `{ providers: {}, default: { provider: "openai", model: "gpt-5-mini" } }` | - | AI provider configuration |
+| `ai.providers` | `object` | ⚠️ No | `{}` | - | Provider pool (at least one provider with API key required) |
+| `ai.providers.openai` | `object` | No | `undefined` | - | OpenAI provider config |
+| `ai.providers.openai.apiKey` | `string` | ⚠️ No | - | Valid API key (starts with `sk-`) | OpenAI API key (required if openai provider is configured) |
+| `ai.providers.deepseek` | `object` | No | `undefined` | - | DeepSeek provider config |
+| `ai.providers.deepseek.apiKey` | `string` | ⚠️ No | - | Valid API key | DeepSeek API key (required if deepseek provider is configured) |
+| `ai.default` | `object` | No | `{ provider: "openai", model: "gpt-5-mini" }` | - | Default AI configuration |
+| `ai.default.provider` | `string` | No | `"openai"` | `"openai"`, `"deepseek"` | Default provider |
+| `ai.default.model` | `string` | No | `"gpt-5-mini"` | Valid model identifier | Default model |
+| `ai.default.overrides` | `object` | No | `undefined` | - | Default parameter overrides |
+| `ai.default.overrides.temperature` | `number` | No | Profile-specific presets | 0-2 | Temperature override |
+| `ai.default.overrides.maxTokens` | `number` | No | Calculated dynamically | Positive integer | Max tokens override |
+| `ai.steps` | `object` | No | `undefined` | - | Per-step overrides |
+| `ai.steps.cleaning` | `object` | No | `undefined` | - | Cleaning step override |
+| `ai.steps.cleaning.provider` | `string` | No | Uses `ai.default.provider` | `"openai"`, `"deepseek"` | Override provider |
+| `ai.steps.cleaning.model` | `string` | No | Uses `ai.default.model` | Valid model identifier | Override model |
+| `ai.steps.cleaning.overrides` | `object` | No | Uses `ai.default.overrides` | - | Override parameters |
+| `ai.steps.handout` | `object` | No | `undefined` | - | Handout step override (lecture profile only) |
+| `ai.steps.handout.provider` | `string` | No | Uses `ai.default.provider` | `"openai"`, `"deepseek"` | Override provider |
+| `ai.steps.handout.model` | `string` | No | Uses `ai.default.model` | Valid model identifier | Override model |
+| `ai.steps.handout.overrides` | `object` | No | Uses `ai.default.overrides` | - | Override parameters |
+| `ai.steps.summary` | `object` | No | `undefined` | - | Summary step override |
+| `ai.steps.summary.provider` | `string` | No | Uses `ai.default.provider` | `"openai"`, `"deepseek"` | Override provider |
+| `ai.steps.summary.model` | `string` | No | Uses `ai.default.model` | Valid model identifier | Override model |
+| `ai.steps.summary.overrides` | `object` | No | Uses `ai.default.overrides` | - | Override parameters |
+| **`context`** | `object` | No | `undefined` | - | Context materials |
+| `context.textSources` | `string[]` | No | `undefined` | Array of file paths | Reference text files (.txt or .md) |
+| **`profiles`** | `object` | No | `undefined` | - | Custom profile prompts |
+| `profiles.lecture` | `object` | No | `undefined` | - | Lecture profile prompts |
+| `profiles.lecture.prompts` | `object` | No | Uses built-in prompts | - | Custom prompts |
+| `profiles.lecture.prompts.cleaning` | `string` | No | Built-in prompt | Any string (empty string uses default) | Cleaning prompt |
+| `profiles.lecture.prompts.handout` | `string` | No | Built-in prompt | Any string (empty string uses default) | Handout prompt |
+| `profiles.lecture.prompts.summary` | `string` | No | Built-in prompt | Any string (empty string uses default) | Summary prompt |
+| `profiles.meeting` | `object` | No | `undefined` | - | Meeting profile prompts |
+| `profiles.meeting.prompts` | `object` | No | Uses built-in prompts | - | Custom prompts |
+| `profiles.meeting.prompts.cleaning` | `string` | No | Built-in prompt | Any string (empty string uses default) | Cleaning prompt |
+| `profiles.meeting.prompts.summary` | `string` | No | Built-in prompt | Any string (empty string uses default) | Summary prompt |
+| `profiles.other` | `object` | No | `undefined` | - | Other profile prompts |
+| `profiles.other.prompts` | `object` | No | Uses built-in prompts | - | Custom prompts |
+| `profiles.other.prompts.cleaning` | `string` | No | Built-in prompt | Any string (empty string uses default) | Cleaning prompt |
+| `profiles.other.prompts.summary` | `string` | No | Built-in prompt | Any string (empty string uses default) | Summary prompt |
 
 **Profile-Specific Defaults:**
 

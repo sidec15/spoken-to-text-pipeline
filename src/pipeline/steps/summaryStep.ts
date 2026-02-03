@@ -4,6 +4,7 @@ import type { Step, StepContext } from "../step.js";
 import { createAiService, resolveAiConfig } from "../../services/ai/aiServiceFactory.js";
 import { resolveOutputDir } from "../../utils/resolveOutputDir.js";
 import type { AiService } from "../../services/ai/ai.types.js";
+import type { SupportedProfile } from "../../config/config.types.js";
 
 export class SummaryStep implements Step {
   readonly name = "summary";
@@ -35,7 +36,15 @@ export class SummaryStep implements Step {
     logger.info(`Estimated input tokens: ${estimatedInputTokens}`);
 
     const aiOptions = resolveAiConfig(config, "summary");
-    const wordCount = config.output?.summaryWordCount ?? 1000;
+    
+    // Determine input type for dynamic calculation
+    const inputType = config.profile === "lecture" ? "handout" : "transcript";
+    
+    // Calculate word count dynamically if not explicitly set
+    const wordCount = config.output?.summaryWordCount 
+      ?? this.calculateDynamicWordCount(inputContent, config.profile, inputType);
+    
+    logger.info(`Target summary word count: ${wordCount}${config.output?.summaryWordCount ? " (static override)" : " (calculated dynamically)"}`);
 
     // Enhance system prompt with word count target
     const enhancedSystemPrompt = this.enhancePromptWithWordCount(aiOptions.systemPrompt, wordCount);
@@ -133,6 +142,45 @@ export class SummaryStep implements Step {
 
       return mergedContent;
     }
+  }
+
+  /**
+   * Calculates dynamic word count based on input content, profile, and input type.
+   * Uses profile-specific compression ratios with bounds for safety.
+   */
+  private calculateDynamicWordCount(
+    inputContent: string,
+    profile: SupportedProfile,
+    inputType: "handout" | "transcript",
+  ): number {
+    // Estimate word count from content (rough: 5 characters per word)
+    const inputWordCount = Math.ceil(inputContent.length / 5);
+
+    // Base compression ratios per profile
+    const baseRatios = {
+      lecture: inputType === "handout" ? 0.15 : 0.10, // Handout already condensed
+      meeting: 0.50, // 50% - preserves more detail for meetings
+      other: 0.50, // 50% - preserves more detail
+    };
+
+    // Calculate base word count
+    let wordCount = Math.ceil(inputWordCount * baseRatios[profile]);
+
+    // Adjust for very short content (minimum detail preservation)
+    if (inputWordCount < 1000) {
+      wordCount = Math.max(wordCount, Math.ceil(inputWordCount * 0.30)); // 30% minimum
+    }
+
+    // Adjust for very long content (prevent excessive length)
+    if (inputWordCount > 50000) {
+      wordCount = Math.min(wordCount, Math.ceil(inputWordCount * 0.08)); // 8% maximum
+    }
+
+    // Apply absolute bounds
+    const MIN_WORD_COUNT = 200;
+    const MAX_WORD_COUNT = 5000;
+
+    return Math.max(MIN_WORD_COUNT, Math.min(MAX_WORD_COUNT, wordCount));
   }
 
   /**

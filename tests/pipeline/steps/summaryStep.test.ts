@@ -320,21 +320,24 @@ describe('SummaryStep', () => {
     );
   });
 
-  it('should use default word count if not specified', async () => {
-    // Arrange
+  it('should calculate word count dynamically if not specified', async () => {
+    // Arrange - use content that gives a calculated value above minimum
+    // ~10000 characters ≈ 2000 words, so dynamic calculation for lecture handout (15%) ≈ 300 words
+    const longContent = 'x'.repeat(10000);
     mockReaddirSync.mockReturnValue(['handout.md'] as any);
     mockExistsSync.mockImplementation((path: string) => {
       return path.includes('summary.md') ? false : true;
     });
-    mockReadFileSync.mockReturnValue('handout content');
+    mockReadFileSync.mockReturnValue(longContent);
 
     // Act
     await step.runAsync(mockContext);
 
-    // Assert
+    // Assert - should use dynamic calculation (not 1000)
+    // For lecture handout with ~2000 words: 15% = 300 words
     expect(mockGenerateTextAsync).toHaveBeenCalledWith(
       expect.objectContaining({
-        systemPrompt: expect.stringContaining('1000 words'),
+        systemPrompt: expect.stringContaining('300 words'),
       })
     );
   });

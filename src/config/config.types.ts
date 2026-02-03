@@ -68,7 +68,7 @@ export interface StepAiConfig {
      * If not specified, calculated dynamically based on input length and step type:
      * - cleaning: inputTokens * 2
      * - handout: inputTokens * 1.5
-     * - summary: summaryWordCount * 1.3 (default wordCount: 1000)
+     * - summary: summaryWordCount * 1.3 (wordCount calculated dynamically if not set)
      */
     maxTokens?: number;
   };
@@ -79,10 +79,11 @@ export interface StepAiConfig {
  */
 export interface AiConfig {
   /**
-   * Provider pool containing API keys for all providers that may be used (required).
-   * At least one provider must be configured.
+   * Provider pool containing API keys for all providers that may be used (optional).
+   * At least one provider must be configured when the config is loaded.
+   * Default: {}
    */
-  providers: AiProviderPool;
+  providers?: AiProviderPool;
   /**
    * Default provider, model, and overrides to use for all steps (optional).
    * Used when a step doesn't have a specific override.
@@ -116,6 +117,7 @@ export interface AiConfig {
 /**
  * Main pipeline configuration interface.
  * Defines all settings for the spoken-to-text processing pipeline.
+ * Only `profile` is required; all other fields are optional and will be filled with defaults.
  */
 export interface PipelineConfig {
   /**
@@ -125,61 +127,70 @@ export interface PipelineConfig {
   profile: SupportedProfile;
 
   /**
-   * Language configuration for input and output (required).
+   * Language configuration for input and output (optional).
+   * Default: { input: "en", output: "en" }
    */
-  language: {
+  language?: {
     /**
-     * Language code for the input audio (e.g., "it", "en", "es") (required).
+     * Language code for the input audio (e.g., "it", "en", "es") (optional).
      * Used by ASR step for transcription.
      * Must be a valid Whisper language code.
+     * Default: "en"
      */
-    input: string;
+    input?: string;
     /**
-     * Language code for all output text (e.g., "it", "en", "es") (required).
+     * Language code for all output text (e.g., "it", "en", "es") (optional).
      * Used by AI steps (cleaning, handout, summary) to ensure output is in the specified language.
+     * Default: "en"
      */
-    output: string;
+    output?: string;
   };
 
   /**
-   * Logging configuration (required).
+   * Logging configuration (optional).
+   * Default: { level: "info", singleLine: false }
    */
-  logging: {
+  logging?: {
     /**
-     * Minimum log level to display (required).
+     * Minimum log level to display (optional).
      * - "error": Only errors
      * - "warn": Warnings and errors
      * - "info": Informational messages, warnings, and errors
      * - "debug": All messages including debug details
+     * Default: "info"
      */
-    level: "error" | "warn" | "info" | "debug";
+    level?: "error" | "warn" | "info" | "debug";
     /**
-     * If true, logs are displayed in single-line format (required).
+     * If true, logs are displayed in single-line format (optional).
      * If false, logs use multi-line format with better readability.
+     * Default: false
      */
-    singleLine: boolean;
+    singleLine?: boolean;
   };
 
   /**
-   * File system paths configuration (required).
+   * File system paths configuration (optional).
+   * Default: { inputDir: "./input", outputDir: "./output" }
    */
-  paths: {
+  paths?: {
     /**
-     * Directory containing input audio files (.wav format) (required).
+     * Directory containing input audio files (.wav format) (optional).
      * Files are processed in alphabetical order.
+     * Default: "./input"
      */
-    inputDir: string;
+    inputDir?: string;
     /**
-     * Base output directory where all pipeline outputs are written (required).
+     * Base output directory where all pipeline outputs are written (optional).
      * All outputs (transcripts, cleaned files, handouts, summaries) go directly here (no subfolders).
      * If `output.addTimestamp` is true, a timestamp suffix is appended.
+     * Default: "./output"
      */
-    outputDir: string;
+    outputDir?: string;
   };
 
   /**
    * Optional output configuration.
-   * Default: undefined (no output configuration applied)
+   * Default: { addTimestamp: false, summaryWordCount: undefined }
    */
   output?: {
     /**
@@ -190,25 +201,38 @@ export interface PipelineConfig {
     addTimestamp?: boolean;
     /**
      * Target word count for summary generation (optional).
-     * The AI will aim to produce summaries approximately this length.
-     * Default: 1000 words
+     * If provided, this value is used as a static override for summary length.
+     * If not provided, the word count is calculated dynamically based on:
+     * - Input content length
+     * - Profile type (lecture/meeting/other)
+     * - Input type (handout vs. transcript)
+     * 
+     * Dynamic calculation uses profile-specific compression ratios:
+     * - Lecture: 10-15% (handout already condensed)
+     * - Meeting: 50% (preserves more detail)
+     * - Other: 50% (preserves more detail)
+     * 
+     * The calculated value is bounded between 200 (minimum) and 5000 (maximum) words.
+     * Default: undefined (uses dynamic calculation)
      */
     summaryWordCount?: number;
   };
 
   /**
-   * ASR (Automatic Speech Recognition) configuration (required).
+   * ASR (Automatic Speech Recognition) configuration (optional).
+   * Default: Profile-specific values (see config.defaults.ts)
    */
-  asr: {
-    /** ASR provider to use (required, must be "whisper") */
-    provider: SupportedAsrProvider;
-    /** Whisper ASR specific configuration (required) */
-    whisper: {
+  asr?: {
+    /** ASR provider to use (optional, must be "whisper") */
+    provider?: SupportedAsrProvider;
+    /** Whisper ASR specific configuration (optional) */
+    whisper?: {
       /**
-       * URL of the Whisper ASR server endpoint (required).
+       * URL of the Whisper ASR server endpoint (optional).
        * Example: "http://localhost:9000/asr"
+       * Default: "http://localhost:9000/asr"
        */
-      serverUrl: string;
+      serverUrl?: string;
       /**
        * ASR task type (optional).
        * - "transcribe": Transcribe audio to text in the same language
@@ -301,10 +325,11 @@ export interface PipelineConfig {
   };
 
   /**
-   * AI provider configuration for text processing steps (required).
+   * AI provider configuration for text processing steps (optional).
    * Supports provider pool, default configuration, and per-step overrides.
+   * Default: { providers: {}, default: { provider: "openai", model: "gpt-5-mini" } }
    */
-  ai: AiConfig;
+  ai?: AiConfig;
 
   /**
    * Optional context configuration for improving AI processing.
@@ -322,47 +347,48 @@ export interface PipelineConfig {
   };
 
   /**
-   * Profile-specific prompt configurations (required).
+   * Profile-specific prompt configurations (optional).
    * Each profile defines custom prompts for its supported steps.
    * Prompts can override or extend the default profile presets.
+   * If not provided, uses prompts from profilePresets.ts
    */
-  profiles: {
+  profiles?: {
     /**
-     * Lecture profile configuration (required).
+     * Lecture profile configuration (optional).
      * Includes prompts for cleaning, handout generation, and summary.
      */
-    lecture: {
-      prompts: {
-        /** System prompt for cleaning lecture transcripts (required) */
-        cleaning: string;
-        /** System prompt for generating handouts from cleaned transcripts (required) */
-        handout: string;
-        /** System prompt for generating summaries (required) */
-        summary: string;
+    lecture?: {
+      prompts?: {
+        /** System prompt for cleaning lecture transcripts (optional) */
+        cleaning?: string;
+        /** System prompt for generating handouts from cleaned transcripts (optional) */
+        handout?: string;
+        /** System prompt for generating summaries (optional) */
+        summary?: string;
       };
     };
     /**
-     * Meeting profile configuration (required).
+     * Meeting profile configuration (optional).
      * Includes prompts for cleaning and summary (no handout step).
      */
-    meeting: {
-      prompts: {
-        /** System prompt for cleaning meeting transcripts (required) */
-        cleaning: string;
-        /** System prompt for generating summaries (required) */
-        summary: string;
+    meeting?: {
+      prompts?: {
+        /** System prompt for cleaning meeting transcripts (optional) */
+        cleaning?: string;
+        /** System prompt for generating summaries (optional) */
+        summary?: string;
       };
     };
     /**
-     * Other profile configuration (required).
+     * Other profile configuration (optional).
      * General-purpose prompts for cleaning and summary.
      */
-    other: {
-      prompts: {
-        /** System prompt for cleaning general transcripts (required) */
-        cleaning: string;
-        /** System prompt for generating summaries (required) */
-        summary: string;
+    other?: {
+      prompts?: {
+        /** System prompt for cleaning general transcripts (optional) */
+        cleaning?: string;
+        /** System prompt for generating summaries (optional) */
+        summary?: string;
       };
     };
   };

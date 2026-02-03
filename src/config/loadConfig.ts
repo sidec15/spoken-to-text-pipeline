@@ -1,6 +1,31 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { PipelineConfig, SupportedProfile, SupportedAiProvider, SupportedAsrProvider } from "./config.types.js";
+import { CONFIG_DEFAULTS, getAsrDefaults } from "./config.defaults.js";
+
+/**
+ * Deep merge utility function
+ */
+function deepMerge<T extends Record<string, any>>(target: T, source: Partial<T>): T {
+  const result = { ...target };
+  for (const key in source) {
+    if (source[key] !== undefined) {
+      if (
+        typeof source[key] === "object" &&
+        source[key] !== null &&
+        !Array.isArray(source[key]) &&
+        typeof target[key] === "object" &&
+        target[key] !== null &&
+        !Array.isArray(target[key])
+      ) {
+        result[key] = deepMerge(target[key] || {}, source[key] || {});
+      } else {
+        result[key] = source[key] as T[Extract<keyof T, string>];
+      }
+    }
+  }
+  return result;
+}
 
 export function loadConfig(configPath: string): PipelineConfig {
   const absolutePath = path.isAbsolute(configPath)
@@ -13,78 +38,141 @@ export function loadConfig(configPath: string): PipelineConfig {
 
   const raw = fs.readFileSync(absolutePath, "utf-8");
 
-  let config: unknown;
+  let userConfig: unknown;
   try {
-    config = JSON.parse(raw);
+    userConfig = JSON.parse(raw);
   } catch {
     throw new Error(`Invalid JSON in config file: ${absolutePath}`);
   }
 
-  validateConfig(config, absolutePath);
+  // Validate that profile exists (it's the only required field)
+  if (typeof userConfig !== "object" || userConfig === null) {
+    throw new Error(`Config must be an object: ${absolutePath}`);
+  }
 
-  return config as PipelineConfig;
+  const userConfigObj = userConfig as Record<string, unknown>;
+  if (!("profile" in userConfigObj) || typeof userConfigObj.profile !== "string") {
+    throw new Error(`Missing or invalid 'profile' field (must be: lecture, meeting, or other): ${absolutePath}`);
+  }
+
+  const profile = userConfigObj.profile as SupportedProfile;
+  if (!["lecture", "meeting", "other"].includes(profile)) {
+    throw new Error(`Invalid 'profile' value: ${profile} (must be: lecture, meeting, or other): ${absolutePath}`);
+  }
+
+  // Validate user-provided fields
+  validateUserConfig(userConfigObj, absolutePath);
+
+  // Start with defaults
+  const mergedConfig = deepMerge(CONFIG_DEFAULTS as any, userConfigObj) as any;
+
+  // Apply profile-specific ASR defaults
+  const asrDefaults = getAsrDefaults(profile);
+  if (!mergedConfig.asr) {
+    mergedConfig.asr = {};
+  }
+  if (!mergedConfig.asr.whisper) {
+    mergedConfig.asr.whisper = {};
+  }
+  mergedConfig.asr.provider = mergedConfig.asr.provider || "whisper";
+  mergedConfig.asr.whisper = {
+    ...asrDefaults,
+    ...mergedConfig.asr.whisper,
+    vad: mergedConfig.asr.whisper.vad
+      ? {
+          ...asrDefaults.vad,
+          ...mergedConfig.asr.whisper.vad,
+        }
+      : asrDefaults.vad,
+  };
+
+  // Ensure required fields are present after merge
+  if (!mergedConfig.language) {
+    mergedConfig.language = CONFIG_DEFAULTS.language;
+  }
+  if (!mergedConfig.logging) {
+    mergedConfig.logging = CONFIG_DEFAULTS.logging;
+  }
+  if (!mergedConfig.paths) {
+    mergedConfig.paths = CONFIG_DEFAULTS.paths;
+  }
+  if (!mergedConfig.asr) {
+    mergedConfig.asr = CONFIG_DEFAULTS.asr;
+  }
+  if (!mergedConfig.ai) {
+    mergedConfig.ai = CONFIG_DEFAULTS.ai;
+  }
+
+  // Validate final merged config
+  validateFinalConfig(mergedConfig, absolutePath);
+
+  return mergedConfig as PipelineConfig;
 }
 
-function validateConfig(config: unknown, configPath: string): asserts config is PipelineConfig {
-  if (typeof config !== "object" || config === null) {
-    throw new Error(`Config must be an object: ${configPath}`);
-  }
-
-  const c = config as Record<string, unknown>;
+/**
+ * Validates user-provided config fields (only validates what's present)
+ */
+function validateUserConfig(config: Record<string, unknown>, configPath: string): void {
   const errors: string[] = [];
 
-  // Validate profile
-  if (!("profile" in c) || typeof c.profile !== "string") {
-    errors.push("Missing or invalid 'profile' field (must be: lecture, meeting, or other)");
-  } else if (!["lecture", "meeting", "other"].includes(c.profile)) {
-    errors.push(`Invalid 'profile' value: ${c.profile} (must be: lecture, meeting, or other)`);
-  }
-
-  // Validate language
-  if (!("language" in c) || typeof c.language !== "object" || c.language === null) {
-    errors.push("Missing or invalid 'language' field");
-  } else {
-    const lang = c.language as Record<string, unknown>;
-    if (typeof lang.input !== "string") {
-      errors.push("Missing or invalid 'language.input' field");
-    }
-    if (typeof lang.output !== "string") {
-      errors.push("Missing or invalid 'language.output' field");
+  // Validate profile (already checked, but double-check)
+  if ("profile" in config && typeof config.profile === "string") {
+    if (!["lecture", "meeting", "other"].includes(config.profile)) {
+      errors.push(`Invalid 'profile' value: ${config.profile} (must be: lecture, meeting, or other)`);
     }
   }
 
-  // Validate logging
-  if (!("logging" in c) || typeof c.logging !== "object" || c.logging === null) {
-    errors.push("Missing or invalid 'logging' field");
-  } else {
-    const log = c.logging as Record<string, unknown>;
-    if (typeof log.level !== "string" || !["error", "warn", "info", "debug"].includes(log.level)) {
-      errors.push("Missing or invalid 'logging.level' field (must be: error, warn, info, or debug)");
-    }
-    if (typeof log.singleLine !== "boolean") {
-      errors.push("Missing or invalid 'logging.singleLine' field (must be boolean)");
-    }
-  }
-
-  // Validate paths
-  if (!("paths" in c) || typeof c.paths !== "object" || c.paths === null) {
-    errors.push("Missing or invalid 'paths' field");
-  } else {
-    const paths = c.paths as Record<string, unknown>;
-    if (typeof paths.inputDir !== "string") {
-      errors.push("Missing or invalid 'paths.inputDir' field");
-    }
-    if (typeof paths.outputDir !== "string") {
-      errors.push("Missing or invalid 'paths.outputDir' field");
+  // Validate language (if provided)
+  if ("language" in config && config.language !== undefined) {
+    if (typeof config.language !== "object" || config.language === null) {
+      errors.push("Invalid 'language' field (must be an object)");
+    } else {
+      const lang = config.language as Record<string, unknown>;
+      if ("input" in lang && typeof lang.input !== "string") {
+        errors.push("Invalid 'language.input' field (must be a string)");
+      }
+      if ("output" in lang && typeof lang.output !== "string") {
+        errors.push("Invalid 'language.output' field (must be a string)");
+      }
     }
   }
 
-  // Validate output (optional)
-  if ("output" in c && c.output !== undefined) {
-    if (typeof c.output !== "object" || c.output === null) {
+  // Validate logging (if provided)
+  if ("logging" in config && config.logging !== undefined) {
+    if (typeof config.logging !== "object" || config.logging === null) {
+      errors.push("Invalid 'logging' field (must be an object)");
+    } else {
+      const log = config.logging as Record<string, unknown>;
+      if ("level" in log && (typeof log.level !== "string" || !["error", "warn", "info", "debug"].includes(log.level))) {
+        errors.push("Invalid 'logging.level' field (must be: error, warn, info, or debug)");
+      }
+      if ("singleLine" in log && typeof log.singleLine !== "boolean") {
+        errors.push("Invalid 'logging.singleLine' field (must be boolean)");
+      }
+    }
+  }
+
+  // Validate paths (if provided)
+  if ("paths" in config && config.paths !== undefined) {
+    if (typeof config.paths !== "object" || config.paths === null) {
+      errors.push("Invalid 'paths' field (must be an object)");
+    } else {
+      const paths = config.paths as Record<string, unknown>;
+      if ("inputDir" in paths && typeof paths.inputDir !== "string") {
+        errors.push("Invalid 'paths.inputDir' field (must be a string)");
+      }
+      if ("outputDir" in paths && typeof paths.outputDir !== "string") {
+        errors.push("Invalid 'paths.outputDir' field (must be a string)");
+      }
+    }
+  }
+
+  // Validate output (if provided)
+  if ("output" in config && config.output !== undefined) {
+    if (typeof config.output !== "object" || config.output === null) {
       errors.push("Invalid 'output' field (must be an object)");
     } else {
-      const output = c.output as Record<string, unknown>;
+      const output = config.output as Record<string, unknown>;
       if ("addTimestamp" in output && typeof output.addTimestamp !== "boolean") {
         errors.push("Invalid 'output.addTimestamp' field (must be boolean)");
       }
@@ -96,187 +184,168 @@ function validateConfig(config: unknown, configPath: string): asserts config is 
     }
   }
 
-  // Validate ASR
-  if (!("asr" in c) || typeof c.asr !== "object" || c.asr === null) {
-    errors.push("Missing or invalid 'asr' field");
-  } else {
-    const asr = c.asr as Record<string, unknown>;
-    if (typeof asr.provider !== "string" || asr.provider !== "whisper") {
-      errors.push("Missing or invalid 'asr.provider' field (must be: whisper)");
-    }
-    if (!("whisper" in asr) || typeof asr.whisper !== "object" || asr.whisper === null) {
-      errors.push("Missing or invalid 'asr.whisper' field");
+  // Validate ASR (if provided)
+  if ("asr" in config && config.asr !== undefined) {
+    if (typeof config.asr !== "object" || config.asr === null) {
+      errors.push("Invalid 'asr' field (must be an object)");
     } else {
-      const whisper = asr.whisper as Record<string, unknown>;
-      if (typeof whisper.serverUrl !== "string") {
-        errors.push("Missing or invalid 'asr.whisper.serverUrl' field");
+      const asr = config.asr as Record<string, unknown>;
+      if ("provider" in asr && asr.provider !== undefined && asr.provider !== "whisper") {
+        errors.push("Invalid 'asr.provider' field (must be: whisper)");
       }
-      if ("vad" in whisper && whisper.vad !== undefined) {
-        if (typeof whisper.vad !== "object" || whisper.vad === null) {
-          errors.push("Invalid 'asr.whisper.vad' field (must be an object)");
+      if ("whisper" in asr && asr.whisper !== undefined) {
+        if (typeof asr.whisper !== "object" || asr.whisper === null) {
+          errors.push("Invalid 'asr.whisper' field (must be an object)");
         } else {
-          const vad = whisper.vad as Record<string, unknown>;
-          if (typeof vad.enabled !== "boolean") {
-            errors.push("Missing or invalid 'asr.whisper.vad.enabled' field (must be boolean)");
+          const whisper = asr.whisper as Record<string, unknown>;
+          if ("serverUrl" in whisper && typeof whisper.serverUrl !== "string") {
+            errors.push("Invalid 'asr.whisper.serverUrl' field (must be a string)");
+          }
+          if ("task" in whisper && whisper.task !== undefined && !["transcribe", "translate"].includes(whisper.task as string)) {
+            errors.push("Invalid 'asr.whisper.task' field (must be: transcribe or translate)");
+          }
+          if (
+            "outputFormat" in whisper &&
+            whisper.outputFormat !== undefined &&
+            !["txt", "json", "srt", "vtt", "tsv"].includes(whisper.outputFormat as string)
+          ) {
+            errors.push("Invalid 'asr.whisper.outputFormat' field (must be: txt, json, srt, vtt, or tsv)");
+          }
+          if ("temperature" in whisper && typeof whisper.temperature !== "number") {
+            errors.push("Invalid 'asr.whisper.temperature' field (must be a number)");
+          }
+          if ("beamSize" in whisper && typeof whisper.beamSize !== "number") {
+            errors.push("Invalid 'asr.whisper.beamSize' field (must be a number)");
+          }
+          if ("bestOf" in whisper && typeof whisper.bestOf !== "number") {
+            errors.push("Invalid 'asr.whisper.bestOf' field (must be a number)");
+          }
+          if ("vad" in whisper && whisper.vad !== undefined) {
+            if (typeof whisper.vad !== "object" || whisper.vad === null) {
+              errors.push("Invalid 'asr.whisper.vad' field (must be an object)");
+            } else {
+              const vad = whisper.vad as Record<string, unknown>;
+              if ("enabled" in vad && typeof vad.enabled !== "boolean") {
+                errors.push("Invalid 'asr.whisper.vad.enabled' field (must be boolean)");
+              }
+              if ("threshold" in vad && typeof vad.threshold !== "number") {
+                errors.push("Invalid 'asr.whisper.vad.threshold' field (must be a number)");
+              }
+              if ("minSilenceMs" in vad && typeof vad.minSilenceMs !== "number") {
+                errors.push("Invalid 'asr.whisper.vad.minSilenceMs' field (must be a number)");
+              }
+              if ("maxSpeechS" in vad && typeof vad.maxSpeechS !== "number") {
+                errors.push("Invalid 'asr.whisper.vad.maxSpeechS' field (must be a number)");
+              }
+            }
           }
         }
       }
     }
   }
 
-  // Validate AI
-  if (!("ai" in c) || typeof c.ai !== "object" || c.ai === null) {
-    errors.push("Missing or invalid 'ai' field");
-  } else {
-    const ai = c.ai as Record<string, unknown>;
-
-    // Validate providers pool
-    if (!("providers" in ai) || typeof ai.providers !== "object" || ai.providers === null) {
-      errors.push("Missing or invalid 'ai.providers' field");
+  // Validate AI (if provided)
+  if ("ai" in config && config.ai !== undefined) {
+    if (typeof config.ai !== "object" || config.ai === null) {
+      errors.push("Invalid 'ai' field (must be an object)");
     } else {
-      const providers = ai.providers as Record<string, unknown>;
-      let hasAtLeastOneProvider = false;
+      const ai = config.ai as Record<string, unknown>;
 
-      if ("openai" in providers && providers.openai !== undefined) {
-        if (typeof providers.openai !== "object" || providers.openai === null) {
-          errors.push("Invalid 'ai.providers.openai' field (must be an object)");
+      // Validate providers pool (if provided)
+      if ("providers" in ai && ai.providers !== undefined) {
+        if (typeof ai.providers !== "object" || ai.providers === null) {
+          errors.push("Invalid 'ai.providers' field (must be an object)");
         } else {
-          const openai = providers.openai as Record<string, unknown>;
-          if (typeof openai.apiKey !== "string") {
-            errors.push("Missing or invalid 'ai.providers.openai.apiKey' field");
-          } else {
-            hasAtLeastOneProvider = true;
-          }
-        }
-      }
-
-      if ("deepseek" in providers && providers.deepseek !== undefined) {
-        if (typeof providers.deepseek !== "object" || providers.deepseek === null) {
-          errors.push("Invalid 'ai.providers.deepseek' field (must be an object)");
-        } else {
-          const deepseek = providers.deepseek as Record<string, unknown>;
-          if (typeof deepseek.apiKey !== "string") {
-            errors.push("Missing or invalid 'ai.providers.deepseek.apiKey' field");
-          } else {
-            hasAtLeastOneProvider = true;
-          }
-        }
-      }
-
-      if (!hasAtLeastOneProvider) {
-        errors.push("At least one provider must be configured in 'ai.providers'");
-      }
-    }
-
-    // Validate default configuration (optional)
-    if ("default" in ai && ai.default !== undefined) {
-      if (typeof ai.default !== "object" || ai.default === null) {
-        errors.push("Invalid 'ai.default' field (must be an object)");
-      } else {
-        const defaultConfig = ai.default as Record<string, unknown>;
-        if (typeof defaultConfig.provider !== "string" || !["openai", "deepseek"].includes(defaultConfig.provider)) {
-          errors.push("Missing or invalid 'ai.default.provider' field (must be: openai or deepseek)");
-        } else {
-          // Validate that default provider exists in providers pool
-          const providerName = defaultConfig.provider as string;
           const providers = ai.providers as Record<string, unknown>;
-          if (!(providerName in providers) || providers[providerName] === undefined) {
-            errors.push(`Default provider '${providerName}' is not configured in 'ai.providers'`);
-          }
-        }
-        if (typeof defaultConfig.model !== "string") {
-          errors.push("Missing or invalid 'ai.default.model' field");
-        }
-        if ("overrides" in defaultConfig && defaultConfig.overrides !== undefined) {
-          if (typeof defaultConfig.overrides !== "object" || defaultConfig.overrides === null) {
-            errors.push("Invalid 'ai.default.overrides' field (must be an object)");
-          } else {
-            const overrides = defaultConfig.overrides as Record<string, unknown>;
-            if ("temperature" in overrides && typeof overrides.temperature !== "number") {
-              errors.push("Invalid 'ai.default.overrides.temperature' field (must be a number)");
-            }
-            if ("maxTokens" in overrides && typeof overrides.maxTokens !== "number") {
-              errors.push("Invalid 'ai.default.overrides.maxTokens' field (must be a number)");
-            }
-          }
-        }
-      }
-    }
 
-    // Validate step overrides (optional)
-    if ("steps" in ai && ai.steps !== undefined) {
-      if (typeof ai.steps !== "object" || ai.steps === null) {
-        errors.push("Invalid 'ai.steps' field (must be an object)");
-      } else {
-        const steps = ai.steps as Record<string, unknown>;
-        const validStepNames = ["cleaning", "handout", "summary"];
-
-        for (const stepName of validStepNames) {
-          if (stepName in steps && steps[stepName] !== undefined) {
-            const stepConfig = steps[stepName] as Record<string, unknown>;
-            const providers = ai.providers as Record<string, unknown>;
-
-            if ("provider" in stepConfig) {
-              if (typeof stepConfig.provider !== "string" || !["openai", "deepseek"].includes(stepConfig.provider)) {
-                errors.push(`Invalid 'ai.steps.${stepName}.provider' field (must be: openai or deepseek)`);
-              } else {
-                const providerName = stepConfig.provider as string;
-                if (!(providerName in providers) || providers[providerName] === undefined) {
-                  errors.push(`Step '${stepName}' provider '${providerName}' is not configured in 'ai.providers'`);
-                }
+          if ("openai" in providers && providers.openai !== undefined) {
+            if (typeof providers.openai !== "object" || providers.openai === null) {
+              errors.push("Invalid 'ai.providers.openai' field (must be an object)");
+            } else {
+              const openai = providers.openai as Record<string, unknown>;
+              if ("apiKey" in openai && typeof openai.apiKey !== "string") {
+                errors.push("Invalid 'ai.providers.openai.apiKey' field (must be a string)");
               }
             }
+          }
 
-            if ("model" in stepConfig && typeof stepConfig.model !== "string") {
-              errors.push(`Invalid 'ai.steps.${stepName}.model' field (must be a string)`);
-            }
-
-            if ("overrides" in stepConfig && stepConfig.overrides !== undefined) {
-              if (typeof stepConfig.overrides !== "object" || stepConfig.overrides === null) {
-                errors.push(`Invalid 'ai.steps.${stepName}.overrides' field (must be an object)`);
-              } else {
-                const overrides = stepConfig.overrides as Record<string, unknown>;
-                if ("temperature" in overrides && typeof overrides.temperature !== "number") {
-                  errors.push(`Invalid 'ai.steps.${stepName}.overrides.temperature' field (must be a number)`);
-                }
-                if ("maxTokens" in overrides && typeof overrides.maxTokens !== "number") {
-                  errors.push(`Invalid 'ai.steps.${stepName}.overrides.maxTokens' field (must be a number)`);
-                }
+          if ("deepseek" in providers && providers.deepseek !== undefined) {
+            if (typeof providers.deepseek !== "object" || providers.deepseek === null) {
+              errors.push("Invalid 'ai.providers.deepseek' field (must be an object)");
+            } else {
+              const deepseek = providers.deepseek as Record<string, unknown>;
+              if ("apiKey" in deepseek && typeof deepseek.apiKey !== "string") {
+                errors.push("Invalid 'ai.providers.deepseek.apiKey' field (must be a string)");
               }
             }
           }
         }
       }
-    }
-  }
 
-  // Validate profiles
-  if (!("profiles" in c) || typeof c.profiles !== "object" || c.profiles === null) {
-    errors.push("Missing or invalid 'profiles' field");
-  } else {
-    const profiles = c.profiles as Record<string, unknown>;
-    const requiredProfiles: SupportedProfile[] = ["lecture", "meeting", "other"];
-    for (const profileName of requiredProfiles) {
-      if (!(profileName in profiles) || typeof profiles[profileName] !== "object" || profiles[profileName] === null) {
-        errors.push(`Missing or invalid 'profiles.${profileName}' field`);
-      } else {
-        const profile = profiles[profileName] as Record<string, unknown>;
-        if (!("prompts" in profile) || typeof profile.prompts !== "object" || profile.prompts === null) {
-          errors.push(`Missing or invalid 'profiles.${profileName}.prompts' field`);
+      // Validate default configuration (if provided)
+      if ("default" in ai && ai.default !== undefined) {
+        if (typeof ai.default !== "object" || ai.default === null) {
+          errors.push("Invalid 'ai.default' field (must be an object)");
         } else {
-          const prompts = profile.prompts as Record<string, unknown>;
-          if (profileName === "lecture") {
-            const requiredPrompts = ["cleaning", "handout", "summary"];
-            for (const promptName of requiredPrompts) {
-              if (typeof prompts[promptName] !== "string") {
-                errors.push(`Missing or invalid 'profiles.${profileName}.prompts.${promptName}' field`);
+          const defaultConfig = ai.default as Record<string, unknown>;
+          if ("provider" in defaultConfig) {
+            if (typeof defaultConfig.provider !== "string" || !["openai", "deepseek"].includes(defaultConfig.provider)) {
+              errors.push("Invalid 'ai.default.provider' field (must be: openai or deepseek)");
+            }
+          }
+          if ("model" in defaultConfig && typeof defaultConfig.model !== "string") {
+            errors.push("Invalid 'ai.default.model' field (must be a string)");
+          }
+          if ("overrides" in defaultConfig && defaultConfig.overrides !== undefined) {
+            if (typeof defaultConfig.overrides !== "object" || defaultConfig.overrides === null) {
+              errors.push("Invalid 'ai.default.overrides' field (must be an object)");
+            } else {
+              const overrides = defaultConfig.overrides as Record<string, unknown>;
+              if ("temperature" in overrides && typeof overrides.temperature !== "number") {
+                errors.push("Invalid 'ai.default.overrides.temperature' field (must be a number)");
+              }
+              if ("maxTokens" in overrides && typeof overrides.maxTokens !== "number") {
+                errors.push("Invalid 'ai.default.overrides.maxTokens' field (must be a number)");
               }
             }
-          } else {
-            const requiredPrompts = ["cleaning", "summary"];
-            for (const promptName of requiredPrompts) {
-              if (typeof prompts[promptName] !== "string") {
-                errors.push(`Missing or invalid 'profiles.${profileName}.prompts.${promptName}' field`);
+          }
+        }
+      }
+
+      // Validate step overrides (if provided)
+      if ("steps" in ai && ai.steps !== undefined) {
+        if (typeof ai.steps !== "object" || ai.steps === null) {
+          errors.push("Invalid 'ai.steps' field (must be an object)");
+        } else {
+          const steps = ai.steps as Record<string, unknown>;
+          const validStepNames = ["cleaning", "handout", "summary"];
+
+          for (const stepName of validStepNames) {
+            if (stepName in steps && steps[stepName] !== undefined) {
+              const stepConfig = steps[stepName] as Record<string, unknown>;
+
+              if ("provider" in stepConfig) {
+                if (typeof stepConfig.provider !== "string" || !["openai", "deepseek"].includes(stepConfig.provider)) {
+                  errors.push(`Invalid 'ai.steps.${stepName}.provider' field (must be: openai or deepseek)`);
+                }
+              }
+
+              if ("model" in stepConfig && typeof stepConfig.model !== "string") {
+                errors.push(`Invalid 'ai.steps.${stepName}.model' field (must be a string)`);
+              }
+
+              if ("overrides" in stepConfig && stepConfig.overrides !== undefined) {
+                if (typeof stepConfig.overrides !== "object" || stepConfig.overrides === null) {
+                  errors.push(`Invalid 'ai.steps.${stepName}.overrides' field (must be an object)`);
+                } else {
+                  const overrides = stepConfig.overrides as Record<string, unknown>;
+                  if ("temperature" in overrides && typeof overrides.temperature !== "number") {
+                    errors.push(`Invalid 'ai.steps.${stepName}.overrides.temperature' field (must be a number)`);
+                  }
+                  if ("maxTokens" in overrides && typeof overrides.maxTokens !== "number") {
+                    errors.push(`Invalid 'ai.steps.${stepName}.overrides.maxTokens' field (must be a number)`);
+                  }
+                }
               }
             }
           }
@@ -285,12 +354,50 @@ function validateConfig(config: unknown, configPath: string): asserts config is 
     }
   }
 
-  // Validate context (optional)
-  if ("context" in c && c.context !== undefined) {
-    if (typeof c.context !== "object" || c.context === null) {
+  // Validate profiles (if provided)
+  if ("profiles" in config && config.profiles !== undefined) {
+    if (typeof config.profiles !== "object" || config.profiles === null) {
+      errors.push("Invalid 'profiles' field (must be an object)");
+    } else {
+      const profiles = config.profiles as Record<string, unknown>;
+      const validProfileNames: SupportedProfile[] = ["lecture", "meeting", "other"];
+
+      for (const profileName of validProfileNames) {
+        if (profileName in profiles && profiles[profileName] !== undefined) {
+          const profile = profiles[profileName] as Record<string, unknown>;
+          if ("prompts" in profile && profile.prompts !== undefined) {
+            if (typeof profile.prompts !== "object" || profile.prompts === null) {
+              errors.push(`Invalid 'profiles.${profileName}.prompts' field (must be an object)`);
+            } else {
+              const prompts = profile.prompts as Record<string, unknown>;
+              if (profileName === "lecture") {
+                const validPrompts = ["cleaning", "handout", "summary"];
+                for (const promptName of validPrompts) {
+                  if (promptName in prompts && typeof prompts[promptName] !== "string") {
+                    errors.push(`Invalid 'profiles.${profileName}.prompts.${promptName}' field (must be a string)`);
+                  }
+                }
+              } else {
+                const validPrompts = ["cleaning", "summary"];
+                for (const promptName of validPrompts) {
+                  if (promptName in prompts && typeof prompts[promptName] !== "string") {
+                    errors.push(`Invalid 'profiles.${profileName}.prompts.${promptName}' field (must be a string)`);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Validate context (if provided)
+  if ("context" in config && config.context !== undefined) {
+    if (typeof config.context !== "object" || config.context === null) {
       errors.push("Invalid 'context' field (must be an object)");
     } else {
-      const context = c.context as Record<string, unknown>;
+      const context = config.context as Record<string, unknown>;
       if ("textSources" in context && context.textSources !== undefined) {
         if (!Array.isArray(context.textSources)) {
           errors.push("Invalid 'context.textSources' field (must be an array)");
@@ -307,5 +414,89 @@ function validateConfig(config: unknown, configPath: string): asserts config is 
 
   if (errors.length > 0) {
     throw new Error(`Config validation failed (${configPath}):\n${errors.map((e) => `  - ${e}`).join("\n")}`);
+  }
+}
+
+/**
+ * Validates the final merged config to ensure all required fields are present
+ */
+function validateFinalConfig(config: any, configPath: string): void {
+  const errors: string[] = [];
+
+  // Ensure profile is present
+  if (!config.profile || typeof config.profile !== "string") {
+    errors.push("Missing 'profile' field");
+  }
+
+  // Ensure language is present
+  if (!config.language || typeof config.language !== "object") {
+    errors.push("Missing 'language' field");
+  } else {
+    if (typeof config.language.input !== "string") {
+      errors.push("Missing or invalid 'language.input' field");
+    }
+    if (typeof config.language.output !== "string") {
+      errors.push("Missing or invalid 'language.output' field");
+    }
+  }
+
+  // Ensure logging is present
+  if (!config.logging || typeof config.logging !== "object") {
+    errors.push("Missing 'logging' field");
+  } else {
+    if (typeof config.logging.level !== "string" || !["error", "warn", "info", "debug"].includes(config.logging.level)) {
+      errors.push("Missing or invalid 'logging.level' field");
+    }
+    if (typeof config.logging.singleLine !== "boolean") {
+      errors.push("Missing or invalid 'logging.singleLine' field");
+    }
+  }
+
+  // Ensure paths is present
+  if (!config.paths || typeof config.paths !== "object") {
+    errors.push("Missing 'paths' field");
+  } else {
+    if (typeof config.paths.inputDir !== "string") {
+      errors.push("Missing or invalid 'paths.inputDir' field");
+    }
+    if (typeof config.paths.outputDir !== "string") {
+      errors.push("Missing or invalid 'paths.outputDir' field");
+    }
+  }
+
+  // Ensure asr is present
+  if (!config.asr || typeof config.asr !== "object") {
+    errors.push("Missing 'asr' field");
+  } else {
+    if (config.asr.provider !== "whisper") {
+      errors.push("Missing or invalid 'asr.provider' field (must be: whisper)");
+    }
+    if (!config.asr.whisper || typeof config.asr.whisper !== "object") {
+      errors.push("Missing 'asr.whisper' field");
+    } else {
+      if (typeof config.asr.whisper.serverUrl !== "string") {
+        errors.push("Missing or invalid 'asr.whisper.serverUrl' field");
+      }
+    }
+  }
+
+  // Ensure ai is present and has at least one provider
+  if (!config.ai || typeof config.ai !== "object") {
+    errors.push("Missing 'ai' field");
+  } else {
+    if (!config.ai.providers || typeof config.ai.providers !== "object") {
+      errors.push("Missing 'ai.providers' field");
+    } else {
+      const providers = config.ai.providers as Record<string, unknown>;
+      const hasOpenai = providers.openai && typeof providers.openai === "object" && (providers.openai as any).apiKey;
+      const hasDeepseek = providers.deepseek && typeof providers.deepseek === "object" && (providers.deepseek as any).apiKey;
+      if (!hasOpenai && !hasDeepseek) {
+        errors.push("At least one provider must be configured in 'ai.providers'");
+      }
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(`Config validation failed after merging defaults (${configPath}):\n${errors.map((e) => `  - ${e}`).join("\n")}`);
   }
 }

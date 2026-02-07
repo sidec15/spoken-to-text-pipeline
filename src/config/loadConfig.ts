@@ -508,6 +508,84 @@ function validateFinalConfig(config: any, configPath: string): void {
       if (!hasOpenai && !hasDeepseek) {
         errors.push("At least one provider must be configured in 'ai.providers'");
       }
+
+      // Validate default provider exists in providers pool
+      if (config.ai.default) {
+        if (!config.ai.default.provider || typeof config.ai.default.provider !== "string") {
+          errors.push("Missing or invalid 'ai.default.provider' field");
+        } else {
+          const defaultProvider = config.ai.default.provider;
+          if (defaultProvider === "openai" && !hasOpenai) {
+            errors.push(`Default provider '${defaultProvider}' is not configured`);
+          } else if (defaultProvider === "deepseek" && !hasDeepseek) {
+            errors.push(`Default provider '${defaultProvider}' is not configured`);
+          }
+        }
+        if (!config.ai.default.model || typeof config.ai.default.model !== "string") {
+          errors.push("Missing or invalid 'ai.default.model' field");
+        }
+      } else {
+        errors.push("Missing or invalid 'ai.default' field");
+      }
+
+      // Validate step providers exist in providers pool
+      if (config.steps) {
+        const validStepNames = ["cleaning", "handout", "summary"];
+        for (const stepName of validStepNames) {
+          if (config.steps[stepName]?.aiConfig?.provider) {
+            const stepProvider = config.steps[stepName].aiConfig.provider;
+            if (stepProvider === "openai" && !hasOpenai) {
+              errors.push(`Step '${stepName}' provider '${stepProvider}' is not configured`);
+            } else if (stepProvider === "deepseek" && !hasDeepseek) {
+              errors.push(`Step '${stepName}' provider '${stepProvider}' is not configured`);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Validate ASR whisper vad.enabled
+  if (config.asr?.whisper?.vad !== undefined) {
+    if (typeof config.asr.whisper.vad !== "object" || config.asr.whisper.vad === null) {
+      errors.push("Invalid 'asr.whisper.vad' field");
+    } else {
+      if (typeof config.asr.whisper.vad.enabled !== "boolean") {
+        errors.push("Missing or invalid 'asr.whisper.vad.enabled' field");
+      }
+    }
+  }
+
+  // Validate profiles and prompts
+  if (!config.profiles || typeof config.profiles !== "object") {
+    errors.push("Missing 'profiles' field");
+  } else {
+    const validProfileNames: SupportedProfile[] = ["lecture", "meeting", "other"];
+    for (const profileName of validProfileNames) {
+      if (!config.profiles[profileName] || typeof config.profiles[profileName] !== "object") {
+        errors.push(`Missing or invalid 'profiles.${profileName}' field`);
+      } else {
+        if (!config.profiles[profileName].prompts || typeof config.profiles[profileName].prompts !== "object") {
+          errors.push(`Missing or invalid 'profiles.${profileName}.prompts' field`);
+        } else {
+          const prompts = config.profiles[profileName].prompts;
+          if (profileName === "lecture") {
+            const requiredPrompts = ["cleaning", "handout", "summary"];
+            for (const promptName of requiredPrompts) {
+              if (!prompts[promptName] || typeof prompts[promptName] !== "string") {
+                errors.push(`Missing or invalid 'profiles.${profileName}.prompts.${promptName}' field`);
+              }
+            }
+          } else {
+            const requiredPrompts = ["cleaning", "summary"];
+            for (const promptName of requiredPrompts) {
+              if (!prompts[promptName] || typeof prompts[promptName] !== "string") {
+                errors.push(`Missing or invalid 'profiles.${profileName}.prompts.${promptName}' field`);
+              }
+            }
+          }
+        }
+      }
     }
   }
 

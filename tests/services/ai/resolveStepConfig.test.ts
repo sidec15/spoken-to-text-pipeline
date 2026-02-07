@@ -39,11 +39,14 @@ describe('resolveStepConfig', () => {
   it('should merge default with step override', () => {
     // Arrange
     const config = createMockConfig();
-    config.ai.steps = {
+    config.steps = {
       cleaning: {
-        provider: 'deepseek',
-        model: 'deepseek-chat',
-        overrides: { temperature: 0.7 },
+        enabled: true,
+        aiConfig: {
+          provider: 'deepseek',
+          model: 'deepseek-chat',
+          overrides: { temperature: 0.7 },
+        },
       },
     };
 
@@ -72,8 +75,11 @@ describe('resolveStepConfig', () => {
   it('should override provider', () => {
     // Arrange
     const config = createMockConfig();
-    config.ai.steps = {
-      cleaning: { provider: 'deepseek' },
+    config.steps = {
+      cleaning: {
+        enabled: true,
+        aiConfig: { provider: 'deepseek' },
+      },
     };
 
     // Act
@@ -87,8 +93,11 @@ describe('resolveStepConfig', () => {
   it('should override model', () => {
     // Arrange
     const config = createMockConfig();
-    config.ai.steps = {
-      cleaning: { model: 'gpt-4' },
+    config.steps = {
+      cleaning: {
+        enabled: true,
+        aiConfig: { model: 'gpt-4' },
+      },
     };
 
     // Act
@@ -103,9 +112,12 @@ describe('resolveStepConfig', () => {
     // Arrange
     const config = createMockConfig();
     config.ai.default.overrides = { temperature: 0.5, maxTokens: 1000 };
-    config.ai.steps = {
+    config.steps = {
       cleaning: {
-        overrides: { temperature: 0.7 },
+        enabled: true,
+        aiConfig: {
+          overrides: { temperature: 0.7 },
+        },
       },
     };
 

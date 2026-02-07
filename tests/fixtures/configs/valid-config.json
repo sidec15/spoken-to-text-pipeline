@@ -37,9 +37,12 @@
     "default": {
       "provider": "openai",
       "model": "gpt-4o-mini"
-    },
-    "steps": {
-      "cleaning": {
+    }
+  },
+  "steps": {
+    "cleaning": {
+      "enabled": true,
+      "aiConfig": {
         "provider": "openai",
         "model": "gpt-4o-mini"
       }

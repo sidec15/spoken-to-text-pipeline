@@ -79,10 +79,13 @@ describe('aiServiceFactory', () => {
     it('should resolve step config with overrides', () => {
       // Arrange
       const config = createMockConfig();
-      config.ai.steps = {
+      config.steps = {
         cleaning: {
-          provider: 'deepseek',
-          model: 'deepseek-chat',
+          enabled: true,
+          aiConfig: {
+            provider: 'deepseek',
+            model: 'deepseek-chat',
+          },
         },
       };
 

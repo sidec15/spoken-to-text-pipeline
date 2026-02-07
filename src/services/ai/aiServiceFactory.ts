@@ -8,6 +8,16 @@ import { resolveDeepSeekConfig } from "./deepseek/resolveDeepSeekConfig.js";
 export type AiStepName = "cleaning" | "handout" | "summary";
 
 /**
+ * Checks if a step is enabled.
+ * Steps are enabled by default unless explicitly disabled via config.
+ */
+export function isStepEnabled(config: PipelineConfig, step: AiStepName): boolean {
+  const stepConfig = config.steps?.[step];
+  // Default to true if not specified
+  return stepConfig?.enabled !== false;
+}
+
+/**
  * Resolves the provider, model, and overrides for a specific step.
  * Merges default configuration with step-specific overrides.
  */
@@ -15,12 +25,12 @@ export function resolveStepConfig(
   config: PipelineConfig,
   step: AiStepName,
 ): StepAiConfig {
-  // Default to OpenAI gpt-5-mini if ai.default is not provided
-  const defaultConfig: StepAiConfig = config.ai.default ?? {
+  // Safely access config.ai and set defaults if missing
+  const defaultConfig: StepAiConfig = config.ai?.default ?? {
     provider: "openai",
     model: "gpt-5-mini",
   };
-  const stepOverride = config.ai.steps?.[step];
+  const stepOverride = config.steps?.[step]?.aiConfig;
 
   // Merge default with step override
   const resolved: StepAiConfig = {
@@ -40,7 +50,7 @@ export function resolveStepConfig(
  */
 function getApiKey(config: PipelineConfig, provider: string): string {
   if (provider === "openai") {
-    const apiKey = config.ai.providers.openai?.apiKey;
+    const apiKey = config.ai?.providers?.openai?.apiKey ?? "";
     if (!apiKey) {
       throw new Error(`OpenAI provider not configured in provider pool`);
     }
@@ -48,7 +58,7 @@ function getApiKey(config: PipelineConfig, provider: string): string {
   }
 
   if (provider === "deepseek") {
-    const apiKey = config.ai.providers.deepseek?.apiKey;
+    const apiKey = config.ai?.providers?.deepseek?.apiKey ?? "";
     if (!apiKey) {
       throw new Error(`DeepSeek provider not configured in provider pool`);
     }

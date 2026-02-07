@@ -15,9 +15,9 @@ The pipeline is configured via a JSON file (default: `pipeline.config.json`). Th
 - [AI Provider Configuration](#ai-provider-configuration)
   - [Provider Pool (`providers`)](#provider-pool-providers)
   - [Default Configuration (`default`)](#default-configuration-default)
-  - [Per-Step Overrides (`steps`)](#per-step-overrides-steps)
   - [Temperature Defaults](#temperature-defaults)
   - [MaxTokens Calculation](#maxtokens-calculation)
+- [Step Configuration](#step-configuration-steps)
 - [Output Configuration](#output-configuration)
 - [ASR Configuration](#asr-configuration)
   - [Whisper Configuration](#whisper-configuration)
@@ -38,6 +38,7 @@ The configuration file is a JSON object with the following top-level structure:
   "output": { ... },
   "asr": { ... },
   "ai": { ... },
+  "steps": { ... },
   "context": { ... },
   "profiles": { ... }
 }
@@ -262,13 +263,19 @@ The `ai` object configures AI providers and models for text processing steps (cl
     "default": {
       "provider": "openai",
       "model": "gpt-4o-mini"
-    },
-    "steps": {
-      "cleaning": {
+    }
+  },
+  "steps": {
+    "cleaning": {
+      "enabled": true,
+      "aiConfig": {
         "provider": "openai",
         "model": "gpt-4o-mini"
-      },
-      "summary": {
+      }
+    },
+    "summary": {
+      "enabled": true,
+      "aiConfig": {
         "provider": "deepseek",
         "model": "deepseek-chat",
         "overrides": {
@@ -328,18 +335,20 @@ The `default` object specifies the provider, model, and optional overrides to us
 }
 ```
 
-### Per-Step Overrides (`steps`)
+## Step Configuration
 
-The optional `steps` object allows you to override the default configuration for specific steps.
+The optional `steps` object allows you to configure specific pipeline steps at the top level of the configuration.
 
-- **`cleaning`** (optional): Override for cleaning step
-- **`handout`** (optional): Override for handout step (lecture profile only)
-- **`summary`** (optional): Override for summary step
+- **`cleaning`** (optional): Configuration for cleaning step
+- **`handout`** (optional): Configuration for handout step (lecture profile only)
+- **`summary`** (optional): Configuration for summary step
 
-Each step override can specify:
-- `provider` (optional): Override provider. Default: uses `ai.default.provider` or `"openai"`
-- `model` (optional): Override model. Default: uses `ai.default.model` or `"gpt-5-mini"`
-- `overrides` (optional): Override temperature and/or maxTokens. Default: uses `ai.default.overrides` or profile-specific presets
+Each step configuration can specify:
+- `enabled` (optional): Enable or disable the step. If `false`, the step will be skipped. Default: `true` (step is enabled)
+- `aiConfig` (optional): AI configuration for this step. If not provided, uses `ai.default` or OpenAI gpt-5-mini as fallback
+  - `provider` (optional): Override provider. Default: uses `ai.default.provider` or `"openai"`
+  - `model` (optional): Override model. Default: uses `ai.default.model` or `"gpt-5-mini"`
+  - `overrides` (optional): Override temperature and/or maxTokens. Default: uses `ai.default.overrides` or profile-specific presets
 
 **Example:**
 
@@ -347,20 +356,47 @@ Each step override can specify:
 {
   "steps": {
     "cleaning": {
-      "provider": "openai",
-      "model": "gpt-4o-mini"
+      "enabled": true,
+      "aiConfig": {
+        "provider": "openai",
+        "model": "gpt-4o-mini"
+      }
     },
     "summary": {
-      "provider": "deepseek",
-      "model": "deepseek-chat",
-      "overrides": {
-        "temperature": 0.3,
-        "maxTokens": 2000
+      "enabled": true,
+      "aiConfig": {
+        "provider": "deepseek",
+        "model": "deepseek-chat",
+        "overrides": {
+          "temperature": 0.3,
+          "maxTokens": 2000
+        }
       }
     }
   }
 }
 ```
+
+**Disabling steps:**
+
+You can disable specific steps by setting `enabled: false`:
+
+```json
+{
+  "steps": {
+    "handout": {
+      "enabled": false
+    },
+    "summary": {
+      "enabled": false
+    }
+  }
+}
+```
+
+When a step is disabled, it will be skipped during pipeline execution. This is useful when you only want to run specific steps (e.g., only transcription and cleaning, skipping handout and summary generation).
+
+**Note:** The `steps` configuration is at the top level of the configuration file, not nested under `ai`. This separates step control (enabled/disabled) from AI provider configuration.
 
 ### Temperature Defaults
 
@@ -635,19 +671,31 @@ The following table provides a quick reference for all configuration parameters:
 | `ai.default.overrides` | `object` | No | `undefined` | - | Default parameter overrides |
 | `ai.default.overrides.temperature` | `number` | No | Profile-specific presets | 0-2 | Temperature override |
 | `ai.default.overrides.maxTokens` | `number` | No | Calculated dynamically | Positive integer | Max tokens override |
-| `ai.steps` | `object` | No | `undefined` | - | Per-step overrides |
-| `ai.steps.cleaning` | `object` | No | `undefined` | - | Cleaning step override |
-| `ai.steps.cleaning.provider` | `string` | No | Uses `ai.default.provider` | `"openai"`, `"deepseek"` | Override provider |
-| `ai.steps.cleaning.model` | `string` | No | Uses `ai.default.model` | Valid model identifier | Override model |
-| `ai.steps.cleaning.overrides` | `object` | No | Uses `ai.default.overrides` | - | Override parameters |
-| `ai.steps.handout` | `object` | No | `undefined` | - | Handout step override (lecture profile only) |
-| `ai.steps.handout.provider` | `string` | No | Uses `ai.default.provider` | `"openai"`, `"deepseek"` | Override provider |
-| `ai.steps.handout.model` | `string` | No | Uses `ai.default.model` | Valid model identifier | Override model |
-| `ai.steps.handout.overrides` | `object` | No | Uses `ai.default.overrides` | - | Override parameters |
-| `ai.steps.summary` | `object` | No | `undefined` | - | Summary step override |
-| `ai.steps.summary.provider` | `string` | No | Uses `ai.default.provider` | `"openai"`, `"deepseek"` | Override provider |
-| `ai.steps.summary.model` | `string` | No | Uses `ai.default.model` | Valid model identifier | Override model |
-| `ai.steps.summary.overrides` | `object` | No | Uses `ai.default.overrides` | - | Override parameters |
+| **`steps`** | `object` | No | `undefined` | - | Step configuration |
+| `steps.cleaning` | `object` | No | `undefined` | - | Cleaning step configuration |
+| `steps.cleaning.enabled` | `boolean` | No | `true` | `true`, `false` | Enable or disable cleaning step |
+| `steps.cleaning.aiConfig` | `object` | No | Uses `ai.default` | - | AI configuration for cleaning step |
+| `steps.cleaning.aiConfig.provider` | `string` | No | Uses `ai.default.provider` | `"openai"`, `"deepseek"` | Override provider |
+| `steps.cleaning.aiConfig.model` | `string` | No | Uses `ai.default.model` | Valid model identifier | Override model |
+| `steps.cleaning.aiConfig.overrides` | `object` | No | Uses `ai.default.overrides` | - | Override parameters |
+| `steps.cleaning.aiConfig.overrides.temperature` | `number` | No | Profile-specific presets | 0-2 | Temperature override |
+| `steps.cleaning.aiConfig.overrides.maxTokens` | `number` | No | Calculated dynamically | Positive integer | Max tokens override |
+| `steps.handout` | `object` | No | `undefined` | - | Handout step configuration (lecture profile only) |
+| `steps.handout.enabled` | `boolean` | No | `true` | `true`, `false` | Enable or disable handout step |
+| `steps.handout.aiConfig` | `object` | No | Uses `ai.default` | - | AI configuration for handout step |
+| `steps.handout.aiConfig.provider` | `string` | No | Uses `ai.default.provider` | `"openai"`, `"deepseek"` | Override provider |
+| `steps.handout.aiConfig.model` | `string` | No | Uses `ai.default.model` | Valid model identifier | Override model |
+| `steps.handout.aiConfig.overrides` | `object` | No | Uses `ai.default.overrides` | - | Override parameters |
+| `steps.handout.aiConfig.overrides.temperature` | `number` | No | Profile-specific presets | 0-2 | Temperature override |
+| `steps.handout.aiConfig.overrides.maxTokens` | `number` | No | Calculated dynamically | Positive integer | Max tokens override |
+| `steps.summary` | `object` | No | `undefined` | - | Summary step configuration |
+| `steps.summary.enabled` | `boolean` | No | `true` | `true`, `false` | Enable or disable summary step |
+| `steps.summary.aiConfig` | `object` | No | Uses `ai.default` | - | AI configuration for summary step |
+| `steps.summary.aiConfig.provider` | `string` | No | Uses `ai.default.provider` | `"openai"`, `"deepseek"` | Override provider |
+| `steps.summary.aiConfig.model` | `string` | No | Uses `ai.default.model` | Valid model identifier | Override model |
+| `steps.summary.aiConfig.overrides` | `object` | No | Uses `ai.default.overrides` | - | Override parameters |
+| `steps.summary.aiConfig.overrides.temperature` | `number` | No | Profile-specific presets | 0-2 | Temperature override |
+| `steps.summary.aiConfig.overrides.maxTokens` | `number` | No | Calculated dynamically | Positive integer | Max tokens override |
 | **`context`** | `object` | No | `undefined` | - | Context materials |
 | `context.textSources` | `string[]` | No | `undefined` | Array of file paths | Reference text files (.txt or .md) |
 | **`profiles`** | `object` | No | `undefined` | - | Custom profile prompts |

@@ -312,38 +312,53 @@ function validateUserConfig(config: Record<string, unknown>, configPath: string)
         }
       }
 
-      // Validate step overrides (if provided)
-      if ("steps" in ai && ai.steps !== undefined) {
-        if (typeof ai.steps !== "object" || ai.steps === null) {
-          errors.push("Invalid 'ai.steps' field (must be an object)");
-        } else {
-          const steps = ai.steps as Record<string, unknown>;
-          const validStepNames = ["cleaning", "handout", "summary"];
+    }
+  }
 
-          for (const stepName of validStepNames) {
-            if (stepName in steps && steps[stepName] !== undefined) {
-              const stepConfig = steps[stepName] as Record<string, unknown>;
+  // Validate steps (if provided)
+  if ("steps" in config && config.steps !== undefined) {
+    if (typeof config.steps !== "object" || config.steps === null) {
+      errors.push("Invalid 'steps' field (must be an object)");
+    } else {
+      const steps = config.steps as Record<string, unknown>;
+      const validStepNames = ["cleaning", "handout", "summary"];
 
-              if ("provider" in stepConfig) {
-                if (typeof stepConfig.provider !== "string" || !["openai", "deepseek"].includes(stepConfig.provider)) {
-                  errors.push(`Invalid 'ai.steps.${stepName}.provider' field (must be: openai or deepseek)`);
+      for (const stepName of validStepNames) {
+        if (stepName in steps && steps[stepName] !== undefined) {
+          const stepConfig = steps[stepName] as Record<string, unknown>;
+
+          // Validate enabled field
+          if ("enabled" in stepConfig && typeof stepConfig.enabled !== "boolean") {
+            errors.push(`Invalid 'steps.${stepName}.enabled' field (must be a boolean)`);
+          }
+
+          // Validate aiConfig field
+          if ("aiConfig" in stepConfig && stepConfig.aiConfig !== undefined) {
+            if (typeof stepConfig.aiConfig !== "object" || stepConfig.aiConfig === null) {
+              errors.push(`Invalid 'steps.${stepName}.aiConfig' field (must be an object)`);
+            } else {
+              const aiConfig = stepConfig.aiConfig as Record<string, unknown>;
+
+              if ("provider" in aiConfig) {
+                if (typeof aiConfig.provider !== "string" || !["openai", "deepseek"].includes(aiConfig.provider)) {
+                  errors.push(`Invalid 'steps.${stepName}.aiConfig.provider' field (must be: openai or deepseek)`);
                 }
               }
 
-              if ("model" in stepConfig && typeof stepConfig.model !== "string") {
-                errors.push(`Invalid 'ai.steps.${stepName}.model' field (must be a string)`);
+              if ("model" in aiConfig && typeof aiConfig.model !== "string") {
+                errors.push(`Invalid 'steps.${stepName}.aiConfig.model' field (must be a string)`);
               }
 
-              if ("overrides" in stepConfig && stepConfig.overrides !== undefined) {
-                if (typeof stepConfig.overrides !== "object" || stepConfig.overrides === null) {
-                  errors.push(`Invalid 'ai.steps.${stepName}.overrides' field (must be an object)`);
+              if ("overrides" in aiConfig && aiConfig.overrides !== undefined) {
+                if (typeof aiConfig.overrides !== "object" || aiConfig.overrides === null) {
+                  errors.push(`Invalid 'steps.${stepName}.aiConfig.overrides' field (must be an object)`);
                 } else {
-                  const overrides = stepConfig.overrides as Record<string, unknown>;
+                  const overrides = aiConfig.overrides as Record<string, unknown>;
                   if ("temperature" in overrides && typeof overrides.temperature !== "number") {
-                    errors.push(`Invalid 'ai.steps.${stepName}.overrides.temperature' field (must be a number)`);
+                    errors.push(`Invalid 'steps.${stepName}.aiConfig.overrides.temperature' field (must be a number)`);
                   }
                   if ("maxTokens" in overrides && typeof overrides.maxTokens !== "number") {
-                    errors.push(`Invalid 'ai.steps.${stepName}.overrides.maxTokens' field (must be a number)`);
+                    errors.push(`Invalid 'steps.${stepName}.aiConfig.overrides.maxTokens' field (must be a number)`);
                   }
                 }
               }

@@ -2,6 +2,10 @@
 
 A Node.js pipeline that transforms spoken audio into structured, editable text through automated transcription and AI-powered post-processing.
 
+<p style="text-align: center;">
+  <img src="spoken-to-text.png" alt="spoken-to-text" height="200">
+</p>
+
 ## Why This Tool?
 
 While there are many services that let users write transcripts in real-time, there are **few alternatives when dealing with post-processing activities**, and most of them are **paid**. This pipeline fills that gap by providing:

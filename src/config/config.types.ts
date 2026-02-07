@@ -75,6 +75,24 @@ export interface StepAiConfig {
 }
 
 /**
+ * Step configuration.
+ * Defines enabled status and AI configuration for a step.
+ */
+export interface StepConfig {
+  /**
+   * Enable or disable the step (optional).
+   * If false, the step will be skipped during pipeline execution.
+   * Default: true (step is enabled)
+   */
+  enabled?: boolean;
+  /**
+   * AI configuration for this step (optional).
+   * If not provided, uses ai.default or OpenAI gpt-5-mini as fallback.
+   */
+  aiConfig?: Partial<StepAiConfig>;
+}
+
+/**
  * AI configuration for text processing steps.
  */
 export interface AiConfig {
@@ -90,28 +108,6 @@ export interface AiConfig {
    * Default: { provider: "openai", model: "gpt-5-mini", overrides: undefined }
    */
   default?: StepAiConfig;
-  /**
-   * Optional per-step overrides.
-   * Each step can override provider, model, or overrides.
-   * Default: undefined (all steps use ai.default, or OpenAI gpt-5-mini if ai.default is not provided)
-   */
-  steps?: {
-    /**
-     * Override configuration for cleaning step (optional).
-     * Default: undefined (uses ai.default, or OpenAI gpt-5-mini if ai.default is not provided)
-     */
-    cleaning?: Partial<StepAiConfig>;
-    /**
-     * Override configuration for handout step (optional).
-     * Default: undefined (uses ai.default, or OpenAI gpt-5-mini if ai.default is not provided)
-     */
-    handout?: Partial<StepAiConfig>;
-    /**
-     * Override configuration for summary step (optional).
-     * Default: undefined (uses ai.default, or OpenAI gpt-5-mini if ai.default is not provided)
-     */
-    summary?: Partial<StepAiConfig>;
-  };
 }
 
 /**
@@ -326,10 +322,30 @@ export interface PipelineConfig {
 
   /**
    * AI provider configuration for text processing steps (optional).
-   * Supports provider pool, default configuration, and per-step overrides.
+   * Supports provider pool and default configuration.
    * Default: { providers: {}, default: { provider: "openai", model: "gpt-5-mini" } }
    */
   ai?: AiConfig;
+
+  /**
+   * Step configuration for pipeline steps (optional).
+   * Allows enabling/disabling steps and configuring AI settings per step.
+   * Default: undefined (all steps enabled, using ai.default or OpenAI gpt-5-mini)
+   */
+  steps?: {
+    /**
+     * Configuration for cleaning step (optional).
+     */
+    cleaning?: StepConfig;
+    /**
+     * Configuration for handout step (optional).
+     */
+    handout?: StepConfig;
+    /**
+     * Configuration for summary step (optional).
+     */
+    summary?: StepConfig;
+  };
 
   /**
    * Optional context configuration for improving AI processing.

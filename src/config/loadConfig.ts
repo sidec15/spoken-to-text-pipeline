@@ -103,6 +103,9 @@ export function loadConfig(configPath: string, baseDir?: string): PipelineConfig
   if (!mergedConfig.paths) {
     mergedConfig.paths = CONFIG_DEFAULTS.paths;
   }
+  if (!mergedConfig.output) {
+    mergedConfig.output = CONFIG_DEFAULTS.output;
+  }
   if (!mergedConfig.asr) {
     mergedConfig.asr = CONFIG_DEFAULTS.asr;
   }
@@ -563,31 +566,37 @@ function validateFinalConfig(config: any, configPath: string): void {
     }
   }
 
-  // Validate profiles and prompts
-  if (!config.profiles || typeof config.profiles !== "object") {
-    errors.push("Missing 'profiles' field");
-  } else {
-    const validProfileNames: SupportedProfile[] = ["lecture", "meeting", "other"];
-    for (const profileName of validProfileNames) {
-      if (!config.profiles[profileName] || typeof config.profiles[profileName] !== "object") {
-        errors.push(`Missing or invalid 'profiles.${profileName}' field`);
-      } else {
-        if (!config.profiles[profileName].prompts || typeof config.profiles[profileName].prompts !== "object") {
-          errors.push(`Missing or invalid 'profiles.${profileName}.prompts' field`);
-        } else {
-          const prompts = config.profiles[profileName].prompts;
-          if (profileName === "lecture") {
-            const requiredPrompts = ["cleaning", "handout", "summary"];
-            for (const promptName of requiredPrompts) {
-              if (!prompts[promptName] || typeof prompts[promptName] !== "string") {
-                errors.push(`Missing or invalid 'profiles.${profileName}.prompts.${promptName}' field`);
-              }
-            }
+  // Validate profiles and prompts (only if provided - profiles is optional)
+  if (config.profiles !== undefined) {
+    if (typeof config.profiles !== "object" || config.profiles === null) {
+      errors.push("Invalid 'profiles' field (must be an object)");
+    } else {
+      const validProfileNames: SupportedProfile[] = ["lecture", "meeting", "other"];
+      for (const profileName of validProfileNames) {
+        if (profileName in config.profiles && config.profiles[profileName] !== undefined) {
+          if (typeof config.profiles[profileName] !== "object" || config.profiles[profileName] === null) {
+            errors.push(`Invalid 'profiles.${profileName}' field (must be an object)`);
           } else {
-            const requiredPrompts = ["cleaning", "summary"];
-            for (const promptName of requiredPrompts) {
-              if (!prompts[promptName] || typeof prompts[promptName] !== "string") {
-                errors.push(`Missing or invalid 'profiles.${profileName}.prompts.${promptName}' field`);
+            if ("prompts" in config.profiles[profileName] && config.profiles[profileName].prompts !== undefined) {
+              if (typeof config.profiles[profileName].prompts !== "object" || config.profiles[profileName].prompts === null) {
+                errors.push(`Invalid 'profiles.${profileName}.prompts' field (must be an object)`);
+              } else {
+                const prompts = config.profiles[profileName].prompts;
+                if (profileName === "lecture") {
+                  const validPrompts = ["cleaning", "handout", "summary"];
+                  for (const promptName of validPrompts) {
+                    if (promptName in prompts && typeof prompts[promptName] !== "string") {
+                      errors.push(`Invalid 'profiles.${profileName}.prompts.${promptName}' field (must be a string)`);
+                    }
+                  }
+                } else {
+                  const validPrompts = ["cleaning", "summary"];
+                  for (const promptName of validPrompts) {
+                    if (promptName in prompts && typeof prompts[promptName] !== "string") {
+                      errors.push(`Invalid 'profiles.${profileName}.prompts.${promptName}' field (must be a string)`);
+                    }
+                  }
+                }
               }
             }
           }

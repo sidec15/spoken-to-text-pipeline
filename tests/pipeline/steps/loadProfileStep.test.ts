@@ -63,7 +63,17 @@ describe('LoadProfileStep', () => {
 
     // Assert
     expect(mockContext.config.profile).toBe('lecture');
-    expect(mockContext.config.profiles.lecture).toBeDefined();
+  });
+
+  it('should work without profiles field', async () => {
+    // Arrange
+    delete mockConfig.profiles;
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    expect(mockContext.logger.info).toHaveBeenCalledWith("Profile 'lecture' loaded");
   });
 
   it('should handle invalid profile', async () => {
@@ -72,7 +82,7 @@ describe('LoadProfileStep', () => {
 
     // Act & Assert
     await expect(step.runAsync(mockContext)).rejects.toThrow(
-      /Profile not found in config/
+      /Invalid profile: invalid-profile/
     );
   });
 

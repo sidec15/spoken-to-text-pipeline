@@ -60,20 +60,20 @@ export async function runPipeline(options: PipelineOptions): Promise<PipelineRes
   if (config.paths) {
     logger.info("Pipeline plan:");
     logger.info("> LoadProfileStep:");
-    logger.debug(">> Input: ${config.paths.inputDir}");
-    logger.debug(">> Output: ${config.paths.outputDir}");
+    logger.debug(`>> Input: ${config.paths.inputDir}`);
+    logger.debug(`>> Output: ${config.paths.outputDir}`);
     logger.info("> AsrStep:");
-    logger.debug(">> Input: ${config.paths.inputDir}");
-    logger.debug(">> Output: ${config.paths.outputDir}");
+    logger.debug(`>> Input: ${config.paths.inputDir}`);
+    logger.debug(`>> Output: ${config.paths.outputDir}`);
     logger.info("> CleaningStep:");
-    logger.debug(">> Input: ${config.paths.inputDir}");
-    logger.debug(">> Output: ${config.paths.outputDir}");
+    logger.debug(`>> Input: ${config.paths.inputDir}`);
+    logger.debug(`>> Output: ${config.paths.outputDir}`);
     logger.info("> HandoutStep:");
-    logger.debug(">> Input: ${config.paths.inputDir}");
-    logger.debug(">> Output: ${config.paths.outputDir}");
+    logger.debug(`>> Input: ${config.paths.inputDir}`);
+    logger.debug(`>> Output: ${config.paths.outputDir}`);
     logger.info("> SummaryStep:");
-    logger.debug(">> Input: ${config.paths.inputDir}");
-    logger.debug(">> Output: ${config.paths.outputDir}");
+    logger.debug(`>> Input: ${config.paths.inputDir}`);
+    logger.debug(`>> Output: ${config.paths.outputDir}`);
   } else {
     logger.warn("No paths configured");
   }

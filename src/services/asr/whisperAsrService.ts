@@ -45,8 +45,8 @@ export class WhisperAsrService implements AsrService {
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      this.logger.debug(`POST ${url}`);
-      this.logger.debug(`Uploading file: ${fileName}`);
+      this.logger.silly(`POST ${url}`);
+      this.logger.silly(`Uploading file: ${fileName}`);
 
       const form = new FormData();
       const fileBuffer = await fs.promises.readFile(inputPath);

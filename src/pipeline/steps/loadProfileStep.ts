@@ -1,4 +1,5 @@
 import type { Step, StepContext } from "../step.js";
+import type { SupportedProfile } from "../../config/config.types.js";
 
 export class LoadProfileStep implements Step {
   readonly name = "load-profile";
@@ -12,8 +13,10 @@ export class LoadProfileStep implements Step {
     }
     logger.debug(`Active profile: ${profile}`);
 
-    if (!config.profiles?.[profile]) {
-      throw new Error(`Profile not found in config: ${profile}`);
+    // Validate that the profile is one of the supported profiles
+    const validProfiles: SupportedProfile[] = ["lecture", "meeting", "other"];
+    if (!validProfiles.includes(profile as SupportedProfile)) {
+      throw new Error(`Invalid profile: ${profile} (must be one of: ${validProfiles.join(", ")})`);
     }
 
     logger.info(`Profile '${config.profile}' loaded`);

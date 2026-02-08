@@ -1,10 +1,12 @@
 # spoken-to-text-pipeline
 
-A Node.js pipeline that transforms spoken audio into structured, editable text through automated transcription and AI-powered post-processing.
+[![codecov](https://codecov.io/gh/sidec15/spoken-to-text-pipeline/graph/badge.svg?token=ES1EOSVK6L)](https://codecov.io/gh/sidec15/spoken-to-text-pipeline)
 
-<p style="text-align: center;">
+<!-- <p style="text-align: left;">
   <img src="spoken-to-text.png" alt="spoken-to-text" height="200">
-</p>
+</p> -->
+
+A Node.js pipeline that transforms spoken audio into structured, editable text through automated transcription and AI-powered post-processing.
 
 ## Why This Tool?
 

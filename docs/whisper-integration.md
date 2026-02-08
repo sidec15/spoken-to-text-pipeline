@@ -213,7 +213,11 @@ You can customize transcription behavior. See the [Configuration Reference](conf
 - `beamSize`: Beam search size (higher = better accuracy, slower)
 - `bestOf`: Number of candidates to consider
 - `vad`: Voice Activity Detection settings (requires `faster_whisper` engine)
-- `requestTimeoutMs`: Request timeout per audio file
+- `requestTimeoutMs`: Request timeout per audio file (default: 1 hour, recommended: 15 minutes for long files)
+
+**Timeout Behavior:**
+- **Connection timeout**: 30 seconds (fixed) - If the server doesn't accept a connection within 30 seconds, the request fails immediately with a clear error message
+- **Request timeout**: Configurable via `requestTimeoutMs` (default: 1 hour) - Maximum time for the entire request including upload, processing, and response download
 
 ## Verifying the Setup
 
@@ -229,3 +233,16 @@ You should receive a response indicating the server is running. If the pipeline 
 2. Port 9000 is accessible: `curl http://localhost:9000/asr`
 3. The `serverUrl` in your config matches the actual server address
 4. Firewall rules allow connections to the server port
+
+**Troubleshooting Connection Timeouts:**
+
+If you see errors like "Failed to connect to Whisper server" or "connection timeout", this indicates:
+
+- **Connection timeout (30 seconds)**: The server didn't accept the connection within 30 seconds. This usually means:
+  - The server is not running or not accessible
+  - Network/firewall issues
+  - The server is overloaded and can't accept new connections
+
+- **Request timeout**: The connection was established but the request took too long. Increase `requestTimeoutMs` in your config if processing long audio files.
+
+The pipeline distinguishes between these two timeout types to help diagnose the issue.

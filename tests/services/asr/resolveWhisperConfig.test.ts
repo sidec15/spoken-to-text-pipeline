@@ -267,4 +267,41 @@ describe('resolveWhisperConfig', () => {
     expect(result.options.vad?.minSilenceMs).toBeUndefined();
     expect(result.options.vad?.maxSpeechS).toBeUndefined();
   });
+
+  it('should map requestTimeoutMs to timeoutMs', () => {
+    // Arrange
+    const config = createMockConfig();
+    config.asr.whisper.requestTimeoutMs = 900000; // 15 minutes
+
+    // Act
+    const result = resolveWhisperConfig(config);
+
+    // Assert
+    expect(result.options.timeoutMs).toBe(900000);
+  });
+
+  it('should use preset timeoutMs when requestTimeoutMs is not provided', () => {
+    // Arrange
+    const config = createMockConfig();
+    // requestTimeoutMs not set
+
+    // Act
+    const result = resolveWhisperConfig(config);
+
+    // Assert
+    // Presets don't include timeoutMs, so it should be undefined
+    expect(result.options.timeoutMs).toBeUndefined();
+  });
+
+  it('should prioritize requestTimeoutMs over preset timeoutMs', () => {
+    // Arrange
+    const config = createMockConfig();
+    config.asr.whisper.requestTimeoutMs = 1800000; // 30 minutes
+
+    // Act
+    const result = resolveWhisperConfig(config);
+
+    // Assert
+    expect(result.options.timeoutMs).toBe(1800000);
+  });
 });

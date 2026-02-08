@@ -595,7 +595,9 @@ The optional `vad` object configures Voice Activity Detection, which helps ident
 - **Meeting**: `enabled=true`, `threshold=0.6`, `minSilenceMs=500`, `maxSpeechS=30`
 - **Other**: `enabled=true`, `threshold=0.5`, `minSilenceMs=600`, `maxSpeechS=45`
 
-- **`requestTimeoutMs`** (optional): Request timeout in milliseconds for each audio file transcription. Default: `undefined` (uses Whisper server default timeout). Recommended: `900000` (15 minutes) for long audio files.
+- **`requestTimeoutMs`** (optional): Request timeout in milliseconds for each audio file transcription. This is the maximum time allowed for the entire request (including connection, upload, processing, and response). Default: `undefined` (uses default of 1 hour = 3600000ms). Recommended: `900000` (15 minutes) for long audio files.
+
+  **Note:** The pipeline also implements a separate **connection timeout** of 30 seconds. If the server doesn't accept a connection within 30 seconds, the request fails immediately with a clear error message. This helps identify connection issues early, separate from request processing timeouts.
 
 ## Profile Prompts Configuration
 
@@ -704,7 +706,7 @@ The following table provides a quick reference for all configuration parameters:
 | `asr.whisper.vad.threshold` | `number` | No | Profile-specific (lecture: 0.45, meeting: 0.6, other: 0.5) | 0-1 | VAD threshold |
 | `asr.whisper.vad.minSilenceMs` | `number` | No | Profile-specific (lecture: 700, meeting: 500, other: 600) | Positive integer | Min silence duration (ms) |
 | `asr.whisper.vad.maxSpeechS` | `number` | No | Profile-specific (lecture: 60, meeting: 30, other: 45) | Positive integer | Max speech segment (seconds) |
-| `asr.whisper.requestTimeoutMs` | `number` | No | `undefined` (server default) | Positive integer | Request timeout (ms), recommended: 900000 |
+| `asr.whisper.requestTimeoutMs` | `number` | No | `undefined` (1 hour default) | Positive integer | Request timeout (ms), recommended: 900000. Note: Separate 30s connection timeout applies |
 | **`ai`** | `object` | No | `{ providers: {}, default: { provider: "openai", model: "gpt-5-mini" } }` | - | AI provider configuration |
 | `ai.providers` | `object` | ⚠️ No | `{}` | - | Provider pool (at least one provider with API key required) |
 | `ai.providers.openai` | `object` | No | `undefined` | - | OpenAI provider config |

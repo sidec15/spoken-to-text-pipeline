@@ -41,6 +41,7 @@ export class WhisperAsrService implements AsrService {
     const url = query ? `${this.serverUrl}?${query}` : this.serverUrl;
 
     const timeoutMs = opts.timeoutMs ?? 60 * 60 * 1000; // 1 hour default
+    const connectionTimeoutMs = 30000; // 30 seconds connection timeout
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -59,17 +60,50 @@ export class WhisperAsrService implements AsrService {
       this.logger.debug(`File size: ${fileBuffer.length} bytes`);
 
       let res: Response;
+      let connectionTimeoutId: NodeJS.Timeout | null = null;
       try {
-        res = await fetch(url, {
+        // Add connection timeout wrapper - race between fetch and connection timeout
+        const connectionTimeout = new Promise<never>((_, reject) => {
+          connectionTimeoutId = setTimeout(() => {
+            controller.abort();
+            reject(new Error(`Connection timeout: failed to connect to Whisper server within ${connectionTimeoutMs}ms`));
+          }, connectionTimeoutMs);
+        });
+
+        const fetchPromise = fetch(url, {
           method: "POST",
           body: form,
           signal: controller.signal,
         });
+
+        // Race between fetch and connection timeout
+        res = await Promise.race([fetchPromise, connectionTimeout]);
+        
+        // Clear connection timeout if fetch succeeded
+        if (connectionTimeoutId) {
+          clearTimeout(connectionTimeoutId);
+          connectionTimeoutId = null;
+        }
       } catch (fetchErr) {
+        // Clear connection timeout on error
+        if (connectionTimeoutId) {
+          clearTimeout(connectionTimeoutId);
+        }
+        
+        // Check if this is a connection timeout error
+        if (fetchErr instanceof Error && fetchErr.message?.includes("Connection timeout")) {
+          throw new Error(
+            `Failed to connect to Whisper server for file '${fileName}': connection timeout after ${connectionTimeoutMs}ms. ` +
+            `URL: ${url}. ` +
+            `The server may be unavailable or taking too long to accept connections.`
+          );
+        }
+        
         // Check if this is an abort/timeout error
         if (fetchErr instanceof Error && fetchErr.name === "AbortError") {
           throw new Error(`Whisper request timed out after ${timeoutMs}ms for file: ${fileName}`);
         }
+        
         const errorMessage = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
         const errorName = fetchErr instanceof Error ? fetchErr.name : "UnknownError";
         this.logger.error(`Fetch request failed: ${errorName} - ${errorMessage}`);

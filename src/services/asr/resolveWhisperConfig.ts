@@ -24,6 +24,7 @@ export function resolveWhisperConfig(config: PipelineConfig): ResolvedWhisperCon
       ...preset,
       ...overrides,
       language: inputLanguage,
+      timeoutMs: overrides.requestTimeoutMs ?? preset.timeoutMs,
     },
   };
 }

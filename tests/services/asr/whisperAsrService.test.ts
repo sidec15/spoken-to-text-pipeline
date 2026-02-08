@@ -275,4 +275,54 @@ describe('WhisperAsrService', () => {
       service.transcribeFileAsync('/path/to/audio.wav', options)
     ).rejects.toThrow();
   });
+
+  it('should handle connection errors with descriptive message', async () => {
+    // Arrange
+    const options: AsrTranscribeOptions = {
+      task: 'transcribe',
+      outputFormat: 'txt',
+    };
+
+    // Mock fetch to reject with a connection error (simulating network failure or connection timeout)
+    const connectionError = new Error('fetch failed');
+    (global.fetch as any).mockRejectedValue(connectionError);
+
+    // Act & Assert
+    // Verifies that connection errors (including connection timeouts) are caught and formatted correctly
+    await expect(
+      service.transcribeFileAsync('/path/to/audio.wav', options)
+    ).rejects.toThrow(/Failed to connect to Whisper server/);
+  });
+
+  it('should clear connection timeout when fetch succeeds', async () => {
+    // Arrange
+    const originalSetTimeout = global.setTimeout;
+    const originalClearTimeout = global.clearTimeout;
+    const clearTimeoutCalls: NodeJS.Timeout[] = [];
+    global.clearTimeout = jest.fn().mockImplementation((id: NodeJS.Timeout) => {
+      clearTimeoutCalls.push(id);
+      return originalClearTimeout(id);
+    }) as any;
+
+    const mockResponse = {
+      ok: true,
+      arrayBuffer: jest.fn<() => Promise<ArrayBuffer>>().mockResolvedValue(Buffer.from('transcript').buffer),
+    };
+    (global.fetch as any).mockResolvedValue(mockResponse);
+
+    const options: AsrTranscribeOptions = {
+      task: 'transcribe',
+      outputFormat: 'txt',
+    };
+
+    // Act
+    await service.transcribeFileAsync('/path/to/audio.wav', options);
+
+    // Assert - connection timeout should be cleared
+    expect(clearTimeoutCalls.length).toBeGreaterThan(0);
+
+    // Restore
+    global.setTimeout = originalSetTimeout;
+    global.clearTimeout = originalClearTimeout;
+  });
 });

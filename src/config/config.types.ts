@@ -9,7 +9,7 @@ export type SupportedProfile = "lecture" | "meeting" | "other";
 /**
  * Supported AI providers for text processing steps (cleaning, handout, summary).
  */
-export type SupportedAiProvider = "openai" | "deepseek";
+export type SupportedAiProvider = "openai" | "deepseek" | "ollama";
 
 /**
  * Supported ASR (Automatic Speech Recognition) providers.
@@ -37,6 +37,18 @@ export interface AiProviderPool {
   deepseek?: {
     /** DeepSeek API key (required if deepseek provider is configured) */
     apiKey: string;
+  };
+  /**
+   * Ollama provider configuration (optional).
+   * Ollama runs locally and does not require an API key.
+   * Default: undefined (Ollama provider not available)
+   */
+  ollama?: {
+    /**
+     * Ollama server base URL (optional).
+     * Default: "http://localhost:11434/v1"
+     */
+    baseUrl?: string;
   };
 }
 

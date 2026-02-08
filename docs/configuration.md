@@ -45,7 +45,7 @@ The configuration file is a JSON object with the following top-level structure:
 }
 ```
 
-Only the `profile` field is required. All other fields are optional and will be filled with sensible defaults if not provided. **Important:** At least one AI provider (OpenAI or DeepSeek) with its required API key must be configured in `ai.providers` for the pipeline to function. The configuration is validated on load, and errors will indicate missing or invalid fields.
+Only the `profile` field is required. All other fields are optional and will be filled with sensible defaults if not provided. **Important:** At least one AI provider (OpenAI, DeepSeek, or Ollama) must be configured in `ai.providers` for the pipeline to function. OpenAI and DeepSeek require an API key; Ollama runs locally and does not. The configuration is validated on load, and errors will indicate missing or invalid fields.
 
 ## Configuration Defaults
 
@@ -58,7 +58,7 @@ When fields are not provided in the configuration file, the following defaults a
 - **`asr.provider`**: `"whisper"`
 - **`asr.whisper.serverUrl`**: `"http://localhost:9000/asr"`
 - **`asr.whisper.task`**, **`asr.whisper.outputFormat`**, **`asr.whisper.temperature`**, **`asr.whisper.beamSize`**, **`asr.whisper.bestOf`**, and **`asr.whisper.vad`**: Profile-specific defaults (see [Profiles](#profiles) section)
-- **`ai.providers`**: `{}` (empty by default, but **at least one provider with its API key must be configured** - this is required for the pipeline to work)
+- **`ai.providers`**: `{}` (empty by default, but **at least one provider must be configured** - this is required for the pipeline to work)
 - **`ai.default`**: `{ provider: "openai", model: "gpt-5-mini" }`
 - **`context`**: `undefined` (no context files)
 - **`profiles`**: `undefined` (uses built-in prompts from profilePresets.ts)
@@ -262,7 +262,8 @@ The `ai` object configures AI providers and models for text processing steps (cl
       },
       "deepseek": {
         "apiKey": "sk-..."
-      }
+      },
+      "ollama": {}
     },
     "default": {
       "provider": "openai",
@@ -293,7 +294,7 @@ The `ai` object configures AI providers and models for text processing steps (cl
 
 ### Provider Pool (`providers`)
 
-The `providers` object contains API keys for all providers that may be used. **At least one provider with its API key must be configured** - this is required for the pipeline to function. You can configure multiple providers and switch between them per step.
+The `providers` object contains configuration for all providers that may be used. **At least one provider must be configured** - this is required for the pipeline to function. You can configure multiple providers and switch between them per step.
 
 - **`openai`** (optional): OpenAI provider configuration
   - `apiKey` (required if `openai` is provided): Your OpenAI API key (starts with `sk-`)
@@ -301,7 +302,10 @@ The `providers` object contains API keys for all providers that may be used. **A
 - **`deepseek`** (optional): DeepSeek provider configuration
   - `apiKey` (required if `deepseek` is provided): Your DeepSeek API key
 
-**Important:** The `providers` object cannot be empty. You must configure at least one provider (either `openai` or `deepseek`) with its corresponding `apiKey` for the pipeline to work.
+- **`ollama`** (optional): Ollama provider configuration (local AI server, no API key required)
+  - `baseUrl` (optional): Ollama server base URL. Default: `"http://localhost:11434/v1"`
+
+**Important:** The `providers` object cannot be empty. You must configure at least one provider (`openai`, `deepseek`, or `ollama`) for the pipeline to work.
 
 **Example:**
 
@@ -319,7 +323,7 @@ The `providers` object contains API keys for all providers that may be used. **A
 
 The `default` object specifies the provider, model, and optional overrides to use for all steps when a step doesn't have a specific override.
 
-- **`provider`** (optional): AI provider to use (`"openai"` or `"deepseek"`). Default: `"openai"`
+- **`provider`** (optional): AI provider to use (`"openai"`, `"deepseek"`, or `"ollama"`). Default: `"openai"`
 - **`model`** (optional): Model identifier (e.g., `"gpt-4o-mini"`, `"gpt-4o"`, `"deepseek-chat"`). Default: `"gpt-5-mini"`
 - **`overrides`** (optional): Parameter overrides. Default: `undefined`
   - `temperature` (optional): Temperature for text generation (0-2). Default: profile-specific preset values (cleaning: 0, handout: 0, summary: 0.2-0.3 depending on profile)
@@ -371,11 +375,109 @@ OpenAI offers two model families with different parameter support:
 
 **Both DeepSeek models** support `max_tokens` (mapped from `maxTokens` in config). By default, `max_tokens` is **not sent** — the model uses its full budget and stops naturally.
 
+#### Ollama Models (Local)
+
+Ollama runs models locally. Any model pulled via `ollama pull` can be used. All Ollama models support `temperature` and `max_tokens`.
+
+| Model | Example Identifier | Notes |
+|---|---|---|
+| Llama 3.1 | `llama3.1:8b` | Good general-purpose model |
+| Qwen 2.5 | `qwen2.5:7b`, `qwen2.5:14b` | Strong multilingual support |
+| Mistral | `mistral:7b` | Fast and efficient |
+| Gemma 2 | `gemma2:9b` | Google's open model |
+
+> **Note:** Model names must match exactly what Ollama has pulled locally. Use `ollama list` to see available models. Pull a new model with `ollama pull <model>`.
+
 #### Choosing a Model
 
 - **For deterministic tasks** (cleaning, handout): Reasoning models like `gpt-5-mini` work well and don't need temperature control
 - **For creative tasks** (summary) where you want to tune randomness: Use a standard model like `gpt-4o-mini` with a custom `temperature` override
 - **For cost optimization**: `gpt-5-mini` or `deepseek-chat` are cost-effective choices
+- **For fully local / offline usage**: Use Ollama with a model like `llama3.1:8b` or `qwen2.5:7b` — no API key or internet required
+
+### Using Ollama (Local AI)
+
+[Ollama](https://ollama.com/) lets you run open-source LLMs locally. No API key, no cloud costs.
+
+**1. Install and start Ollama**
+
+```bash
+# macOS / Linux
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Windows — download from https://ollama.com/download
+
+# Start the server (runs on http://localhost:11434 by default)
+ollama serve
+```
+
+**2. Pull a model**
+
+```bash
+ollama pull llama3.1:8b
+# or
+ollama pull qwen2.5:7b
+```
+
+**3. Configure the pipeline**
+
+```json
+{
+  "profile": "lecture",
+  "ai": {
+    "providers": {
+      "ollama": {}
+    },
+    "default": {
+      "provider": "ollama",
+      "model": "llama3.1:8b"
+    }
+  }
+}
+```
+
+**Custom base URL** (e.g. Ollama running on a different host):
+
+```json
+{
+  "ai": {
+    "providers": {
+      "ollama": {
+        "baseUrl": "http://192.168.1.100:11434/v1"
+      }
+    },
+    "default": {
+      "provider": "ollama",
+      "model": "qwen2.5:7b"
+    }
+  }
+}
+```
+
+**Mixing providers** — use Ollama for some steps and a cloud provider for others:
+
+```json
+{
+  "ai": {
+    "providers": {
+      "openai": { "apiKey": "sk-..." },
+      "ollama": {}
+    },
+    "default": {
+      "provider": "ollama",
+      "model": "llama3.1:8b"
+    }
+  },
+  "steps": {
+    "summary": {
+      "aiConfig": {
+        "provider": "openai",
+        "model": "gpt-4o-mini"
+      }
+    }
+  }
+}
+```
 
 ## Step Configuration
 
@@ -388,7 +490,7 @@ The optional `steps` object allows you to configure specific pipeline steps at t
 Each step configuration can specify:
 - `enabled` (optional): Enable or disable the step. If `false`, the step will be skipped. Default: `true` (step is enabled)
 - `aiConfig` (optional): AI configuration for this step. If not provided, uses `ai.default` or OpenAI gpt-5-mini as fallback
-  - `provider` (optional): Override provider. Default: uses `ai.default.provider` or `"openai"`
+  - `provider` (optional): Override provider (`"openai"`, `"deepseek"`, or `"ollama"`). Default: uses `ai.default.provider` or `"openai"`
   - `model` (optional): Override model. Default: uses `ai.default.model` or `"gpt-5-mini"`
   - `overrides` (optional): Override temperature and/or maxTokens. Default: uses `ai.default.overrides` or profile-specific presets
 
@@ -713,8 +815,10 @@ The following table provides a quick reference for all configuration parameters:
 | `ai.providers.openai.apiKey` | `string` | ⚠️ No | - | Valid API key (starts with `sk-`) | OpenAI API key (required if openai provider is configured) |
 | `ai.providers.deepseek` | `object` | No | `undefined` | - | DeepSeek provider config |
 | `ai.providers.deepseek.apiKey` | `string` | ⚠️ No | - | Valid API key | DeepSeek API key (required if deepseek provider is configured) |
+| `ai.providers.ollama` | `object` | No | `undefined` | - | Ollama provider config (no API key needed) |
+| `ai.providers.ollama.baseUrl` | `string` | No | `"http://localhost:11434/v1"` | Valid URL | Ollama server base URL |
 | `ai.default` | `object` | No | `{ provider: "openai", model: "gpt-5-mini" }` | - | Default AI configuration |
-| `ai.default.provider` | `string` | No | `"openai"` | `"openai"`, `"deepseek"` | Default provider |
+| `ai.default.provider` | `string` | No | `"openai"` | `"openai"`, `"deepseek"`, `"ollama"` | Default provider |
 | `ai.default.model` | `string` | No | `"gpt-5-mini"` | Valid model identifier | Default model |
 | `ai.default.overrides` | `object` | No | `undefined` | - | Default parameter overrides |
 | `ai.default.overrides.temperature` | `number` | No | Profile-specific presets | 0-2 | Temperature override |
@@ -723,7 +827,7 @@ The following table provides a quick reference for all configuration parameters:
 | `steps.cleaning` | `object` | No | `undefined` | - | Cleaning step configuration |
 | `steps.cleaning.enabled` | `boolean` | No | `true` | `true`, `false` | Enable or disable cleaning step |
 | `steps.cleaning.aiConfig` | `object` | No | Uses `ai.default` | - | AI configuration for cleaning step |
-| `steps.cleaning.aiConfig.provider` | `string` | No | Uses `ai.default.provider` | `"openai"`, `"deepseek"` | Override provider |
+| `steps.cleaning.aiConfig.provider` | `string` | No | Uses `ai.default.provider` | `"openai"`, `"deepseek"`, `"ollama"` | Override provider |
 | `steps.cleaning.aiConfig.model` | `string` | No | Uses `ai.default.model` | Valid model identifier | Override model |
 | `steps.cleaning.aiConfig.overrides` | `object` | No | Uses `ai.default.overrides` | - | Override parameters |
 | `steps.cleaning.aiConfig.overrides.temperature` | `number` | No | Profile-specific presets | 0-2 | Temperature override |
@@ -731,7 +835,7 @@ The following table provides a quick reference for all configuration parameters:
 | `steps.handout` | `object` | No | `undefined` | - | Handout step configuration (lecture profile only) |
 | `steps.handout.enabled` | `boolean` | No | `true` | `true`, `false` | Enable or disable handout step |
 | `steps.handout.aiConfig` | `object` | No | Uses `ai.default` | - | AI configuration for handout step |
-| `steps.handout.aiConfig.provider` | `string` | No | Uses `ai.default.provider` | `"openai"`, `"deepseek"` | Override provider |
+| `steps.handout.aiConfig.provider` | `string` | No | Uses `ai.default.provider` | `"openai"`, `"deepseek"`, `"ollama"` | Override provider |
 | `steps.handout.aiConfig.model` | `string` | No | Uses `ai.default.model` | Valid model identifier | Override model |
 | `steps.handout.aiConfig.overrides` | `object` | No | Uses `ai.default.overrides` | - | Override parameters |
 | `steps.handout.aiConfig.overrides.temperature` | `number` | No | Profile-specific presets | 0-2 | Temperature override |
@@ -739,7 +843,7 @@ The following table provides a quick reference for all configuration parameters:
 | `steps.summary` | `object` | No | `undefined` | - | Summary step configuration |
 | `steps.summary.enabled` | `boolean` | No | `true` | `true`, `false` | Enable or disable summary step |
 | `steps.summary.aiConfig` | `object` | No | Uses `ai.default` | - | AI configuration for summary step |
-| `steps.summary.aiConfig.provider` | `string` | No | Uses `ai.default.provider` | `"openai"`, `"deepseek"` | Override provider |
+| `steps.summary.aiConfig.provider` | `string` | No | Uses `ai.default.provider` | `"openai"`, `"deepseek"`, `"ollama"` | Override provider |
 | `steps.summary.aiConfig.model` | `string` | No | Uses `ai.default.model` | Valid model identifier | Override model |
 | `steps.summary.aiConfig.overrides` | `object` | No | Uses `ai.default.overrides` | - | Override parameters |
 | `steps.summary.aiConfig.overrides.temperature` | `number` | No | Profile-specific presets | 0-2 | Temperature override |

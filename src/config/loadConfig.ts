@@ -289,6 +289,17 @@ function validateUserConfig(config: Record<string, unknown>, configPath: string)
               }
             }
           }
+
+          if ("ollama" in providers && providers.ollama !== undefined) {
+            if (typeof providers.ollama !== "object" || providers.ollama === null) {
+              errors.push("Invalid 'ai.providers.ollama' field (must be an object)");
+            } else {
+              const ollama = providers.ollama as Record<string, unknown>;
+              if ("baseUrl" in ollama && typeof ollama.baseUrl !== "string") {
+                errors.push("Invalid 'ai.providers.ollama.baseUrl' field (must be a string)");
+              }
+            }
+          }
         }
       }
 
@@ -299,8 +310,8 @@ function validateUserConfig(config: Record<string, unknown>, configPath: string)
         } else {
           const defaultConfig = ai.default as Record<string, unknown>;
           if ("provider" in defaultConfig) {
-            if (typeof defaultConfig.provider !== "string" || !["openai", "deepseek"].includes(defaultConfig.provider)) {
-              errors.push("Invalid 'ai.default.provider' field (must be: openai or deepseek)");
+            if (typeof defaultConfig.provider !== "string" || !["openai", "deepseek", "ollama"].includes(defaultConfig.provider)) {
+              errors.push("Invalid 'ai.default.provider' field (must be: openai, deepseek, or ollama)");
             }
           }
           if ("model" in defaultConfig && typeof defaultConfig.model !== "string") {
@@ -350,8 +361,8 @@ function validateUserConfig(config: Record<string, unknown>, configPath: string)
               const aiConfig = stepConfig.aiConfig as Record<string, unknown>;
 
               if ("provider" in aiConfig) {
-                if (typeof aiConfig.provider !== "string" || !["openai", "deepseek"].includes(aiConfig.provider)) {
-                  errors.push(`Invalid 'steps.${stepName}.aiConfig.provider' field (must be: openai or deepseek)`);
+                if (typeof aiConfig.provider !== "string" || !["openai", "deepseek", "ollama"].includes(aiConfig.provider)) {
+                  errors.push(`Invalid 'steps.${stepName}.aiConfig.provider' field (must be: openai, deepseek, or ollama)`);
                 }
               }
 
@@ -515,7 +526,8 @@ function validateFinalConfig(config: any, configPath: string): void {
       const providers = config.ai.providers as Record<string, unknown>;
       const hasOpenai = providers.openai && typeof providers.openai === "object" && (providers.openai as any).apiKey;
       const hasDeepseek = providers.deepseek && typeof providers.deepseek === "object" && (providers.deepseek as any).apiKey;
-      if (!hasOpenai && !hasDeepseek) {
+      const hasOllama = providers.ollama && typeof providers.ollama === "object";
+      if (!hasOpenai && !hasDeepseek && !hasOllama) {
         errors.push("At least one provider must be configured in 'ai.providers'");
       }
 
@@ -528,6 +540,8 @@ function validateFinalConfig(config: any, configPath: string): void {
           if (defaultProvider === "openai" && !hasOpenai) {
             errors.push(`Default provider '${defaultProvider}' is not configured`);
           } else if (defaultProvider === "deepseek" && !hasDeepseek) {
+            errors.push(`Default provider '${defaultProvider}' is not configured`);
+          } else if (defaultProvider === "ollama" && !hasOllama) {
             errors.push(`Default provider '${defaultProvider}' is not configured`);
           }
         }
@@ -547,6 +561,8 @@ function validateFinalConfig(config: any, configPath: string): void {
             if (stepProvider === "openai" && !hasOpenai) {
               errors.push(`Step '${stepName}' provider '${stepProvider}' is not configured`);
             } else if (stepProvider === "deepseek" && !hasDeepseek) {
+              errors.push(`Step '${stepName}' provider '${stepProvider}' is not configured`);
+            } else if (stepProvider === "ollama" && !hasOllama) {
               errors.push(`Step '${stepName}' provider '${stepProvider}' is not configured`);
             }
           }

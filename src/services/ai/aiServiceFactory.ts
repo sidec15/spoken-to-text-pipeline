@@ -2,8 +2,10 @@ import type { PipelineConfig, StepAiConfig } from "../../config/config.types.js"
 import type { AiService, AiGenerateOptions } from "./ai.types.js";
 import { OpenAiService } from "./openai/openaiAiService.js";
 import { DeepSeekAiService } from "./deepseek/deepseekAiService.js";
+import { OllamaAiService } from "./ollama/ollamaAiService.js";
 import { resolveOpenAiConfig } from "./openai/resolveOpenAiConfig.js";
 import { resolveDeepSeekConfig } from "./deepseek/resolveDeepSeekConfig.js";
+import { resolveOllamaConfig } from "./ollama/resolveOllamaConfig.js";
 
 export type AiStepName = "cleaning" | "handout" | "summary";
 
@@ -65,6 +67,15 @@ function getApiKey(config: PipelineConfig, provider: string): string {
     return apiKey;
   }
 
+  if (provider === "ollama") {
+    // Ollama does not require an API key, but provider must be configured.
+    if (!config.ai?.providers?.ollama) {
+      throw new Error(`Ollama provider not configured in provider pool`);
+    }
+    // Return a dummy value since Ollama doesn't use API keys.
+    return "ollama";
+  }
+
   throw new Error(`Unsupported provider: ${provider}`);
 }
 
@@ -82,6 +93,11 @@ export function createAiService(config: PipelineConfig, step: AiStepName): AiSer
 
   if (stepConfig.provider === "deepseek") {
     return new DeepSeekAiService(apiKey, stepConfig.model);
+  }
+
+  if (stepConfig.provider === "ollama") {
+    const baseUrl = config.ai?.providers?.ollama?.baseUrl;
+    return new OllamaAiService(stepConfig.model, baseUrl);
   }
 
   throw new Error(`Unsupported AI provider: ${stepConfig.provider}`);
@@ -103,6 +119,10 @@ export function resolveAiConfig(
 
   if (stepConfig.provider === "deepseek") {
     return resolveDeepSeekConfig(config, step, stepConfig);
+  }
+
+  if (stepConfig.provider === "ollama") {
+    return resolveOllamaConfig(config, step, stepConfig);
   }
 
   throw new Error(`Unsupported AI provider: ${stepConfig.provider}`);

@@ -10,12 +10,20 @@ const mockDeepSeekService = jest.fn().mockImplementation(() => ({
   generateTextAsync: jest.fn(),
 }));
 
+const mockOllamaService = jest.fn().mockImplementation(() => ({
+  generateTextAsync: jest.fn(),
+}));
+
 jest.unstable_mockModule('../../../src/services/ai/openai/openaiAiService.js', () => ({
   OpenAiService: mockOpenAiService,
 }));
 
 jest.unstable_mockModule('../../../src/services/ai/deepseek/deepseekAiService.js', () => ({
   DeepSeekAiService: mockDeepSeekService,
+}));
+
+jest.unstable_mockModule('../../../src/services/ai/ollama/ollamaAiService.js', () => ({
+  OllamaAiService: mockOllamaService,
 }));
 
 describe('aiServiceFactory', () => {
@@ -32,6 +40,7 @@ describe('aiServiceFactory', () => {
       providers: {
         openai: { apiKey: 'sk-openai-test' },
         deepseek: { apiKey: 'sk-deepseek-test' },
+        ollama: {},
       },
       default: {
         provider: 'openai',
@@ -125,6 +134,35 @@ describe('aiServiceFactory', () => {
       expect(service).toBeDefined();
     });
 
+    it('should create Ollama service', async () => {
+      // Arrange
+      const config = createMockConfig();
+      config.ai.default.provider = 'ollama';
+      config.ai.default.model = 'llama3.1:8b';
+
+      // Act
+      const service = createAiService(config, 'cleaning');
+
+      // Assert
+      expect(mockOllamaService).toHaveBeenCalledWith('llama3.1:8b', undefined);
+      expect(service).toBeDefined();
+    });
+
+    it('should create Ollama service with custom base URL', async () => {
+      // Arrange
+      const config = createMockConfig();
+      config.ai.default.provider = 'ollama';
+      config.ai.default.model = 'llama3.1:8b';
+      config.ai.providers!.ollama = { baseUrl: 'http://192.168.1.100:11434/v1' };
+
+      // Act
+      const service = createAiService(config, 'cleaning');
+
+      // Assert
+      expect(mockOllamaService).toHaveBeenCalledWith('llama3.1:8b', 'http://192.168.1.100:11434/v1');
+      expect(service).toBeDefined();
+    });
+
     it('should throw error for missing provider', () => {
       // Arrange
       const config = createMockConfig();
@@ -151,6 +189,16 @@ describe('aiServiceFactory', () => {
 
       // Act & Assert
       expect(() => createAiService(config, 'cleaning')).toThrow(/DeepSeek provider not configured/);
+    });
+
+    it('should throw error for missing Ollama provider', () => {
+      // Arrange
+      const config = createMockConfig();
+      config.ai.default.provider = 'ollama';
+      config.ai.providers = { openai: { apiKey: 'sk-test' } };
+
+      // Act & Assert
+      expect(() => createAiService(config, 'cleaning')).toThrow(/Ollama provider not configured/);
     });
 
     it('should throw error for unsupported AI provider in createAiService', () => {
@@ -182,6 +230,19 @@ describe('aiServiceFactory', () => {
       // Arrange
       const config = createMockConfig();
       config.ai.default.provider = 'deepseek';
+
+      // Act
+      const result = resolveAiConfig(config, 'cleaning');
+
+      // Assert
+      expect(result.systemPrompt).toBeDefined();
+      expect(result.systemPrompt).toContain('it'); // Language instruction
+    });
+
+    it('should resolve AI config for Ollama', () => {
+      // Arrange
+      const config = createMockConfig();
+      config.ai.default.provider = 'ollama';
 
       // Act
       const result = resolveAiConfig(config, 'cleaning');

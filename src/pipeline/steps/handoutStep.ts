@@ -1,10 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Step, StepContext } from "../step.js";
-import type { AiService } from "../../services/ai/ai.types.js";
+import type { AiService, AiGenerateOptions } from "../../services/ai/ai.types.js";
 import { createAiService, resolveAiConfig } from "../../services/ai/aiServiceFactory.js";
 import { resolveOutputDir } from "../../utils/resolveOutputDir.js";
 import { loadContextText } from "../../utils/loadContextText.js";
+import type { PipelineConfig } from "../../config/config.types.js";
+import type { Logger } from "../../services/logger.js";
+import type { ProgressReporter } from "../../services/progress.js";
 
 export class HandoutStep implements Step {
   readonly name = "handout";
@@ -12,25 +15,68 @@ export class HandoutStep implements Step {
   async runAsync(ctx: StepContext): Promise<void> {
     const { config, logger, progress } = ctx;
 
+    const outputDir = resolveOutputDir(config);
+    const handoutPath = path.join(outputDir, "handout.md");
+
+    if (!this.checkProfileAndIdempotency(config, handoutPath, logger)) {
+      return;
+    }
+
+    const cleanedFiles = this.getSortedCleanedFiles(outputDir, logger);
+    if (cleanedFiles.length === 0) {
+      return;
+    }
+
+    const mergedContent = this.mergeCleanedFiles(cleanedFiles, outputDir);
+    const estimatedInputTokens = this.estimateTokens(mergedContent, logger);
+
+    const aiOptions = resolveAiConfig(config, "handout");
+    const aiService = createAiService(config, "handout");
+    const contextText = loadContextText(config.context?.textSources);
+    const maxTokens = this.calculateMaxTokens(estimatedInputTokens, aiOptions);
+
+    const handout = await this.generateHandout(
+      aiService,
+      aiOptions,
+      cleanedFiles,
+      outputDir,
+      mergedContent,
+      estimatedInputTokens,
+      maxTokens,
+      contextText,
+      logger,
+      progress,
+    );
+
+    await fs.promises.writeFile(handoutPath, handout, "utf-8");
+    logger.info(`Handout saved to '${handoutPath}'`);
+  }
+
+  private checkProfileAndIdempotency(
+    config: PipelineConfig,
+    handoutPath: string,
+    logger: Logger,
+  ): boolean {
     // Handout is only for lecture profile
     if (config.profile !== "lecture") {
       logger.info(
         `Handout step skipped for profile '${config.profile}' (only available for lecture)`,
       );
-      return;
+      return false;
     }
 
     logger.info("Starting Handout step");
 
-    const outputDir = resolveOutputDir(config);
-    const handoutPath = path.join(outputDir, "handout.md");
-
     // Idempotency check
     if (fs.existsSync(handoutPath)) {
       logger.info("Handout already exists, skipping Handout step");
-      return;
+      return false;
     }
 
+    return true;
+  }
+
+  private getSortedCleanedFiles(outputDir: string, logger: Logger): string[] {
     // Read all cleaned files and sort by numeric part index
     const cleanedFiles = fs
       .readdirSync(outputDir)
@@ -46,44 +92,61 @@ export class HandoutStep implements Step {
 
     if (cleanedFiles.length === 0) {
       logger.warn("No cleaned transcript files found, skipping Handout step");
-      return;
+      return [];
     }
 
     logger.info(`Found ${cleanedFiles.length} cleaned transcript parts to merge`);
+    return cleanedFiles;
+  }
 
+  private mergeCleanedFiles(cleanedFiles: string[], outputDir: string): string {
     // Merge all cleaned files with clear separators
-    const mergedContent = cleanedFiles
+    return cleanedFiles
       .map((file, index) => {
         const content = fs.readFileSync(path.join(outputDir, file), "utf-8");
         return `---\n## Part ${index + 1}\n\n${content}\n`;
       })
       .join("\n\n");
+  }
 
+  private estimateTokens(content: string, logger: Logger): number {
     // Check token limits (rough estimate: 1 token ≈ 4 characters)
-    const estimatedInputTokens = Math.ceil(mergedContent.length / 4);
+    const estimatedInputTokens = Math.ceil(content.length / 4);
     logger.info(`Estimated input tokens: ${estimatedInputTokens}`);
+    return estimatedInputTokens;
+  }
 
-    const aiOptions = resolveAiConfig(config, "handout");
-
-    // Conservative context limit: most models support at least 100K tokens
-    // Reserve space for system prompt (~500 tokens) and output buffer
-    const MAX_SAFE_INPUT_TOKENS = 90000; // Leave room for system prompt and output
-
-    const aiService = createAiService(config, "handout");
-    const contextText = loadContextText(config.context?.textSources);
-
+  private calculateMaxTokens(
+    estimatedInputTokens: number,
+    aiOptions: Omit<AiGenerateOptions, "userPrompt">,
+  ): number {
     // Estimate maxTokens based on input length
     // For handout, output is typically similar or slightly longer than input
     const calculatedMaxTokens = Math.ceil(estimatedInputTokens * 1.5);
-    const maxTokens = aiOptions.maxTokens ?? calculatedMaxTokens;
+    return aiOptions.maxTokens ?? calculatedMaxTokens;
+  }
 
-    let handout: string;
+  private async generateHandout(
+    aiService: AiService,
+    aiOptions: Omit<AiGenerateOptions, "userPrompt">,
+    cleanedFiles: string[],
+    outputDir: string,
+    mergedContent: string,
+    estimatedInputTokens: number,
+    maxTokens: number,
+    contextText: string | undefined,
+    logger: Logger,
+    progress: ProgressReporter | undefined,
+  ): Promise<string> {
+    // Conservative context limit: most models support at least 100K tokens
+    // Reserve space for system prompt (~500 tokens) and output buffer
+    const MAX_SAFE_INPUT_TOKENS = 90000; // Leave room for system prompt and output
 
     if (estimatedInputTokens > MAX_SAFE_INPUT_TOKENS) {
       logger.warn(
         `Input content (${estimatedInputTokens} tokens) exceeds safe limit (${MAX_SAFE_INPUT_TOKENS} tokens). Using chunking strategy.`,
       );
-      handout = await this.generateHandoutWithChunking(
+      return await this.generateHandoutWithChunking(
         aiService,
         aiOptions,
         cleanedFiles,
@@ -93,21 +156,35 @@ export class HandoutStep implements Step {
         progress,
         contextText,
       );
-    } else {
-      // Single pass - process all content at once
-      logger.info("Processing input content in a single pass");
-      handout = await aiService.generateTextAsync({
-        systemPrompt: aiOptions.systemPrompt,
-        manualContextText: contextText || undefined,
-        userPrompt: mergedContent,
-        temperature: aiOptions.temperature,
-        maxTokens,
-      });
     }
 
-    await fs.promises.writeFile(handoutPath, handout, "utf-8");
+    return await this.generateSinglePassHandout(
+      aiService,
+      aiOptions,
+      mergedContent,
+      maxTokens,
+      contextText,
+      logger,
+    );
+  }
 
-    logger.info(`Handout saved to '${handoutPath}'`);
+  private async generateSinglePassHandout(
+    aiService: AiService,
+    aiOptions: Omit<AiGenerateOptions, "userPrompt">,
+    mergedContent: string,
+    maxTokens: number,
+    contextText: string | undefined,
+    logger: Logger,
+  ): Promise<string> {
+    // Single pass - process all content at once
+    logger.info("Processing input content in a single pass");
+    return await aiService.generateTextAsync({
+      systemPrompt: aiOptions.systemPrompt,
+      manualContextText: contextText || undefined,
+      userPrompt: mergedContent,
+      temperature: aiOptions.temperature,
+      maxTokens,
+    });
   }
 
   /**

@@ -52,6 +52,28 @@ export async function runPipeline(options: PipelineOptions): Promise<PipelineRes
 
   logger.info("Starting pipeline");
 
+  // Add log for pipeline plan before running. Check for the enabled steps and list them with input/output paths.
+  if (config.paths) {
+    logger.info("Pipeline plan:");
+    logger.info("> LoadProfileStep:");
+    logger.debug(">> Input: ${config.paths.inputDir}");
+    logger.debug(">> Output: ${config.paths.outputDir}");
+    logger.info("> AsrStep:");
+    logger.debug(">> Input: ${config.paths.inputDir}");
+    logger.debug(">> Output: ${config.paths.outputDir}");
+    logger.info("> CleaningStep:");
+    logger.debug(">> Input: ${config.paths.inputDir}");
+    logger.debug(">> Output: ${config.paths.outputDir}");
+    logger.info("> HandoutStep:");
+    logger.debug(">> Input: ${config.paths.inputDir}");
+    logger.debug(">> Output: ${config.paths.outputDir}");
+    logger.info("> SummaryStep:");
+    logger.debug(">> Input: ${config.paths.inputDir}");
+    logger.debug(">> Output: ${config.paths.outputDir}");
+  } else {
+    logger.warn("No paths configured");
+  }
+
   const runner = new PipelineRunner([
     new LoadProfileStep(),
     new AsrStep(),

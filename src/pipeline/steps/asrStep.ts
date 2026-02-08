@@ -4,6 +4,7 @@ import type { Step, StepContext } from "../step.js";
 import { WhisperAsrService } from "../../services/asr/whisperAsrService.js";
 import { resolveWhisperConfig } from "../../services/asr/resolveWhisperConfig.js";
 import { resolveOutputDir } from "../../utils/resolveOutputDir.js";
+import type { ProgressReporter } from "../../types.js";
 
 export class AsrStep implements Step {
   readonly name = "asr";
@@ -59,7 +60,7 @@ export class AsrStep implements Step {
 
       const fileLogger = logger.withContext({ file });
 
-      await this.transcribeFileAsync(inputPath, outputPath, whisperConfig, fileLogger);
+      await this.transcribeFileAsync(inputPath, outputPath, whisperConfig, fileLogger, progress);
 
       progress?.increment();
     }
@@ -74,10 +75,12 @@ export class AsrStep implements Step {
     outputPath: string,
     whisperConfig: ReturnType<typeof resolveWhisperConfig>,
     logger: StepContext["logger"],
+    progress: ProgressReporter,
   ): Promise<void> {
     const inputFileName = path.basename(inputPath);
 
-    logger.debug(`Transcribing '${inputFileName}'`);
+    logger.silly(`Transcribing '${inputFileName}'`);
+    progress?.updateMessage(`Transcribing '${inputFileName}'`);
 
     const asrService = new WhisperAsrService(whisperConfig.serverUrl, logger);
 
@@ -88,6 +91,6 @@ export class AsrStep implements Step {
 
     await fs.promises.writeFile(outputPath, transcriptionBuffer);
 
-    logger.debug(`Transcription saved to '${outputPath}'`);
+    logger.silly(`Transcription saved to '${outputPath}'`);
   }
 }

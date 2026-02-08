@@ -4,8 +4,10 @@ import type { Step, StepContext } from "../step.js";
 import { createAiService, resolveAiConfig } from "../../services/ai/aiServiceFactory.js";
 import { resolveOutputDir } from "../../utils/resolveOutputDir.js";
 import { loadContextText } from "../../utils/loadContextText.js";
-import type { AiService } from "../../services/ai/ai.types.js";
-import type { SupportedProfile } from "../../config/config.types.js";
+import type { AiService, AiGenerateOptions } from "../../services/ai/ai.types.js";
+import type { SupportedProfile, PipelineConfig } from "../../config/config.types.js";
+import type { Logger } from "../../services/logger.js";
+import type { ProgressReporter } from "../../services/progress.js";
 
 export class SummaryStep implements Step {
   readonly name = "summary";
@@ -18,58 +20,124 @@ export class SummaryStep implements Step {
     const outputDir = resolveOutputDir(config);
     const summaryPath = path.join(outputDir, "summary.md");
 
-    // Idempotency check
-    if (fs.existsSync(summaryPath)) {
-      logger.info("Summary already exists, skipping Summary step");
+    if (!this.checkIdempotency(summaryPath, logger)) {
       return;
     }
 
-    // Get input content based on profile
     const inputContent = this.getInputContent(config, outputDir, logger);
-
     if (!inputContent) {
       logger.warn("No input content found, skipping Summary step");
       return;
     }
 
-    // Check token limits (rough estimate: 1 token ≈ 4 characters)
-    const estimatedInputTokens = Math.ceil(inputContent.length / 4);
-    logger.info(`Estimated input tokens: ${estimatedInputTokens}`);
-
+    const estimatedInputTokens = this.estimateTokens(inputContent, logger);
     const aiOptions = resolveAiConfig(config, "summary");
-    
-    // Determine input type for dynamic calculation
-    const inputType = config.profile === "lecture" ? "handout" : "transcript";
-    
-    // Calculate word count dynamically if not explicitly set
-    const wordCount = config.output?.summaryWordCount 
-      ?? this.calculateDynamicWordCount(inputContent, config.profile, inputType);
-    
-    logger.info(`Target summary word count: ${wordCount}${config.output?.summaryWordCount ? " (static override)" : " (calculated dynamically)"}`);
-
-    // Enhance system prompt with word count target
-    const enhancedSystemPrompt = this.enhancePromptWithWordCount(aiOptions.systemPrompt, wordCount);
-
-    // Conservative context limit: most models support at least 100K tokens
-    // Reserve space for system prompt (~500 tokens) and output buffer
-    const MAX_SAFE_INPUT_TOKENS = 90000; // Leave room for system prompt and output
+    const inputType = this.determineInputType(config.profile);
+    const wordCount = this.calculateWordCount(
+      config,
+      inputContent,
+      inputType,
+      logger,
+    );
+    const enhancedSystemPrompt = this.enhancePromptWithWordCount(
+      aiOptions.systemPrompt,
+      wordCount,
+    );
 
     const aiService = createAiService(config, "summary");
     const contextText = loadContextText(config.context?.textSources);
+    const maxTokens = this.calculateMaxTokens(wordCount, aiOptions);
 
+    const summary = await this.generateSummary(
+      aiService,
+      { ...aiOptions, systemPrompt: enhancedSystemPrompt },
+      inputContent,
+      estimatedInputTokens,
+      wordCount,
+      maxTokens,
+      contextText,
+      logger,
+      progress,
+    );
+
+    await fs.promises.writeFile(summaryPath, summary, "utf-8");
+    logger.info(`Summary saved to '${summaryPath}'`);
+  }
+
+  private checkIdempotency(summaryPath: string, logger: Logger): boolean {
+    // Idempotency check
+    if (fs.existsSync(summaryPath)) {
+      logger.info("Summary already exists, skipping Summary step");
+      return false;
+    }
+    return true;
+  }
+
+  private estimateTokens(content: string, logger: Logger): number {
+    // Check token limits (rough estimate: 1 token ≈ 4 characters)
+    const estimatedInputTokens = Math.ceil(content.length / 4);
+    logger.info(`Estimated input tokens: ${estimatedInputTokens}`);
+    return estimatedInputTokens;
+  }
+
+  private determineInputType(profile: SupportedProfile): "handout" | "transcript" {
+    // Determine input type for dynamic calculation
+    return profile === "lecture" ? "handout" : "transcript";
+  }
+
+  private calculateWordCount(
+    config: PipelineConfig,
+    inputContent: string,
+    inputType: "handout" | "transcript",
+    logger: Logger,
+  ): number {
+    // Calculate word count dynamically if not explicitly set
+    const wordCount =
+      config.output?.summaryWordCount ??
+      this.calculateDynamicWordCount(inputContent, config.profile, inputType);
+
+    logger.info(
+      `Target summary word count: ${wordCount}${
+        config.output?.summaryWordCount
+          ? " (static override)"
+          : " (calculated dynamically)"
+      }`,
+    );
+
+    return wordCount;
+  }
+
+  private calculateMaxTokens(
+    wordCount: number,
+    aiOptions: Omit<AiGenerateOptions, "userPrompt">,
+  ): number {
     // Estimate maxTokens based on word count target (roughly 1 word ≈ 1.3 tokens)
     const targetTokens = Math.ceil(wordCount * 1.3);
-    const maxTokens = aiOptions.maxTokens ?? targetTokens;
+    return aiOptions.maxTokens ?? targetTokens;
+  }
 
-    let summary: string;
+  private async generateSummary(
+    aiService: AiService,
+    aiOptions: Omit<AiGenerateOptions, "userPrompt">,
+    inputContent: string,
+    estimatedInputTokens: number,
+    wordCount: number,
+    maxTokens: number,
+    contextText: string | undefined,
+    logger: Logger,
+    progress: ProgressReporter | undefined,
+  ): Promise<string> {
+    // Conservative context limit: most models support at least 100K tokens
+    // Reserve space for system prompt (~500 tokens) and output buffer
+    const MAX_SAFE_INPUT_TOKENS = 90000; // Leave room for system prompt and output
 
     if (estimatedInputTokens > MAX_SAFE_INPUT_TOKENS) {
       logger.warn(
         `Input content (${estimatedInputTokens} tokens) exceeds safe limit (${MAX_SAFE_INPUT_TOKENS} tokens). Using chunking strategy.`,
       );
-      summary = await this.generateSummaryWithChunking(
+      return await this.generateSummaryWithChunking(
         aiService,
-        { ...aiOptions, systemPrompt: enhancedSystemPrompt },
+        aiOptions,
         inputContent,
         wordCount,
         logger,
@@ -77,24 +145,41 @@ export class SummaryStep implements Step {
         progress,
         contextText,
       );
-    } else {
-      // Single pass - process all content at once
-      logger.info("Processing input content in a single pass");
-      progress?.start(1, "Generating summary");
-      summary = await aiService.generateTextAsync({
-        systemPrompt: enhancedSystemPrompt,
-        manualContextText: contextText || undefined,
-        userPrompt: inputContent,
-        temperature: aiOptions.temperature,
-        maxTokens,
-      });
-      progress?.increment();
-      progress?.stop();
     }
 
-    await fs.promises.writeFile(summaryPath, summary, "utf-8");
+    return await this.generateSinglePassSummary(
+      aiService,
+      aiOptions,
+      inputContent,
+      maxTokens,
+      contextText,
+      logger,
+      progress,
+    );
+  }
 
-    logger.info(`Summary saved to '${summaryPath}'`);
+  private async generateSinglePassSummary(
+    aiService: AiService,
+    aiOptions: Omit<AiGenerateOptions, "userPrompt">,
+    inputContent: string,
+    maxTokens: number,
+    contextText: string | undefined,
+    logger: Logger,
+    progress: ProgressReporter | undefined,
+  ): Promise<string> {
+    // Single pass - process all content at once
+    logger.info("Processing input content in a single pass");
+    progress?.start(1, "Generating summary");
+    const summary = await aiService.generateTextAsync({
+      systemPrompt: aiOptions.systemPrompt,
+      manualContextText: contextText || undefined,
+      userPrompt: inputContent,
+      temperature: aiOptions.temperature,
+      maxTokens,
+    });
+    progress?.increment();
+    progress?.stop();
+    return summary;
   }
 
   /**

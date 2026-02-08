@@ -372,7 +372,7 @@ describe('HandoutStep', () => {
     await step.runAsync(mockContext);
 
     // Assert
-    expect(mockLoadContextText).toHaveBeenCalledWith(['ref1.txt', 'ref2.md']);
+    expect(mockLoadContextText).toHaveBeenCalledWith(['ref1.txt', 'ref2.md'], undefined);
     expect(mockGenerateTextAsync).toHaveBeenCalled();
     const generateCall = (mockGenerateTextAsync.mock.calls[0] as any[])[0] as any;
     expect(generateCall.manualContextText).toBe(contextText);
@@ -392,7 +392,7 @@ describe('HandoutStep', () => {
     await step.runAsync(mockContext);
 
     // Assert
-    expect(mockLoadContextText).toHaveBeenCalledWith(undefined);
+    expect(mockLoadContextText).toHaveBeenCalledWith(undefined, undefined);
     expect(mockGenerateTextAsync).toHaveBeenCalled();
     const generateCall = (mockGenerateTextAsync.mock.calls[0] as any[])[0] as any;
     expect(generateCall.manualContextText).toBeUndefined();

@@ -1,6 +1,24 @@
 import OpenAI from "openai";
 import type { AiService, AiGenerateOptions } from "../ai.types.js";
 
+/**
+ * DeepSeek model parameter support:
+ *
+ * `deepseek-chat` (non-thinking mode):
+ *   - Supports: temperature, top_p, frequency_penalty, presence_penalty, max_tokens
+ *
+ * `deepseek-reasoner` (thinking mode):
+ *   - Does NOT support: temperature, top_p (silently ignored, no error)
+ *   - Does NOT support: logprobs, top_logprobs (will error)
+ *   - Does NOT support: function calling
+ *   - Supports: max_tokens
+ */
+const DEEPSEEK_REASONING_MODELS = ["deepseek-reasoner"];
+
+function isDeepSeekReasoningModel(model: string): boolean {
+  return DEEPSEEK_REASONING_MODELS.includes(model.toLowerCase());
+}
+
 export class DeepSeekAiService implements AiService {
   private client: OpenAI;
   private model: string;
@@ -75,10 +93,16 @@ ${options.userPrompt}
       `.trim(),
     });
 
+    // deepseek-reasoner silently ignores temperature, but we omit it
+    // for clarity and to avoid relying on undocumented behavior.
+    const reasoning = isDeepSeekReasoningModel(this.model);
+
     const response = await this.client.chat.completions.create({
       model: this.model,
       messages,
-      temperature: options.temperature,
+      ...(!reasoning && options.temperature !== undefined && {
+        temperature: options.temperature,
+      }),
       ...(options.maxTokens !== undefined && {
         max_tokens: options.maxTokens,
       }),

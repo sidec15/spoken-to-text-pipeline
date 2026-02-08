@@ -15,6 +15,7 @@ The pipeline is configured via a JSON file (default: `pipeline.config.json`). Th
 - [AI Provider Configuration](#ai-provider-configuration)
   - [Provider Pool (`providers`)](#provider-pool-providers)
   - [Default Configuration (`default`)](#default-configuration-default)
+  - [Supported Models and Parameter Compatibility](#supported-models-and-parameter-compatibility)
   - [Temperature Defaults](#temperature-defaults)
   - [MaxTokens Calculation](#maxtokens-calculation)
 - [Step Configuration](#step-configuration-steps)
@@ -338,6 +339,44 @@ The `default` object specifies the provider, model, and optional overrides to us
 }
 ```
 
+### Supported Models and Parameter Compatibility
+
+The pipeline automatically handles parameter compatibility across different models. **You don't need to worry about sending unsupported parameters** — the pipeline detects the model and omits parameters that would cause API errors.
+
+#### OpenAI Models
+
+OpenAI offers two model families with different parameter support:
+
+| Model Family | Examples | `temperature` | Type |
+|---|---|---|---|
+| **GPT-5 series** (reasoning) | `gpt-5`, `gpt-5-mini`, `gpt-5-nano` | **Not supported** (auto-omitted) | Reasoning model |
+| **o-series** (reasoning) | `o1`, `o1-mini`, `o3`, `o3-mini`, `o4-mini` | **Not supported** (auto-omitted) | Reasoning model |
+| **GPT-4o series** (standard) | `gpt-4o`, `gpt-4o-mini` | Supported | Standard model |
+| **GPT-4 / 3.5** (standard) | `gpt-4-turbo`, `gpt-3.5-turbo` | Supported | Standard model |
+
+**Reasoning models** (gpt-5 series, o-series) use internal chain-of-thought reasoning to generate responses. They do not accept `temperature` — the API returns a 400 error if it is sent. The pipeline automatically detects these models by prefix (`gpt-5*`, `o1*`, `o3*`, `o4*`) and omits `temperature` from the request.
+
+> **Note:** If you configure a `temperature` override in your config while using a reasoning model, the override is silently ignored — no error is raised, and the pipeline works correctly.
+
+**All OpenAI models** support `max_output_tokens` (mapped from `maxTokens` in config).
+
+#### DeepSeek Models
+
+| Model | `temperature` | Type |
+|---|---|---|
+| `deepseek-chat` | Supported | Standard (non-thinking) |
+| `deepseek-reasoner` | **Not supported** (auto-omitted) | Reasoning (thinking mode) |
+
+`deepseek-reasoner` silently ignores `temperature` (no API error), but the pipeline explicitly omits it for clarity.
+
+**Both DeepSeek models** support `max_tokens` (mapped from `maxTokens` in config).
+
+#### Choosing a Model
+
+- **For deterministic tasks** (cleaning, handout): Reasoning models like `gpt-5-mini` work well and don't need temperature control
+- **For creative tasks** (summary) where you want to tune randomness: Use a standard model like `gpt-4o-mini` with a custom `temperature` override
+- **For cost optimization**: `gpt-5-mini` or `deepseek-chat` are cost-effective choices
+
 ## Step Configuration
 
 The optional `steps` object allows you to configure specific pipeline steps at the top level of the configuration.
@@ -411,6 +450,8 @@ If not specified, temperature defaults to profile-specific preset values:
   - `0.2` (lecture profile)
   - `0.3` (meeting profile)
   - `0.3` (other profile)
+
+> **Important:** Temperature is only sent to models that support it. Reasoning models (OpenAI `gpt-5*`, `o1*`, `o3*`, `o4*` and DeepSeek `deepseek-reasoner`) do not support temperature — the pipeline automatically omits it for these models. See [Supported Models and Parameter Compatibility](#supported-models-and-parameter-compatibility) for details.
 
 ### MaxTokens Calculation
 

@@ -40,6 +40,9 @@ describe('WhisperAsrService', () => {
     const mockAudioBuffer = Buffer.from('mock audio data');
     const mockResponse = {
       ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers(),
       arrayBuffer: jest.fn<() => Promise<ArrayBuffer>>().mockResolvedValue(mockAudioBuffer.buffer),
     };
     (global.fetch as any).mockResolvedValue(mockResponse);
@@ -136,6 +139,7 @@ describe('WhisperAsrService', () => {
       ok: false,
       status: 500,
       statusText: 'Internal Server Error',
+      headers: new Headers(),
     };
     (global.fetch as any).mockResolvedValue(mockResponse);
 
@@ -256,6 +260,7 @@ describe('WhisperAsrService', () => {
       ok: false,
       status: 500,
       statusText: 'Internal Server Error',
+      headers: new Headers(),
       text: jest.fn<() => Promise<string>>().mockRejectedValue(new Error('Read error')),
     };
     (global.fetch as any).mockResolvedValue(mockResponse);

@@ -124,6 +124,12 @@ You can configure different AI providers and models for each step.
 }
 ```
 
+### Model Compatibility
+
+When using per-step AI configuration, be aware that different models have different parameter support. The pipeline handles this automatically — if a model doesn't support `temperature`, the pipeline omits it even if configured in `overrides`.
+
+See [Supported Models and Parameter Compatibility](configuration.md#supported-models-and-parameter-compatibility) for the full compatibility matrix.
+
 ### Use Cases
 
 - **Cost optimization:** Use cheaper models for cleaning, premium models for summaries
@@ -275,8 +281,9 @@ To use a fixed word count instead:
 
 ### AI Provider Selection
 
-- **Use faster models for cleaning:** `gpt-4o-mini` is fast and cost-effective
-- **Reserve premium models for summaries:** Use more capable models for final outputs
+- **Use reasoning models for deterministic tasks:** `gpt-5-mini` excels at cleaning and handout generation where consistency matters
+- **Use standard models when you need temperature control:** `gpt-4o-mini` or `deepseek-chat` support `temperature` for tuning creativity in summaries
+- **Reserve premium models for complex tasks:** Use `gpt-5` or `gpt-4o` for summaries of complex content
 - **Monitor API usage:** Track costs and usage across providers
 
 ## Troubleshooting
@@ -292,6 +299,7 @@ To use a fixed word count instead:
 - Verify API keys are correct
 - Check API rate limits
 - Ensure sufficient API credits
+- **`400 Unsupported parameter: 'temperature'`**: This should not happen with the latest version — the pipeline automatically omits `temperature` for reasoning models (gpt-5 series, o-series, deepseek-reasoner). If you see this error, ensure you are running the latest version of the pipeline.
 
 **File processing order:**
 - Use zero-padded filenames for correct ordering

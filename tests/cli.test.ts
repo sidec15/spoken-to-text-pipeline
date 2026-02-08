@@ -61,7 +61,7 @@ describe('cli.ts', () => {
     await importPromise;
 
     // Assert
-    expect(mockLoadConfig).toHaveBeenCalledWith('test-config.json');
+    expect(mockLoadConfig).toHaveBeenCalledWith('test-config.json', undefined);
     expect(mockRunPipeline).toHaveBeenCalled();
 
     // Restore

@@ -77,8 +77,8 @@ export function createLogger(options: LoggerOptions = {}): Logger {
     error: (m, e) => logger.error(m, { context: baseContext, error: e }),
     warn: (m) => logger.warn(m, { context: baseContext }),
     info: (m) => logger.info(m, { context: baseContext }),
-    debug: (m) => logger.debug(m, { context: baseContext }),
-    silly: (m) => logger.silly(m, { context: baseContext }),
+    debug: (m) => { if(logger.isDebugEnabled()) logger.debug(m, { context: baseContext }); },
+    silly: (m) => { if(logger.isSillyEnabled()) logger.silly(m, { context: baseContext }); },
     withContext,
   };
 }

@@ -51,13 +51,34 @@ export class WhisperAsrService implements AsrService {
       const form = new FormData();
       const fileBuffer = await fs.promises.readFile(inputPath);
 
-      form.append("audio_file", new Blob([fileBuffer]), fileName);
+      // FormData in Node.js 18+ accepts Blob or File
+      // Convert Buffer to Blob for FormData compatibility
+      const blob = new Blob([fileBuffer], { type: "audio/wav" });
+      form.append("audio_file", blob, fileName);
 
-      const res = await fetch(url, {
-        method: "POST",
-        body: form,
-        signal: controller.signal,
-      });
+      this.logger.debug(`File size: ${fileBuffer.length} bytes`);
+
+      let res: Response;
+      try {
+        res = await fetch(url, {
+          method: "POST",
+          body: form,
+          signal: controller.signal,
+        });
+      } catch (fetchErr) {
+        // Check if this is an abort/timeout error
+        if (fetchErr instanceof Error && fetchErr.name === "AbortError") {
+          throw new Error(`Whisper request timed out after ${timeoutMs}ms for file: ${fileName}`);
+        }
+        const errorMessage = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+        const errorName = fetchErr instanceof Error ? fetchErr.name : "UnknownError";
+        this.logger.error(`Fetch request failed: ${errorName} - ${errorMessage}`);
+        throw new Error(
+          `Failed to connect to Whisper server for file '${fileName}': ${errorMessage}. ` +
+          `URL: ${url}. ` +
+          `This may indicate a network issue, server unavailability, or connection timeout.`
+        );
+      }
 
       if (!res.ok) {
         const body = await res.text().catch(() => "");
@@ -66,7 +87,34 @@ export class WhisperAsrService implements AsrService {
         );
       }
 
-      const arrayBuf = await res.arrayBuffer();
+      // Log response details for debugging
+      this.logger.debug(`Response status: ${res.status} ${res.statusText}`);
+      if (res.headers) {
+        this.logger.debug(`Response content-type: ${res.headers.get("content-type") || "unknown"}`);
+        this.logger.debug(`Response content-length: ${res.headers.get("content-length") || "unknown"}`);
+      }
+
+      let arrayBuf: ArrayBuffer;
+      try {
+        arrayBuf = await res.arrayBuffer();
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        this.logger.error(`Failed to read response body: ${errorMessage}`);
+        throw new Error(
+          `Failed to read Whisper response body for file '${fileName}': ${errorMessage}. ` +
+          `Response status was ${res.status} ${res.statusText}. ` +
+          `This may indicate a network issue or that the server closed the connection prematurely.`
+        );
+      }
+
+      if (arrayBuf.byteLength === 0) {
+        throw new Error(
+          `Whisper server returned empty response for file '${fileName}'. ` +
+          `Response status was ${res.status} ${res.statusText}.`
+        );
+      }
+
+      this.logger.debug(`Received ${arrayBuf.byteLength} bytes from Whisper server`);
       return Buffer.from(arrayBuf);
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") {

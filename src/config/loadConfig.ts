@@ -577,7 +577,9 @@ function validateFinalConfig(config: any, configPath: string): void {
           if (typeof config.profiles[profileName] !== "object" || config.profiles[profileName] === null) {
             errors.push(`Invalid 'profiles.${profileName}' field (must be an object)`);
           } else {
-            if ("prompts" in config.profiles[profileName] && config.profiles[profileName].prompts !== undefined) {
+            if (!("prompts" in config.profiles[profileName]) || config.profiles[profileName].prompts === undefined) {
+              errors.push(`Missing or invalid 'profiles.${profileName}.prompts' field`);
+            } else {
               if (typeof config.profiles[profileName].prompts !== "object" || config.profiles[profileName].prompts === null) {
                 errors.push(`Invalid 'profiles.${profileName}.prompts' field (must be an object)`);
               } else {
@@ -585,14 +587,18 @@ function validateFinalConfig(config: any, configPath: string): void {
                 if (profileName === "lecture") {
                   const validPrompts = ["cleaning", "handout", "summary"];
                   for (const promptName of validPrompts) {
-                    if (promptName in prompts && typeof prompts[promptName] !== "string") {
+                    if (!(promptName in prompts) || prompts[promptName] === undefined) {
+                      errors.push(`Missing or invalid 'profiles.${profileName}.prompts.${promptName}' field`);
+                    } else if (typeof prompts[promptName] !== "string") {
                       errors.push(`Invalid 'profiles.${profileName}.prompts.${promptName}' field (must be a string)`);
                     }
                   }
                 } else {
                   const validPrompts = ["cleaning", "summary"];
                   for (const promptName of validPrompts) {
-                    if (promptName in prompts && typeof prompts[promptName] !== "string") {
+                    if (!(promptName in prompts) || prompts[promptName] === undefined) {
+                      errors.push(`Missing or invalid 'profiles.${profileName}.prompts.${promptName}' field`);
+                    } else if (typeof prompts[promptName] !== "string") {
                       errors.push(`Invalid 'profiles.${profileName}.prompts.${promptName}' field (must be a string)`);
                     }
                   }
@@ -600,6 +606,9 @@ function validateFinalConfig(config: any, configPath: string): void {
               }
             }
           }
+        } else {
+          // Profile is missing but profiles object exists - this is an error
+          errors.push(`Missing or invalid 'profiles.${profileName}' field`);
         }
       }
     }

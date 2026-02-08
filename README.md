@@ -1,5 +1,6 @@
 # spoken-to-text-pipeline
 
+[![Build Status](https://github.com/sidec15/spoken-to-text-pipeline/actions/workflows/tests.yaml/badge.svg)](https://github.com/sidec15/spoken-to-text-pipeline/actions/workflows/tests.yaml)
 [![codecov](https://codecov.io/gh/sidec15/spoken-to-text-pipeline/graph/badge.svg?token=ES1EOSVK6L)](https://codecov.io/gh/sidec15/spoken-to-text-pipeline)
 
 <!-- <p style="text-align: left;">

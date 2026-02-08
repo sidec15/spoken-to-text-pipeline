@@ -164,4 +164,203 @@ describe('PipelineRunner', () => {
     // Assert
     expect(mockLogger.withContext).toHaveBeenCalledWith({ step: 'test-step' });
   });
+
+  it('should skip disabled cleaning step', async () => {
+    // Arrange
+    const step: Step = {
+      name: 'cleaning',
+      runAsync: jest.fn().mockResolvedValue(undefined),
+    };
+    mockConfig.steps = {
+      cleaning: { enabled: false },
+    };
+    const runner = new PipelineRunner([step]);
+    const stepLogger = { ...mockLogger, info: jest.fn() };
+    (mockLogger.withContext as jest.Mock).mockReturnValue(stepLogger);
+
+    // Act
+    await runner.run(mockContext);
+
+    // Assert
+    expect(step.runAsync).not.toHaveBeenCalled();
+    expect(stepLogger.info).toHaveBeenCalledWith('Step disabled via configuration, skipping');
+  });
+
+  it('should skip disabled handout step', async () => {
+    // Arrange
+    const step: Step = {
+      name: 'handout',
+      runAsync: jest.fn().mockResolvedValue(undefined),
+    };
+    mockConfig.steps = {
+      handout: { enabled: false },
+    };
+    const runner = new PipelineRunner([step]);
+    const stepLogger = { ...mockLogger, info: jest.fn() };
+    (mockLogger.withContext as jest.Mock).mockReturnValue(stepLogger);
+
+    // Act
+    await runner.run(mockContext);
+
+    // Assert
+    expect(step.runAsync).not.toHaveBeenCalled();
+    expect(stepLogger.info).toHaveBeenCalledWith('Step disabled via configuration, skipping');
+  });
+
+  it('should skip disabled summary step', async () => {
+    // Arrange
+    const step: Step = {
+      name: 'summary',
+      runAsync: jest.fn().mockResolvedValue(undefined),
+    };
+    mockConfig.steps = {
+      summary: { enabled: false },
+    };
+    const runner = new PipelineRunner([step]);
+    const stepLogger = { ...mockLogger, info: jest.fn() };
+    (mockLogger.withContext as jest.Mock).mockReturnValue(stepLogger);
+
+    // Act
+    await runner.run(mockContext);
+
+    // Assert
+    expect(step.runAsync).not.toHaveBeenCalled();
+    expect(stepLogger.info).toHaveBeenCalledWith('Step disabled via configuration, skipping');
+  });
+
+  it('should run enabled cleaning step', async () => {
+    // Arrange
+    const step: Step = {
+      name: 'cleaning',
+      runAsync: jest.fn().mockResolvedValue(undefined),
+    };
+    mockConfig.steps = {
+      cleaning: { enabled: true },
+    };
+    const runner = new PipelineRunner([step]);
+    const stepLogger = { ...mockLogger, info: jest.fn() };
+    (mockLogger.withContext as jest.Mock).mockReturnValue(stepLogger);
+
+    // Act
+    await runner.run(mockContext);
+
+    // Assert
+    expect(step.runAsync).toHaveBeenCalledTimes(1);
+    expect(stepLogger.info).toHaveBeenCalledWith('Step started');
+    expect(stepLogger.info).toHaveBeenCalledWith('Step completed');
+  });
+
+  it('should run enabled handout step', async () => {
+    // Arrange
+    const step: Step = {
+      name: 'handout',
+      runAsync: jest.fn().mockResolvedValue(undefined),
+    };
+    mockConfig.steps = {
+      handout: { enabled: true },
+    };
+    const runner = new PipelineRunner([step]);
+    const stepLogger = { ...mockLogger, info: jest.fn() };
+    (mockLogger.withContext as jest.Mock).mockReturnValue(stepLogger);
+
+    // Act
+    await runner.run(mockContext);
+
+    // Assert
+    expect(step.runAsync).toHaveBeenCalledTimes(1);
+    expect(stepLogger.info).toHaveBeenCalledWith('Step started');
+    expect(stepLogger.info).toHaveBeenCalledWith('Step completed');
+  });
+
+  it('should run enabled summary step', async () => {
+    // Arrange
+    const step: Step = {
+      name: 'summary',
+      runAsync: jest.fn().mockResolvedValue(undefined),
+    };
+    mockConfig.steps = {
+      summary: { enabled: true },
+    };
+    const runner = new PipelineRunner([step]);
+    const stepLogger = { ...mockLogger, info: jest.fn() };
+    (mockLogger.withContext as jest.Mock).mockReturnValue(stepLogger);
+
+    // Act
+    await runner.run(mockContext);
+
+    // Assert
+    expect(step.runAsync).toHaveBeenCalledTimes(1);
+    expect(stepLogger.info).toHaveBeenCalledWith('Step started');
+    expect(stepLogger.info).toHaveBeenCalledWith('Step completed');
+  });
+
+  it('should run AI steps when enabled is not explicitly set (default enabled)', async () => {
+    // Arrange - steps without enabled field should default to enabled
+    const step: Step = {
+      name: 'cleaning',
+      runAsync: jest.fn().mockResolvedValue(undefined),
+    };
+    mockConfig.steps = {
+      cleaning: {}, // No enabled field
+    };
+    const runner = new PipelineRunner([step]);
+    const stepLogger = { ...mockLogger, info: jest.fn() };
+    (mockLogger.withContext as jest.Mock).mockReturnValue(stepLogger);
+
+    // Act
+    await runner.run(mockContext);
+
+    // Assert
+    expect(step.runAsync).toHaveBeenCalledTimes(1);
+    expect(stepLogger.info).toHaveBeenCalledWith('Step started');
+  });
+
+  it('should run non-AI steps without checking enabled status', async () => {
+    // Arrange - non-AI step should run regardless of steps config
+    const step: Step = {
+      name: 'asr', // Not an AI step
+      runAsync: jest.fn().mockResolvedValue(undefined),
+    };
+    mockConfig.steps = {
+      asr: { enabled: false }, // Even if disabled, non-AI steps should run
+    };
+    const runner = new PipelineRunner([step]);
+    const stepLogger = { ...mockLogger, info: jest.fn() };
+    (mockLogger.withContext as jest.Mock).mockReturnValue(stepLogger);
+
+    // Act
+    await runner.run(mockContext);
+
+    // Assert
+    expect(step.runAsync).toHaveBeenCalledTimes(1);
+    expect(stepLogger.info).toHaveBeenCalledWith('Step started');
+    expect(stepLogger.info).not.toHaveBeenCalledWith('Step disabled via configuration, skipping');
+  });
+
+  it('should skip disabled AI step but continue with next step', async () => {
+    // Arrange
+    const disabledStep: Step = {
+      name: 'cleaning',
+      runAsync: jest.fn().mockResolvedValue(undefined),
+    };
+    const enabledStep: Step = {
+      name: 'handout',
+      runAsync: jest.fn().mockResolvedValue(undefined),
+    };
+    mockConfig.steps = {
+      cleaning: { enabled: false },
+      handout: { enabled: true },
+    };
+    const runner = new PipelineRunner([disabledStep, enabledStep]);
+    const stepLogger = { ...mockLogger, info: jest.fn() };
+    (mockLogger.withContext as jest.Mock).mockReturnValue(stepLogger);
+
+    // Act
+    await runner.run(mockContext);
+
+    // Assert
+    expect(disabledStep.runAsync).not.toHaveBeenCalled();
+    expect(enabledStep.runAsync).toHaveBeenCalledTimes(1);
+    expect(stepLogger.info).toHaveBeenCalledWith('Step disabled via configuration, skipping');
+  });
 });

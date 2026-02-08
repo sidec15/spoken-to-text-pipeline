@@ -970,4 +970,453 @@ describe('loadConfig', () => {
       expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'profiles.other.prompts.summary' field/);
     });
   });
+
+  describe('fallback assignments after merge', () => {
+    beforeEach(() => {
+      mockExistsSync.mockReturnValue(true);
+    });
+
+    it('should assign default asr when missing after merge', () => {
+      // Arrange - config with no asr field at all
+      const configObj = {
+        profile: 'lecture',
+        ai: {
+          providers: { openai: { apiKey: 'test' } },
+          default: { provider: 'openai', model: 'test' }
+        },
+        profiles: {
+          lecture: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
+          meeting: { prompts: { cleaning: 'test', summary: 'test' } },
+          other: { prompts: { cleaning: 'test', summary: 'test' } }
+        }
+      };
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act
+      const result = loadConfig(validConfigPath);
+
+      // Assert
+      expect(result.asr).toBeDefined();
+      expect(result.asr.provider).toBe('whisper');
+      expect(result.asr.whisper).toBeDefined();
+    });
+
+    it('should assign default asr.whisper when missing after merge', () => {
+      // Arrange - config with asr but no whisper
+      const configObj = {
+        profile: 'lecture',
+        asr: { provider: 'whisper' },
+        ai: {
+          providers: { openai: { apiKey: 'test' } },
+          default: { provider: 'openai', model: 'test' }
+        },
+        profiles: {
+          lecture: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
+          meeting: { prompts: { cleaning: 'test', summary: 'test' } },
+          other: { prompts: { cleaning: 'test', summary: 'test' } }
+        }
+      };
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act
+      const result = loadConfig(validConfigPath);
+
+      // Assert
+      expect(result.asr.whisper).toBeDefined();
+      expect(result.asr.whisper.serverUrl).toBeDefined();
+    });
+
+    it('should assign default asr.provider when missing', () => {
+      // Arrange - config with asr.whisper but no provider
+      const configObj = {
+        profile: 'lecture',
+        asr: {
+          whisper: { serverUrl: 'http://test:9000/asr' }
+        },
+        ai: {
+          providers: { openai: { apiKey: 'test' } },
+          default: { provider: 'openai', model: 'test' }
+        },
+        profiles: {
+          lecture: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
+          meeting: { prompts: { cleaning: 'test', summary: 'test' } },
+          other: { prompts: { cleaning: 'test', summary: 'test' } }
+        }
+      };
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act
+      const result = loadConfig(validConfigPath);
+
+      // Assert
+      expect(result.asr.provider).toBe('whisper');
+    });
+
+    it('should assign default language when missing after merge', () => {
+      // Arrange - minimal config without language
+      const configObj = {
+        profile: 'lecture',
+        ai: {
+          providers: { openai: { apiKey: 'test' } },
+          default: { provider: 'openai', model: 'test' }
+        },
+        profiles: {
+          lecture: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
+          meeting: { prompts: { cleaning: 'test', summary: 'test' } },
+          other: { prompts: { cleaning: 'test', summary: 'test' } }
+        }
+      };
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act
+      const result = loadConfig(validConfigPath);
+
+      // Assert
+      expect(result.language).toBeDefined();
+      expect(result.language.input).toBe('en');
+      expect(result.language.output).toBe('en');
+    });
+
+    it('should assign default logging when missing after merge', () => {
+      // Arrange - minimal config without logging
+      const configObj = {
+        profile: 'lecture',
+        ai: {
+          providers: { openai: { apiKey: 'test' } },
+          default: { provider: 'openai', model: 'test' }
+        },
+        profiles: {
+          lecture: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
+          meeting: { prompts: { cleaning: 'test', summary: 'test' } },
+          other: { prompts: { cleaning: 'test', summary: 'test' } }
+        }
+      };
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act
+      const result = loadConfig(validConfigPath);
+
+      // Assert
+      expect(result.logging).toBeDefined();
+      expect(result.logging.level).toBe('info');
+      expect(result.logging.singleLine).toBe(false);
+    });
+
+    it('should assign default paths when missing after merge', () => {
+      // Arrange - minimal config without paths
+      const configObj = {
+        profile: 'lecture',
+        ai: {
+          providers: { openai: { apiKey: 'test' } },
+          default: { provider: 'openai', model: 'test' }
+        },
+        profiles: {
+          lecture: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
+          meeting: { prompts: { cleaning: 'test', summary: 'test' } },
+          other: { prompts: { cleaning: 'test', summary: 'test' } }
+        }
+      };
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act
+      const result = loadConfig(validConfigPath);
+
+      // Assert
+      expect(result.paths).toBeDefined();
+      expect(result.paths.inputDir).toBe('./input');
+      expect(result.paths.outputDir).toBe('./output');
+    });
+
+    it('should assign default ai when missing after merge', () => {
+      // Arrange - minimal config without ai
+      const configObj = {
+        profile: 'lecture',
+        profiles: {
+          lecture: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
+          meeting: { prompts: { cleaning: 'test', summary: 'test' } },
+          other: { prompts: { cleaning: 'test', summary: 'test' } }
+        }
+      };
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert - This will fail because ai.providers is required
+      expect(() => loadConfig(validConfigPath)).toThrow(/Missing 'ai.providers' field|At least one provider must be configured/);
+    });
+  });
+
+  describe('validateUserConfig error paths', () => {
+    beforeEach(() => {
+      mockExistsSync.mockReturnValue(true);
+    });
+
+    it('should validate invalid profile value in validateUserConfig', () => {
+      // Arrange - profile is invalid but passes initial check (edge case)
+      const configObj = {
+        profile: 'invalid-profile',
+        ai: {
+          providers: { openai: { apiKey: 'test' } },
+          default: { provider: 'openai', model: 'test' }
+        },
+        profiles: {
+          lecture: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
+          meeting: { prompts: { cleaning: 'test', summary: 'test' } },
+          other: { prompts: { cleaning: 'test', summary: 'test' } }
+        }
+      };
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert - This should fail at the initial profile check, not in validateUserConfig
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'profile' value/);
+    });
+
+    it('should validate invalid language field type', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.language = 'not-an-object';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'language' field \(must be an object\)/);
+    });
+
+    it('should validate invalid language.input type', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.language.input = 123;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'language.input' field/);
+    });
+
+    it('should validate invalid language.output type', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.language.output = 123;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'language.output' field/);
+    });
+
+    it('should validate invalid logging field type', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.logging = 'not-an-object';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'logging' field \(must be an object\)/);
+    });
+
+    it('should validate invalid logging.singleLine type', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.logging.singleLine = 'not-boolean';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'logging.singleLine' field/);
+    });
+
+    it('should validate invalid paths field type', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.paths = 'not-an-object';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'paths' field \(must be an object\)/);
+    });
+
+    it('should validate invalid paths.inputDir type', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.paths.inputDir = 123;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'paths.inputDir' field/);
+    });
+
+    it('should validate invalid paths.outputDir type', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.paths.outputDir = 123;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'paths.outputDir' field/);
+    });
+
+    it('should validate invalid asr field type', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.asr = 'not-an-object';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'asr' field \(must be an object\)/);
+    });
+
+    it('should validate invalid asr.whisper field type', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.asr.whisper = 'not-an-object';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'asr.whisper' field \(must be an object\)/);
+    });
+
+    it('should validate invalid asr.whisper.serverUrl type', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.asr.whisper.serverUrl = 123;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'asr.whisper.serverUrl' field/);
+    });
+
+    it('should validate invalid asr.whisper.task value', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.asr.whisper.task = 'invalid-task';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'asr.whisper.task' field/);
+    });
+
+    it('should validate invalid asr.whisper.outputFormat value', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.asr.whisper.outputFormat = 'invalid-format';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'asr.whisper.outputFormat' field/);
+    });
+
+    it('should validate invalid asr.whisper.temperature type', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.asr.whisper.temperature = 'not-a-number';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'asr.whisper.temperature' field/);
+    });
+
+    it('should validate invalid asr.whisper.beamSize type', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.asr.whisper.beamSize = 'not-a-number';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'asr.whisper.beamSize' field/);
+    });
+
+    it('should validate invalid asr.whisper.bestOf type', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.asr.whisper.bestOf = 'not-a-number';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'asr.whisper.bestOf' field/);
+    });
+
+    it('should validate invalid asr.whisper.vad.enabled type', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.asr.whisper.vad.enabled = 'not-boolean';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'asr.whisper.vad.enabled' field/);
+    });
+
+    it('should validate invalid asr.whisper.vad.threshold type', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.asr.whisper.vad.threshold = 'not-a-number';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'asr.whisper.vad.threshold' field/);
+    });
+
+    it('should validate invalid asr.whisper.vad.minSilenceMs type', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.asr.whisper.vad.minSilenceMs = 'not-a-number';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'asr.whisper.vad.minSilenceMs' field/);
+    });
+
+    it('should validate invalid asr.whisper.vad.maxSpeechS type', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.asr.whisper.vad.maxSpeechS = 'not-a-number';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'asr.whisper.vad.maxSpeechS' field/);
+    });
+
+    it('should validate invalid ai field type', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.ai = 'not-an-object';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'ai' field \(must be an object\)/);
+    });
+
+    it('should validate invalid ai.providers field type', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.ai.providers = 'not-an-object';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'ai.providers' field \(must be an object\)/);
+    });
+
+    it('should validate invalid ai.providers.openai.apiKey type', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.ai.providers.openai.apiKey = 123;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'ai.providers.openai.apiKey' field/);
+    });
+
+    it('should validate invalid ai.providers.deepseek.apiKey type', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.ai.providers.deepseek.apiKey = 123;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'ai.providers.deepseek.apiKey' field/);
+    });
+
+    it('should validate invalid ai.default field type', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.ai.default = 'not-an-object';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'ai.default' field \(must be an object\)/);
+    });
+  });
 });

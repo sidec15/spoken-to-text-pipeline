@@ -114,4 +114,52 @@ describe('loadContextText', () => {
     expect(mockReadFileSync).toHaveBeenCalledWith(expectedResolvedPath, 'utf-8');
     expect(mockReadFileSync).toHaveBeenCalledTimes(1);
   });
+
+  it('should resolve paths relative to baseDir when provided', () => {
+    // Arrange
+    const filePath = './relative/path.txt';
+    const baseDir = '/custom/base';
+    const expectedResolvedPath = path.resolve(baseDir, filePath);
+    mockReadFileSync.mockReturnValue('Content\n');
+    
+    // Act
+    getLoadContextText()([filePath], baseDir);
+    
+    // Assert - verify the path was resolved correctly relative to baseDir
+    expect(mockReadFileSync).toHaveBeenCalledWith(expectedResolvedPath, 'utf-8');
+    expect(mockReadFileSync).toHaveBeenCalledTimes(1);
+  });
+
+  it('should resolve absolute paths as-is even when baseDir is provided', () => {
+    // Arrange
+    const filePath = '/absolute/path.txt';
+    const baseDir = '/custom/base';
+    mockReadFileSync.mockReturnValue('Content\n');
+    
+    // Act
+    getLoadContextText()([filePath], baseDir);
+    
+    // Assert - verify absolute path is used as-is
+    expect(mockReadFileSync).toHaveBeenCalledWith(filePath, 'utf-8');
+    expect(mockReadFileSync).toHaveBeenCalledTimes(1);
+  });
+
+  it('should resolve multiple paths relative to baseDir when provided', () => {
+    // Arrange
+    const filePaths = ['./file1.txt', './file2.txt'];
+    const baseDir = '/custom/base';
+    mockReadFileSync
+      .mockReturnValueOnce('Content 1')
+      .mockReturnValueOnce('Content 2');
+    
+    // Act
+    const result = getLoadContextText()(filePaths, baseDir);
+    
+    // Assert
+    expect(result).toContain('Content 1');
+    expect(result).toContain('Content 2');
+    expect(mockReadFileSync).toHaveBeenCalledTimes(2);
+    expect(mockReadFileSync).toHaveBeenNthCalledWith(1, path.resolve(baseDir, filePaths[0]), 'utf-8');
+    expect(mockReadFileSync).toHaveBeenNthCalledWith(2, path.resolve(baseDir, filePaths[1]), 'utf-8');
+  });
 });

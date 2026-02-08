@@ -136,6 +136,53 @@ describe('loadConfig', () => {
       expect(mockExistsSync).toHaveBeenCalled();
     });
 
+    it('should set baseDir when provided', () => {
+      // Arrange
+      const relativePath = './config.json';
+      const baseDir = '/custom/base';
+      mockExistsSync.mockReturnValue(true);
+      mockReadFileSync.mockReturnValue(validConfigContent);
+
+      // Act
+      const result = loadConfig(relativePath, baseDir);
+
+      // Assert
+      expect(result).toBeDefined();
+      expect(result.baseDir).toBe(path.resolve(process.cwd(), baseDir));
+      expect(result.profile).toBe('lecture');
+    });
+
+    it('should resolve config path relative to baseDir when provided', () => {
+      // Arrange
+      const relativePath = './config.json';
+      const baseDir = '/custom/base';
+      mockExistsSync.mockReturnValue(true);
+      mockReadFileSync.mockReturnValue(validConfigContent);
+
+      // Act
+      loadConfig(relativePath, baseDir);
+
+      // Assert
+      const expectedConfigPath = path.resolve(process.cwd(), baseDir, relativePath);
+      expect(mockExistsSync).toHaveBeenCalledWith(expectedConfigPath);
+    });
+
+    it('should use absolute baseDir as-is when provided', () => {
+      // Arrange
+      const relativePath = './config.json';
+      const baseDir = '/absolute/base';
+      mockExistsSync.mockReturnValue(true);
+      mockReadFileSync.mockReturnValue(validConfigContent);
+
+      // Act
+      const result = loadConfig(relativePath, baseDir);
+
+      // Assert
+      expect(result.baseDir).toBe(baseDir);
+      const expectedConfigPath = path.resolve(baseDir, relativePath);
+      expect(mockExistsSync).toHaveBeenCalledWith(expectedConfigPath);
+    });
+
     it('should throw error for non-existent file', () => {
       // Arrange
       mockExistsSync.mockReturnValue(false);

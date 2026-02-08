@@ -39,6 +39,7 @@ spoken-to-text my-config.json
 ## Command Options
 
 - `-c, --config PATH` - Path to the pipeline configuration file (default: `pipeline.config.json`)
+- `-b, --base-dir PATH` - Base directory for resolving relative paths in configuration (default: current working directory)
 - `-h, --help` - Display help message and exit
 
 ## Execution Flow
@@ -72,6 +73,18 @@ Use a production configuration:
 
 ```bash
 spoken-to-text --config configs/production.json
+```
+
+Specify a base directory for resolving relative paths:
+
+```bash
+spoken-to-text --base-dir /path/to/project --config config.json
+```
+
+Or use the short form:
+
+```bash
+spoken-to-text -b ./project -c config.json
 ```
 
 Get help:

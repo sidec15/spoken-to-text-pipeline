@@ -30,10 +30,14 @@ function deepMerge<T extends Record<string, any>>(target: T, source: Partial<T>)
   return result;
 }
 
-export function loadConfig(configPath: string): PipelineConfig {
+export function loadConfig(configPath: string, baseDir?: string): PipelineConfig {
+  // Resolve baseDir - if provided, use it; otherwise use process.cwd()
+  const resolvedBaseDir = baseDir ? (path.isAbsolute(baseDir) ? baseDir : path.resolve(process.cwd(), baseDir)) : process.cwd();
+
+  // Resolve config path relative to baseDir
   const absolutePath = path.isAbsolute(configPath)
     ? configPath
-    : path.resolve(process.cwd(), configPath);
+    : path.resolve(resolvedBaseDir, configPath);
 
   if (!fs.existsSync(absolutePath)) {
     throw new Error(`Config file not found: ${absolutePath}`);
@@ -109,7 +113,13 @@ export function loadConfig(configPath: string): PipelineConfig {
   // Validate final merged config
   validateFinalConfig(mergedConfig, absolutePath);
 
-  return mergedConfig as PipelineConfig;
+  // Set baseDir on the config if provided
+  const finalConfig = mergedConfig as PipelineConfig;
+  if (baseDir) {
+    finalConfig.baseDir = resolvedBaseDir;
+  }
+
+  return finalConfig;
 }
 
 /**

@@ -32,7 +32,7 @@ export class HandoutStep implements Step {
 
     const aiOptions = resolveAiConfig(config, "handout");
     const aiService = createAiService(config, "handout");
-    const contextText = loadContextText(config.context?.textSources);
+    const contextText = loadContextText(config.context?.textSources, config.baseDir);
     const maxTokens = this.calculateMaxTokens(estimatedInputTokens, aiOptions);
 
     const handout = await this.generateHandout(

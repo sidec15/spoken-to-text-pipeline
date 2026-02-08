@@ -45,7 +45,7 @@ export class SummaryStep implements Step {
     );
 
     const aiService = createAiService(config, "summary");
-    const contextText = loadContextText(config.context?.textSources);
+    const contextText = loadContextText(config.context?.textSources, config.baseDir);
     const maxTokens = this.calculateMaxTokens(wordCount, aiOptions);
 
     const summary = await this.generateSummary(

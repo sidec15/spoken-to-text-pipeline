@@ -7,6 +7,8 @@ import type { PipelineConfig } from "../config/config.types.js";
 export interface CliArgs {
   /** Path to the configuration file */
   configPath: string;
+  /** Base directory for resolving relative paths in configuration */
+  baseDir?: string;
 }
 
 /**
@@ -30,6 +32,13 @@ export function parseArgs(argv: string[]): CliArgs {
       } else {
         throw new Error(`Missing value for option ${arg}`);
       }
+    } else if (arg === "--base-dir" || arg === "-b") {
+      if (i + 1 < argv.length) {
+        args.baseDir = argv[i + 1];
+        i++; // Skip next argument as it's the value
+      } else {
+        throw new Error(`Missing value for option ${arg}`);
+      }
     } else if (arg === "--help" || arg === "-h") {
       printHelp();
       process.exit(0);
@@ -48,10 +57,11 @@ export function parseArgs(argv: string[]): CliArgs {
  * Loads the pipeline configuration from the specified path.
  *
  * @param configPath - Path to the configuration file
+ * @param baseDir - Optional base directory for resolving relative paths
  * @returns Pipeline configuration
  */
-export function loadPipelineConfig(configPath: string): PipelineConfig {
-  return loadConfig(configPath);
+export function loadPipelineConfig(configPath: string, baseDir?: string): PipelineConfig {
+  return loadConfig(configPath, baseDir);
 }
 
 function printHelp(): void {
@@ -59,15 +69,17 @@ function printHelp(): void {
 Usage: spoken-to-text [OPTIONS] [CONFIG_PATH]
 
 Options:
-  -c, --config PATH    Path to the pipeline configuration file (default: pipeline.config.json)
-  -h, --help           Show this help message
+  -c, --config PATH      Path to the pipeline configuration file (default: pipeline.config.json)
+  -b, --base-dir PATH     Base directory for resolving relative paths in configuration (default: current working directory)
+  -h, --help              Show this help message
 
 Arguments:
-  CONFIG_PATH          Path to the pipeline configuration file (alternative to --config)
+  CONFIG_PATH            Path to the pipeline configuration file (alternative to --config)
 
 Examples:
   spoken-to-text
   spoken-to-text --config my-config.json
   spoken-to-text -c ./configs/production.json
+  spoken-to-text --base-dir /path/to/project --config config.json
 `);
 }

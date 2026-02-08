@@ -71,6 +71,32 @@ describe('resolveOutputDir', () => {
     expect(result).toBe(path.resolve(process.cwd(), './relative/output'));
   });
 
+  it('should resolve relative path relative to baseDir when provided', () => {
+    // Arrange
+    const config = createMockConfig();
+    config.baseDir = '/custom/base';
+    config.paths.outputDir = './relative/output';
+
+    // Act
+    const result = resolveOutputDir(config);
+
+    // Assert
+    expect(result).toBe(path.resolve('/custom/base', './relative/output'));
+  });
+
+  it('should resolve absolute path even when baseDir is provided', () => {
+    // Arrange
+    const config = createMockConfig();
+    config.baseDir = '/custom/base';
+    config.paths.outputDir = '/absolute/output';
+
+    // Act
+    const result = resolveOutputDir(config);
+
+    // Assert
+    expect(result).toBe('/absolute/output');
+  });
+
   it('should add timestamp suffix when addTimestamp is true', () => {
     // Arrange
     const config = createMockConfig();

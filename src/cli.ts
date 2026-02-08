@@ -7,7 +7,7 @@ import { CliProgressReporter } from "./services/cliProgressReporter.js";
 async function main(): Promise<void> {
   try {
     const args = parseArgs(process.argv.slice(2));
-    const config = loadPipelineConfig(args.configPath);
+    const config = loadPipelineConfig(args.configPath, args.baseDir);
 
     const result = await runPipeline({
       config,

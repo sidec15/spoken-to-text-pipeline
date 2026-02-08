@@ -26,6 +26,7 @@ describe('parseArgs', () => {
     // Assert
     expect(result).toEqual({
       configPath: 'pipeline.config.json',
+      baseDir: undefined,
     });
   });
 
@@ -36,6 +37,7 @@ describe('parseArgs', () => {
     // Assert
     expect(result).toEqual({
       configPath: 'custom-config.json',
+      baseDir: undefined,
     });
   });
 
@@ -46,6 +48,7 @@ describe('parseArgs', () => {
     // Assert
     expect(result).toEqual({
       configPath: 'short-config.json',
+      baseDir: undefined,
     });
   });
 
@@ -56,6 +59,7 @@ describe('parseArgs', () => {
     // Assert
     expect(result).toEqual({
       configPath: 'my-config.json',
+      baseDir: undefined,
     });
   });
 
@@ -67,6 +71,49 @@ describe('parseArgs', () => {
   it('should throw error when -c is missing value', () => {
     // Act & Assert
     expect(() => parseArgs(['-c'])).toThrow('Missing value for option -c');
+  });
+
+  it('should parse --base-dir option', () => {
+    // Act
+    const result = parseArgs(['--base-dir', '/path/to/project']);
+
+    // Assert
+    expect(result).toEqual({
+      configPath: 'pipeline.config.json',
+      baseDir: '/path/to/project',
+    });
+  });
+
+  it('should parse -b option', () => {
+    // Act
+    const result = parseArgs(['-b', './project']);
+
+    // Assert
+    expect(result).toEqual({
+      configPath: 'pipeline.config.json',
+      baseDir: './project',
+    });
+  });
+
+  it('should parse both --config and --base-dir', () => {
+    // Act
+    const result = parseArgs(['--config', 'my-config.json', '--base-dir', '/path/to/project']);
+
+    // Assert
+    expect(result).toEqual({
+      configPath: 'my-config.json',
+      baseDir: '/path/to/project',
+    });
+  });
+
+  it('should throw error when --base-dir is missing value', () => {
+    // Act & Assert
+    expect(() => parseArgs(['--base-dir'])).toThrow('Missing value for option --base-dir');
+  });
+
+  it('should throw error when -b is missing value', () => {
+    // Act & Assert
+    expect(() => parseArgs(['-b'])).toThrow('Missing value for option -b');
   });
 
   it('should throw error for unknown option', () => {
@@ -121,6 +168,7 @@ describe('parseArgs', () => {
     // Assert
     expect(result).toEqual({
       configPath: 'config-from-flag.json',
+      baseDir: undefined,
     });
   });
 
@@ -131,6 +179,7 @@ describe('parseArgs', () => {
     // Assert
     expect(result).toEqual({
       configPath: 'positional-config.json',
+      baseDir: undefined,
     });
   });
 
@@ -171,7 +220,20 @@ describe('loadPipelineConfig', () => {
     const result = loadPipelineConfig('test-config.json');
 
     // Assert
-    expect(mockLoadConfig).toHaveBeenCalledWith('test-config.json');
+    expect(mockLoadConfig).toHaveBeenCalledWith('test-config.json', undefined);
+    expect(result).toBe(mockConfig);
+  });
+
+  it('should call loadConfig with provided path and baseDir', () => {
+    // Arrange
+    const mockConfig = { profile: 'lecture' } as never;
+    mockLoadConfig.mockReturnValue(mockConfig);
+
+    // Act
+    const result = loadPipelineConfig('test-config.json', '/path/to/project');
+
+    // Assert
+    expect(mockLoadConfig).toHaveBeenCalledWith('test-config.json', '/path/to/project');
     expect(result).toBe(mockConfig);
   });
 

@@ -4,6 +4,7 @@ import type { PipelineConfig } from "../config/config.types.js";
 /**
  * Resolves the output directory path, optionally adding a timestamp suffix.
  * Returns the resolved absolute path (directory creation is handled by steps).
+ * Paths are resolved relative to config.baseDir if provided, otherwise relative to process.cwd().
  */
 export function resolveOutputDir(config: PipelineConfig): string {
   let outputDir = config.paths?.outputDir ?? "./output";
@@ -19,5 +20,7 @@ export function resolveOutputDir(config: PipelineConfig): string {
     outputDir = `${outputDir}_${timestamp}`;
   }
 
-  return path.resolve(process.cwd(), outputDir);
+  // Resolve relative to baseDir if provided, otherwise relative to process.cwd()
+  const baseDir = config.baseDir ?? process.cwd();
+  return path.isAbsolute(outputDir) ? outputDir : path.resolve(baseDir, outputDir);
 }

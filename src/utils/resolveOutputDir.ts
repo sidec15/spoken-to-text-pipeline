@@ -6,7 +6,7 @@ import type { PipelineConfig } from "../config/config.types.js";
  * Returns the resolved absolute path (directory creation is handled by steps).
  */
 export function resolveOutputDir(config: PipelineConfig): string {
-  let outputDir = config.paths.outputDir;
+  let outputDir = config.paths?.outputDir ?? "./output";
 
   // Add timestamp suffix if requested
   if (config.output?.addTimestamp) {

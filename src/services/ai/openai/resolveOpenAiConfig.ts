@@ -22,7 +22,8 @@ export function resolveOpenAiConfig(
   const overrides = stepConfig.overrides ?? {};
 
   // Enhance system prompt with language.output instruction
-  const languageInstruction = `\n\nIMPORTANT: All output must be in ${config.language.output}. Write all content, including headings, annotations, and any text, exclusively in ${config.language.output}.`;
+  const outputLanguage = config.language?.output ?? "English";
+  const languageInstruction = `\n\nIMPORTANT: All output must be in ${outputLanguage}. Write all content, including headings, annotations, and any text, exclusively in ${outputLanguage}.`;
   const enhancedSystemPrompt = (preset.systemPrompt ?? "") + languageInstruction;
 
   return {

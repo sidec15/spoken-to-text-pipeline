@@ -18,7 +18,10 @@ function deepMerge<T extends Record<string, any>>(target: T, source: Partial<T>)
         target[key] !== null &&
         !Array.isArray(target[key])
       ) {
-        result[key] = deepMerge(target[key] || {}, source[key] || {});
+        result[key] = deepMerge(
+          (target[key] || {}) as T[Extract<keyof T, string>],
+          (source[key] || {}) as Partial<T[Extract<keyof T, string>]>
+        ) as T[Extract<keyof T, string>];
       } else {
         result[key] = source[key] as T[Extract<keyof T, string>];
       }

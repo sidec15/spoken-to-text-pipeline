@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import type { Logger } from '../../src/services/logger.js';
+import type { Logger, LoggerContext } from '../../src/services/logger.js';
 
 export function createMockLogger(): Logger {
   return {
@@ -8,6 +8,6 @@ export function createMockLogger(): Logger {
     error: jest.fn(),
     debug: jest.fn(),
     silly: jest.fn(),
-    withContext: jest.fn().mockReturnThis(),
+    withContext: jest.fn().mockReturnThis() as unknown as (ctx: LoggerContext) => Logger
   };
 }

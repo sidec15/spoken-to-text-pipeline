@@ -40,8 +40,8 @@ export async function runPipeline(options: PipelineOptions): Promise<PipelineRes
   const logger =
     providedLogger ??
     createLogger({
-      level: config.logging.level,
-      singleLine: config.logging.singleLine,
+      level: config?.logging?.level ?? "info",
+      singleLine: config?.logging?.singleLine ?? false,
       baseContext: {
         profile: config.profile,
       },

@@ -11,8 +11,14 @@ export class AsrStep implements Step {
   async runAsync(ctx: StepContext): Promise<void> {
     const { config, logger, progress } = ctx;
 
-    const inputDir = config.paths.inputDir;
+    const inputDir = config.paths?.inputDir ?? "";
+    if (inputDir === "") {
+      throw new Error("Input directory is not set");
+    }
     const outputDir = resolveOutputDir(config);
+    if (outputDir === "") {
+      throw new Error("Output directory is not set");
+    }
 
     logger.info("Starting ASR step");
     logger.debug(`Audio input dir: ${inputDir}`);
@@ -40,7 +46,9 @@ export class AsrStep implements Step {
 
     logger.info(`Found ${audioFiles.length} audio files, ${filesToProcess.length} to transcribe`);
 
-    const asr = new WhisperAsrService(config.asr.whisper.serverUrl, logger);
+    // Validate Whisper config (will throw if serverUrl is missing)
+    // Only called when there are files to process, not when step is skipped
+    const whisperConfig = resolveWhisperConfig(config);
 
     progress?.start(filesToProcess.length, "Transcribing audio");
 
@@ -51,7 +59,7 @@ export class AsrStep implements Step {
 
       const fileLogger = logger.withContext({ file });
 
-      await this.transcribeFileAsync(inputPath, outputPath, config, fileLogger);
+      await this.transcribeFileAsync(inputPath, outputPath, whisperConfig, fileLogger);
 
       progress?.increment();
     }
@@ -64,20 +72,18 @@ export class AsrStep implements Step {
   private async transcribeFileAsync(
     inputPath: string,
     outputPath: string,
-    config: StepContext["config"],
+    whisperConfig: ReturnType<typeof resolveWhisperConfig>,
     logger: StepContext["logger"],
   ): Promise<void> {
     const inputFileName = path.basename(inputPath);
 
     logger.debug(`Transcribing '${inputFileName}'`);
 
-    const whisperOptions = resolveWhisperConfig(config);
-
-    const asrService = new WhisperAsrService(whisperOptions.serverUrl, logger);
+    const asrService = new WhisperAsrService(whisperConfig.serverUrl, logger);
 
     const transcriptionBuffer = await asrService.transcribeFileAsync(
       inputPath,
-      whisperOptions.options,
+      whisperConfig.options,
     );
 
     await fs.promises.writeFile(outputPath, transcriptionBuffer);

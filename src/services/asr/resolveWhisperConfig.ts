@@ -11,12 +11,19 @@ export function resolveWhisperConfig(config: PipelineConfig): ResolvedWhisperCon
 
   const overrides = config.asr?.whisper ?? {};
 
+  const inputLanguage = config.language?.input ?? "English";
+
+  const serverUrl = config.asr?.whisper?.serverUrl ?? "";
+  if (serverUrl === "") {
+    throw new Error("Whisper server URL is not set");
+  }
+
   return {
-    serverUrl: overrides.serverUrl ?? config.asr.whisper.serverUrl,
+    serverUrl,
     options: {
       ...preset,
       ...overrides,
-      language: config.language.input,
+      language: inputLanguage,
     },
   };
 }

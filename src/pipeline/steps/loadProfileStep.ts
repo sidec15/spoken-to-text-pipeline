@@ -6,10 +6,14 @@ export class LoadProfileStep implements Step {
   async runAsync(ctx: StepContext): Promise<void> {
     const { config, logger } = ctx;
 
-    logger.debug(`Active profile: ${config.profile}`);
+    const profile = config.profile ?? undefined;
+    if (profile === undefined) {
+      throw new Error("Profile is not set");
+    }
+    logger.debug(`Active profile: ${profile}`);
 
-    if (!config.profiles[config.profile]) {
-      throw new Error(`Profile not found in config: ${config.profile}`);
+    if (!config.profiles?.[profile]) {
+      throw new Error(`Profile not found in config: ${profile}`);
     }
 
     logger.info(`Profile '${config.profile}' loaded`);

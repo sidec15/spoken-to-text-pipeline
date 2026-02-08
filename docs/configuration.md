@@ -217,11 +217,14 @@ The optional `context` object allows you to provide reference materials to impro
 
 **How context is used:**
 
-- Context files are loaded and provided to the **cleaning step only** as reference-only material
-- The AI uses context during cleaning to improve terminological accuracy and theoretical coherence
+- Context files are loaded and provided to **all AI processing steps** (cleaning, handout, summary) as reference-only material
+- The AI uses context during processing to improve terminological accuracy and theoretical coherence
 - Context content is **NOT** modified, repeated, or directly copied into outputs
-- Context helps the AI understand domain-specific terms and maintain consistency during transcript cleaning
-- **Note:** Context files are not used in the handout or summary steps - those steps rely on the cleaned transcripts and built-in prompts
+- Context helps the AI understand domain-specific terms and maintain consistency across all processing steps
+- Context is used in:
+  - **Cleaning step**: Improves terminological accuracy during transcript cleaning
+  - **Handout step**: Ensures consistent terminology and theoretical coherence in handout generation
+  - **Summary step**: Maintains accuracy and consistency when summarizing content
 
 **When to use context files:**
 

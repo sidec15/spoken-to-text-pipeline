@@ -4,6 +4,7 @@ import type { Step, StepContext } from "../step.js";
 import type { AiService } from "../../services/ai/ai.types.js";
 import { createAiService, resolveAiConfig } from "../../services/ai/aiServiceFactory.js";
 import { resolveOutputDir } from "../../utils/resolveOutputDir.js";
+import { loadContextText } from "../../utils/loadContextText.js";
 
 export class HandoutStep implements Step {
   readonly name = "handout";
@@ -69,6 +70,7 @@ export class HandoutStep implements Step {
     const MAX_SAFE_INPUT_TOKENS = 90000; // Leave room for system prompt and output
 
     const aiService = createAiService(config, "handout");
+    const contextText = loadContextText(config.context?.textSources);
 
     // Estimate maxTokens based on input length
     // For handout, output is typically similar or slightly longer than input
@@ -89,12 +91,14 @@ export class HandoutStep implements Step {
         logger,
         maxTokens,
         progress,
+        contextText,
       );
     } else {
       // Single pass - process all content at once
       logger.info("Processing input content in a single pass");
       handout = await aiService.generateTextAsync({
         systemPrompt: aiOptions.systemPrompt,
+        manualContextText: contextText || undefined,
         userPrompt: mergedContent,
         temperature: aiOptions.temperature,
         maxTokens,
@@ -120,6 +124,7 @@ export class HandoutStep implements Step {
     logger: StepContext["logger"],
     maxTokens: number,
     progress?: StepContext["progress"],
+    contextText?: string,
   ): Promise<string> {
     logger.info(`Processing ${cleanedFiles.length} files in chunks`);
 
@@ -137,13 +142,14 @@ export class HandoutStep implements Step {
       maxTokens,
       logger,
       progress,
+      contextText,
     );
 
     if (chunkResults.length === 1) {
       return chunkResults[0];
     }
 
-    return this.mergeChunkResults(aiService, aiOptions, chunkResults);
+    return this.mergeChunkResults(aiService, aiOptions, chunkResults, contextText);
   }
 
   /**
@@ -206,6 +212,7 @@ export class HandoutStep implements Step {
     maxTokens: number,
     logger: StepContext["logger"],
     progress?: StepContext["progress"],
+    contextText?: string,
   ): Promise<string[]> {
     // Total steps: chunks + final merge (if multiple chunks)
     const totalSteps = chunks.length + (chunks.length > 1 ? 1 : 0);
@@ -228,6 +235,7 @@ export class HandoutStep implements Step {
 
       const chunkHandout = await aiService.generateTextAsync({
         systemPrompt: aiOptions.systemPrompt,
+        manualContextText: contextText || undefined,
         userPrompt: chunkContent,
         temperature: aiOptions.temperature,
         maxTokens: Math.ceil((chunkContent.length / 4) * 1.5),
@@ -252,6 +260,7 @@ export class HandoutStep implements Step {
     aiService: AiService,
     aiOptions: { systemPrompt: string; temperature?: number },
     chunkResults: string[],
+    contextText?: string,
   ): Promise<string> {
     const mergedChunks = chunkResults
       .map((content, index) => `---\n## Chunk ${index + 1}\n\n${content}\n`)
@@ -271,6 +280,7 @@ Output a complete, unified handout with table of contents.`;
 
     const finalHandout = await aiService.generateTextAsync({
       systemPrompt: mergeSystemPrompt,
+      manualContextText: contextText || undefined,
       userPrompt: mergedChunks,
       temperature: aiOptions.temperature,
       maxTokens: Math.ceil((mergedChunks.length / 4) * 1.5),

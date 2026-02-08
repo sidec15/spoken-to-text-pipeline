@@ -46,8 +46,9 @@ jest.unstable_mockModule('../../../src/services/ai/aiServiceFactory.js', () => (
 }));
 
 // Mock loadContextText
+const mockLoadContextText = jest.fn<(paths?: string[]) => string>().mockReturnValue('');
 jest.unstable_mockModule('../../../src/utils/loadContextText.js', () => ({
-  loadContextText: jest.fn().mockReturnValue(''),
+  loadContextText: mockLoadContextText,
 }));
 
 describe('SummaryStep', () => {
@@ -59,6 +60,7 @@ describe('SummaryStep', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     // Reset mock implementations
+    (mockLoadContextText as jest.Mock).mockReturnValue('');
     mockCreateAiService.mockReturnValue({
       generateTextAsync: mockGenerateTextAsync,
     });
@@ -449,5 +451,77 @@ describe('SummaryStep', () => {
     expect(mockContext.progress.start).toHaveBeenCalled();
     expect(mockContext.progress.increment).toHaveBeenCalled();
     expect(mockContext.progress.stop).toHaveBeenCalled();
+  });
+
+  it('should pass context to AI service when context is configured', async () => {
+    // Arrange
+    const contextText = 'reference material content';
+    (mockLoadContextText as jest.Mock).mockReturnValue(contextText);
+    mockConfig.context = { textSources: ['ref1.txt', 'ref2.md'] };
+    mockReaddirSync.mockReturnValue(['handout.md'] as any);
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('summary.md') ? false : true;
+    });
+    mockReadFileSync.mockReturnValue('handout text content');
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    expect(mockLoadContextText).toHaveBeenCalledWith(['ref1.txt', 'ref2.md']);
+    expect(mockGenerateTextAsync).toHaveBeenCalled();
+    const generateCall = (mockGenerateTextAsync.mock.calls[0] as any[])[0] as any;
+    expect(generateCall.manualContextText).toBe(contextText);
+  });
+
+  it('should pass undefined context when context is not configured', async () => {
+    // Arrange
+    (mockLoadContextText as jest.Mock).mockReturnValue('');
+    mockConfig.context = undefined;
+    mockReaddirSync.mockReturnValue(['handout.md'] as any);
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('summary.md') ? false : true;
+    });
+    mockReadFileSync.mockReturnValue('handout text content');
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    expect(mockLoadContextText).toHaveBeenCalledWith(undefined);
+    expect(mockGenerateTextAsync).toHaveBeenCalled();
+    const generateCall = (mockGenerateTextAsync.mock.calls[0] as any[])[0] as any;
+    expect(generateCall.manualContextText).toBeUndefined();
+  });
+
+  it('should pass context to AI service during chunking', async () => {
+    // Arrange
+    const contextText = 'reference material content';
+    (mockLoadContextText as jest.Mock).mockReturnValue(contextText);
+    mockConfig.context = { textSources: ['ref.txt'] };
+    const largeContent = 'x'.repeat(400000);
+    mockReaddirSync.mockReturnValue(['handout.md'] as any);
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('summary.md') ? false : true;
+    });
+    mockReadFileSync.mockReturnValue(largeContent);
+    mockResolveAiConfig.mockReturnValue({
+      systemPrompt: 'Create summary',
+      temperature: 0.2,
+      maxTokens: 1300,
+    });
+    mockGenerateTextAsync.mockResolvedValue('summary');
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    // Should pass context to all AI calls (chunks and merge)
+    expect(mockGenerateTextAsync.mock.calls.length).toBeGreaterThan(0);
+    mockGenerateTextAsync.mock.calls.forEach((call: any[]) => {
+      expect(call[0]).toMatchObject({
+        manualContextText: contextText,
+      });
+    });
   });
 });

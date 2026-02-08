@@ -3,6 +3,7 @@ import path from "node:path";
 import type { Step, StepContext } from "../step.js";
 import { createAiService, resolveAiConfig } from "../../services/ai/aiServiceFactory.js";
 import { resolveOutputDir } from "../../utils/resolveOutputDir.js";
+import { loadContextText } from "../../utils/loadContextText.js";
 import type { AiService } from "../../services/ai/ai.types.js";
 import type { SupportedProfile } from "../../config/config.types.js";
 
@@ -54,6 +55,7 @@ export class SummaryStep implements Step {
     const MAX_SAFE_INPUT_TOKENS = 90000; // Leave room for system prompt and output
 
     const aiService = createAiService(config, "summary");
+    const contextText = loadContextText(config.context?.textSources);
 
     // Estimate maxTokens based on word count target (roughly 1 word ≈ 1.3 tokens)
     const targetTokens = Math.ceil(wordCount * 1.3);
@@ -73,6 +75,7 @@ export class SummaryStep implements Step {
         logger,
         maxTokens,
         progress,
+        contextText,
       );
     } else {
       // Single pass - process all content at once
@@ -80,6 +83,7 @@ export class SummaryStep implements Step {
       progress?.start(1, "Generating summary");
       summary = await aiService.generateTextAsync({
         systemPrompt: enhancedSystemPrompt,
+        manualContextText: contextText || undefined,
         userPrompt: inputContent,
         temperature: aiOptions.temperature,
         maxTokens,
@@ -205,6 +209,7 @@ export class SummaryStep implements Step {
     logger: StepContext["logger"],
     maxTokens: number,
     progress?: StepContext["progress"],
+    contextText?: string,
   ): Promise<string> {
     logger.info("Processing input content in chunks");
 
@@ -216,13 +221,14 @@ export class SummaryStep implements Step {
       wordCount,
       maxTokens,
       progress,
+      contextText,
     );
 
     if (chunkSummaries.length === 1) {
       return chunkSummaries[0];
     }
 
-    return this.mergeChunkSummaries(aiService, aiOptions, chunkSummaries, wordCount, maxTokens);
+    return this.mergeChunkSummaries(aiService, aiOptions, chunkSummaries, wordCount, maxTokens, contextText);
   }
 
   /**
@@ -288,6 +294,7 @@ export class SummaryStep implements Step {
     wordCount: number,
     maxTokens: number,
     progress?: StepContext["progress"],
+    contextText?: string,
   ): Promise<string[]> {
     const totalSteps = chunks.length + (chunks.length > 1 ? 1 : 0);
     progress?.start(totalSteps, "Generating summary (chunking)");
@@ -306,6 +313,7 @@ export class SummaryStep implements Step {
 
       const chunkSummary = await aiService.generateTextAsync({
         systemPrompt: chunkSystemPrompt,
+        manualContextText: contextText || undefined,
         userPrompt: chunk,
         temperature: aiOptions.temperature,
         maxTokens: Math.ceil(maxTokens / chunks.length),
@@ -332,6 +340,7 @@ export class SummaryStep implements Step {
     chunkSummaries: string[],
     wordCount: number,
     maxTokens: number,
+    contextText?: string,
   ): Promise<string> {
     const mergedSummaries = chunkSummaries
       .map((summary, index) => `---\n## Section ${index + 1}\n\n${summary}\n`)
@@ -353,6 +362,7 @@ Output a complete, unified summary.`;
 
     const finalSummary = await aiService.generateTextAsync({
       systemPrompt: mergeSystemPrompt,
+      manualContextText: contextText || undefined,
       userPrompt: mergedSummaries,
       temperature: aiOptions.temperature,
       maxTokens,

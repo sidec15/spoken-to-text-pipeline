@@ -88,6 +88,7 @@ describe('AsrStep', () => {
     };
     mockContext = {
       config: mockConfig,
+      outputDir: './output',
       logger: createMockLogger(),
       progress: createMockProgressReporter(),
     };

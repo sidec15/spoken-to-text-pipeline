@@ -92,6 +92,9 @@ describe('runPipeline', () => {
     expect(result).toEqual({ success: true });
     expect(mockRun).toHaveBeenCalledWith({
       config: mockConfig,
+      baseDir: undefined,
+      outputDir: expect.any(String),
+      dryRun: undefined,
       logger: mockLogger,
       progress: mockProgress,
     });

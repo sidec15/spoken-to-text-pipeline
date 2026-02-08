@@ -6,22 +6,27 @@ import type { AiService, AiGenerateOptions } from "../../services/ai/ai.types.js
 import type { Logger } from "../../services/logger.js";
 import type { ProgressReporter } from "../../services/progress.js";
 import { loadContextText } from "../../utils/loadContextText.js";
-import { resolveOutputDir } from "../../utils/resolveOutputDir.js";
 
 export class CleaningStep implements Step {
   readonly name = "cleaning";
 
   async runAsync(ctx: StepContext): Promise<void> {
-    const { config, baseDir, logger, progress } = ctx;
+    const { config, baseDir, outputDir, logger, progress } = ctx;
 
     logger.info("Starting Cleaning step");
 
-    const outputDir = resolveOutputDir(config, baseDir);
-
     fs.mkdirSync(outputDir, { recursive: true });
+    const cleanedDir = path.join(outputDir, "cleaned");
+    fs.mkdirSync(cleanedDir, { recursive: true });
+
+    const transcriptsDir = path.join(outputDir, "transcripts");
+    if (!fs.existsSync(transcriptsDir)) {
+      logger.warn("Transcripts directory not found, skipping Cleaning step");
+      return;
+    }
 
     const rawFiles = fs
-      .readdirSync(outputDir)
+      .readdirSync(transcriptsDir)
       .filter((f) => f.endsWith(".txt"))
       .sort();
 
@@ -32,7 +37,7 @@ export class CleaningStep implements Step {
 
     const filesToProcess = rawFiles.filter((file) => {
       const base = path.parse(file).name;
-      return !fs.existsSync(path.join(outputDir, `${base}.md`));
+      return !fs.existsSync(path.join(cleanedDir, `${base}.md`));
     });
 
     if (filesToProcess.length === 0) {
@@ -55,6 +60,7 @@ export class CleaningStep implements Step {
       const outputPath = await this.processFile({
         file,
         outputDir,
+        cleanedDir,
         rawFiles,
         lastCleanedPath,
         aiService,
@@ -75,6 +81,7 @@ export class CleaningStep implements Step {
   private async processFile(params: {
     file: string;
     outputDir: string;
+    cleanedDir: string;
     rawFiles: string[];
     lastCleanedPath: string | undefined;
     aiService: AiService;
@@ -86,6 +93,7 @@ export class CleaningStep implements Step {
     const {
       file,
       outputDir,
+      cleanedDir,
       rawFiles,
       lastCleanedPath,
       aiService,
@@ -96,8 +104,9 @@ export class CleaningStep implements Step {
     } = params;
 
     const base = path.parse(file).name;
-    const inputPath = path.join(outputDir, file);
-    const outputPath = path.join(outputDir, `${base}.md`);
+    const transcriptsDir = path.join(outputDir, "transcripts");
+    const inputPath = path.join(transcriptsDir, file);
+    const outputPath = path.join(cleanedDir, `${base}.md`);
 
     const fileLogger = logger.withContext({ file });
 
@@ -119,7 +128,7 @@ export class CleaningStep implements Step {
       if (currentFileIndex > 0) {
         const previousFile = rawFiles[currentFileIndex - 1];
         const previousBase = path.parse(previousFile).name;
-        const previousCleanedPath = path.join(outputDir, `${previousBase}.md`);
+        const previousCleanedPath = path.join(cleanedDir, `${previousBase}.md`);
 
         if (fs.existsSync(previousCleanedPath)) {
           const previousCleanedText = fs.readFileSync(previousCleanedPath, "utf-8");
@@ -128,20 +137,13 @@ export class CleaningStep implements Step {
       }
     }
 
-    // Estimate maxTokens based on input length
-    // Rough estimate: 1 token ≈ 4 characters
-    // For cleaning, output is typically similar to input, but let consider double the input length
-    const estimatedInputTokens = Math.ceil(rawText.length / 4);
-    const calculatedMaxTokens = Math.ceil(estimatedInputTokens * 2);
-    const maxTokens = aiOptions.maxTokens ?? calculatedMaxTokens; // Use override if provided, otherwise calculated
-
     const cleaned = await aiService.generateTextAsync({
       systemPrompt: aiOptions.systemPrompt,
       manualContextText: contextText || undefined,
       previousOutputExcerpt,
       userPrompt: rawText,
       temperature: aiOptions.temperature,
-      maxTokens,
+      maxTokens: aiOptions.maxTokens,
     });
 
     await fs.promises.writeFile(outputPath, cleaned, "utf-8");

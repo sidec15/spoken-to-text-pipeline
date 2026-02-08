@@ -323,7 +323,7 @@ The `default` object specifies the provider, model, and optional overrides to us
 - **`model`** (optional): Model identifier (e.g., `"gpt-4o-mini"`, `"gpt-4o"`, `"deepseek-chat"`). Default: `"gpt-5-mini"`
 - **`overrides`** (optional): Parameter overrides. Default: `undefined`
   - `temperature` (optional): Temperature for text generation (0-2). Default: profile-specific preset values (cleaning: 0, handout: 0, summary: 0.2-0.3 depending on profile)
-  - `maxTokens` (optional): Maximum tokens in generated output. Default: calculated dynamically (cleaning: inputTokens * 2, handout: inputTokens * 1.5, summary: summaryWordCount * 1.3)
+  - `maxTokens` (optional): Maximum tokens in generated output. Default: not set (the model uses its full budget and stops naturally). **Caution:** For reasoning models (gpt-5 series, o-series), `max_output_tokens` includes internal reasoning tokens — setting it too low can cause empty responses.
 
 **Example:**
 
@@ -358,7 +358,7 @@ OpenAI offers two model families with different parameter support:
 
 > **Note:** If you configure a `temperature` override in your config while using a reasoning model, the override is silently ignored — no error is raised, and the pipeline works correctly.
 
-**All OpenAI models** support `max_output_tokens` (mapped from `maxTokens` in config).
+**All OpenAI models** support `max_output_tokens` (mapped from `maxTokens` in config). By default, `max_output_tokens` is **not sent** — the model uses its full budget and stops naturally. For reasoning models, `max_output_tokens` includes both internal reasoning tokens and the visible answer, so setting it too low can cause empty responses. If the response is incomplete, the pipeline throws a descriptive error.
 
 #### DeepSeek Models
 
@@ -369,7 +369,7 @@ OpenAI offers two model families with different parameter support:
 
 `deepseek-reasoner` silently ignores `temperature` (no API error), but the pipeline explicitly omits it for clarity.
 
-**Both DeepSeek models** support `max_tokens` (mapped from `maxTokens` in config).
+**Both DeepSeek models** support `max_tokens` (mapped from `maxTokens` in config). By default, `max_tokens` is **not sent** — the model uses its full budget and stops naturally.
 
 #### Choosing a Model
 
@@ -453,13 +453,16 @@ If not specified, temperature defaults to profile-specific preset values:
 
 > **Important:** Temperature is only sent to models that support it. Reasoning models (OpenAI `gpt-5*`, `o1*`, `o3*`, `o4*` and DeepSeek `deepseek-reasoner`) do not support temperature — the pipeline automatically omits it for these models. See [Supported Models and Parameter Compatibility](#supported-models-and-parameter-compatibility) for details.
 
-### MaxTokens Calculation
+### MaxTokens Behavior
 
-If `maxTokens` is not specified, it's calculated dynamically:
+By default, `maxTokens` is **not set** — no `max_output_tokens` (OpenAI) or `max_tokens` (DeepSeek) parameter is sent to the API. The model uses its full budget and stops naturally when it finishes generating output. You are only billed for tokens actually produced, not for a limit.
 
-- **Cleaning**: `inputTokens * 2` - Output typically similar to input
-- **Handout**: `inputTokens * 1.5` - Output similar or slightly longer
-- **Summary**: `summaryWordCount * 1.3` - Based on target word count (calculated dynamically if not set)
+Setting `maxTokens` is **not recommended** in most cases because:
+- It adds risk of truncated or empty responses with no real benefit
+- For **reasoning models** (gpt-5 series, o-series), `max_output_tokens` includes internal reasoning tokens — a low limit causes the model to exhaust the budget on reasoning and return an empty answer
+- The model naturally stops when it has finished the task
+
+If you do set `maxTokens` explicitly and the response is incomplete, the pipeline throws a descriptive error instead of silently returning empty text.
 
 ## Output Configuration
 
@@ -491,7 +494,6 @@ The optional `output` object controls output behavior.
     The calculated value is bounded between **200** (minimum) and **5000** (maximum) words.
     
   - **If provided**: Used as a static override, disabling dynamic calculation
-  - Used to calculate `maxTokens` if not explicitly set
   - Tolerance: approximately ±25%
 
 **Examples:**
@@ -714,7 +716,7 @@ The following table provides a quick reference for all configuration parameters:
 | `ai.default.model` | `string` | No | `"gpt-5-mini"` | Valid model identifier | Default model |
 | `ai.default.overrides` | `object` | No | `undefined` | - | Default parameter overrides |
 | `ai.default.overrides.temperature` | `number` | No | Profile-specific presets | 0-2 | Temperature override |
-| `ai.default.overrides.maxTokens` | `number` | No | Calculated dynamically | Positive integer | Max tokens override |
+| `ai.default.overrides.maxTokens` | `number` | No | Not set (model default) | Positive integer | Max tokens override (not recommended for reasoning models) |
 | **`steps`** | `object` | No | `undefined` | - | Step configuration |
 | `steps.cleaning` | `object` | No | `undefined` | - | Cleaning step configuration |
 | `steps.cleaning.enabled` | `boolean` | No | `true` | `true`, `false` | Enable or disable cleaning step |
@@ -723,7 +725,7 @@ The following table provides a quick reference for all configuration parameters:
 | `steps.cleaning.aiConfig.model` | `string` | No | Uses `ai.default.model` | Valid model identifier | Override model |
 | `steps.cleaning.aiConfig.overrides` | `object` | No | Uses `ai.default.overrides` | - | Override parameters |
 | `steps.cleaning.aiConfig.overrides.temperature` | `number` | No | Profile-specific presets | 0-2 | Temperature override |
-| `steps.cleaning.aiConfig.overrides.maxTokens` | `number` | No | Calculated dynamically | Positive integer | Max tokens override |
+| `steps.cleaning.aiConfig.overrides.maxTokens` | `number` | No | Not set (model default) | Positive integer | Max tokens override (not recommended for reasoning models) |
 | `steps.handout` | `object` | No | `undefined` | - | Handout step configuration (lecture profile only) |
 | `steps.handout.enabled` | `boolean` | No | `true` | `true`, `false` | Enable or disable handout step |
 | `steps.handout.aiConfig` | `object` | No | Uses `ai.default` | - | AI configuration for handout step |

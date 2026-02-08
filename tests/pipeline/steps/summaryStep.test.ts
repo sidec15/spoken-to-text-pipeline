@@ -99,6 +99,7 @@ describe('SummaryStep', () => {
     };
     mockContext = {
       config: mockConfig,
+      outputDir: './output',
       logger: createMockLogger(),
       progress: createMockProgressReporter(),
     };
@@ -220,9 +221,10 @@ describe('SummaryStep', () => {
   it('should skip if no cleaned files found for meeting profile', async () => {
     // Arrange
     mockConfig.profile = 'meeting';
-    mockReaddirSync.mockReturnValue(['handout.md', 'summary.md'] as any);
-    mockExistsSync.mockImplementation((path: string) => {
-      return path.includes('summary.md') ? false : true;
+    mockReaddirSync.mockReturnValue([] as any); // No .md files in cleaned dir
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p.includes('summary.md')) return false; // summary doesn't exist yet
+      return true; // cleaned dir exists
     });
 
     // Act
@@ -287,7 +289,6 @@ describe('SummaryStep', () => {
     mockResolveAiConfig.mockReturnValue({
       systemPrompt: 'Create summary',
       temperature: 0.2,
-      maxTokens: 1300,
     });
 
     // Act
@@ -375,7 +376,6 @@ describe('SummaryStep', () => {
     mockResolveAiConfig.mockReturnValue({
       systemPrompt: 'Create summary',
       temperature: 0.2,
-      maxTokens: 1300,
     });
     // Mock to return single chunk summary (simulating chunking that results in one chunk)
     mockGenerateTextAsync.mockResolvedValueOnce('single chunk summary');
@@ -407,7 +407,6 @@ describe('SummaryStep', () => {
     mockResolveAiConfig.mockReturnValue({
       systemPrompt: 'Create summary',
       temperature: 0.2,
-      maxTokens: 1300,
     });
     // Mock multiple chunk summaries and final merge
     // The chunking will split into multiple chunks, each generating a summary, then merge
@@ -440,7 +439,6 @@ describe('SummaryStep', () => {
     mockResolveAiConfig.mockReturnValue({
       systemPrompt: 'Create summary',
       temperature: 0.2,
-      maxTokens: 1300,
     });
     mockGenerateTextAsync.mockResolvedValue('summary');
 
@@ -508,7 +506,6 @@ describe('SummaryStep', () => {
     mockResolveAiConfig.mockReturnValue({
       systemPrompt: 'Create summary',
       temperature: 0.2,
-      maxTokens: 1300,
     });
     mockGenerateTextAsync.mockResolvedValue('summary');
 

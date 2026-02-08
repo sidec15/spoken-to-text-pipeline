@@ -3,7 +3,6 @@ import path from "node:path";
 import type { Step, StepContext } from "../step.js";
 import type { AiService, AiGenerateOptions } from "../../services/ai/ai.types.js";
 import { createAiService, resolveAiConfig } from "../../services/ai/aiServiceFactory.js";
-import { resolveOutputDir } from "../../utils/resolveOutputDir.js";
 import { loadContextText } from "../../utils/loadContextText.js";
 import type { PipelineConfig } from "../../config/config.types.js";
 import type { Logger } from "../../services/logger.js";
@@ -13,9 +12,7 @@ export class HandoutStep implements Step {
   readonly name = "handout";
 
   async runAsync(ctx: StepContext): Promise<void> {
-    const { config, baseDir, logger, progress } = ctx;
-
-    const outputDir = resolveOutputDir(config, baseDir);
+    const { config, baseDir, outputDir, logger, progress } = ctx;
     const handoutPath = path.join(outputDir, "handout.md");
 
     if (!this.checkProfileAndIdempotency(config, handoutPath, logger)) {
@@ -33,7 +30,6 @@ export class HandoutStep implements Step {
     const aiOptions = resolveAiConfig(config, "handout");
     const aiService = createAiService(config, "handout");
     const contextText = loadContextText(config.context?.textSources, baseDir);
-    const maxTokens = this.calculateMaxTokens(estimatedInputTokens, aiOptions);
 
     const handout = await this.generateHandout(
       aiService,
@@ -42,7 +38,6 @@ export class HandoutStep implements Step {
       outputDir,
       mergedContent,
       estimatedInputTokens,
-      maxTokens,
       contextText,
       logger,
       progress,
@@ -77,10 +72,16 @@ export class HandoutStep implements Step {
   }
 
   private getSortedCleanedFiles(outputDir: string, logger: Logger): string[] {
-    // Read all cleaned files and sort by numeric part index
+    // Read all cleaned files from the cleaned subdirectory and sort by numeric part index
+    const cleanedDir = path.join(outputDir, "cleaned");
+    if (!fs.existsSync(cleanedDir)) {
+      logger.warn("Cleaned directory not found, skipping Handout step");
+      return [];
+    }
+
     const cleanedFiles = fs
-      .readdirSync(outputDir)
-      .filter((f) => f.endsWith(".md") && f !== "handout.md" && f !== "summary.md")
+      .readdirSync(cleanedDir)
+      .filter((f) => f.endsWith(".md"))
       .sort((a, b) => {
         // Extract numeric part from filenames (e.g., "part-1.md" -> 1, "part-01.md" -> 1, "part-10.md" -> 10)
         const extractNumber = (filename: string): number => {
@@ -101,9 +102,10 @@ export class HandoutStep implements Step {
 
   private mergeCleanedFiles(cleanedFiles: string[], outputDir: string): string {
     // Merge all cleaned files with clear separators
+    const cleanedDir = path.join(outputDir, "cleaned");
     return cleanedFiles
       .map((file, index) => {
-        const content = fs.readFileSync(path.join(outputDir, file), "utf-8");
+        const content = fs.readFileSync(path.join(cleanedDir, file), "utf-8");
         return `---\n## Part ${index + 1}\n\n${content}\n`;
       })
       .join("\n\n");
@@ -116,16 +118,6 @@ export class HandoutStep implements Step {
     return estimatedInputTokens;
   }
 
-  private calculateMaxTokens(
-    estimatedInputTokens: number,
-    aiOptions: Omit<AiGenerateOptions, "userPrompt">,
-  ): number {
-    // Estimate maxTokens based on input length
-    // For handout, output is typically similar or slightly longer than input
-    const calculatedMaxTokens = Math.ceil(estimatedInputTokens * 1.5);
-    return aiOptions.maxTokens ?? calculatedMaxTokens;
-  }
-
   private async generateHandout(
     aiService: AiService,
     aiOptions: Omit<AiGenerateOptions, "userPrompt">,
@@ -133,7 +125,6 @@ export class HandoutStep implements Step {
     outputDir: string,
     mergedContent: string,
     estimatedInputTokens: number,
-    maxTokens: number,
     contextText: string | undefined,
     logger: Logger,
     progress: ProgressReporter | undefined,
@@ -152,7 +143,6 @@ export class HandoutStep implements Step {
         cleanedFiles,
         outputDir,
         logger,
-        maxTokens,
         progress,
         contextText,
       );
@@ -162,7 +152,6 @@ export class HandoutStep implements Step {
       aiService,
       aiOptions,
       mergedContent,
-      maxTokens,
       contextText,
       logger,
     );
@@ -172,7 +161,6 @@ export class HandoutStep implements Step {
     aiService: AiService,
     aiOptions: Omit<AiGenerateOptions, "userPrompt">,
     mergedContent: string,
-    maxTokens: number,
     contextText: string | undefined,
     logger: Logger,
   ): Promise<string> {
@@ -183,7 +171,7 @@ export class HandoutStep implements Step {
       manualContextText: contextText || undefined,
       userPrompt: mergedContent,
       temperature: aiOptions.temperature,
-      maxTokens,
+      maxTokens: aiOptions.maxTokens,
     });
   }
 
@@ -195,20 +183,20 @@ export class HandoutStep implements Step {
    */
   private async generateHandoutWithChunking(
     aiService: AiService,
-    aiOptions: { systemPrompt: string; temperature?: number },
+    aiOptions: { systemPrompt: string; temperature?: number; maxTokens?: number },
     cleanedFiles: string[],
     outputDir: string,
     logger: StepContext["logger"],
-    maxTokens: number,
     progress?: StepContext["progress"],
     contextText?: string,
   ): Promise<string> {
     logger.info(`Processing ${cleanedFiles.length} files in chunks`);
 
-    // Read all file contents
+    // Read all file contents from the cleaned directory
+    const cleanedDir = path.join(outputDir, "cleaned");
     const fileContents = cleanedFiles.map((file) => ({
       name: file,
-      content: fs.readFileSync(path.join(outputDir, file), "utf-8"),
+      content: fs.readFileSync(path.join(cleanedDir, file), "utf-8"),
     }));
 
     const chunks = this.groupFilesIntoChunks(fileContents, logger, progress);
@@ -216,7 +204,6 @@ export class HandoutStep implements Step {
       aiService,
       aiOptions,
       chunks,
-      maxTokens,
       logger,
       progress,
       contextText,
@@ -284,9 +271,8 @@ export class HandoutStep implements Step {
    */
   private async processChunks(
     aiService: AiService,
-    aiOptions: { systemPrompt: string; temperature?: number },
+    aiOptions: { systemPrompt: string; temperature?: number; maxTokens?: number },
     chunks: Array<Array<{ name: string; content: string }>>,
-    maxTokens: number,
     logger: StepContext["logger"],
     progress?: StepContext["progress"],
     contextText?: string,
@@ -315,7 +301,7 @@ export class HandoutStep implements Step {
         manualContextText: contextText || undefined,
         userPrompt: chunkContent,
         temperature: aiOptions.temperature,
-        maxTokens: Math.ceil((chunkContent.length / 4) * 1.5),
+        maxTokens: aiOptions.maxTokens,
       });
 
       chunkResults.push(chunkHandout);
@@ -335,7 +321,7 @@ export class HandoutStep implements Step {
    */
   private async mergeChunkResults(
     aiService: AiService,
-    aiOptions: { systemPrompt: string; temperature?: number },
+    aiOptions: { systemPrompt: string; temperature?: number; maxTokens?: number },
     chunkResults: string[],
     contextText?: string,
   ): Promise<string> {
@@ -360,7 +346,7 @@ Output a complete, unified handout with table of contents.`;
       manualContextText: contextText || undefined,
       userPrompt: mergedChunks,
       temperature: aiOptions.temperature,
-      maxTokens: Math.ceil((mergedChunks.length / 4) * 1.5),
+      maxTokens: aiOptions.maxTokens,
     });
 
     return finalHandout;

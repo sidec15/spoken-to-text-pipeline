@@ -99,6 +99,7 @@ describe('HandoutStep', () => {
     };
     mockContext = {
       config: mockConfig,
+      outputDir: './output',
       logger: createMockLogger(),
       progress: createMockProgressReporter(),
     };
@@ -197,9 +198,10 @@ describe('HandoutStep', () => {
 
   it('should skip if no cleaned files found', async () => {
     // Arrange
-    mockReaddirSync.mockReturnValue(['handout.md', 'summary.md'] as any);
-    mockExistsSync.mockImplementation((path: string) => {
-      return path.includes('handout.md') ? false : true;
+    mockReaddirSync.mockReturnValue([] as any); // No .md files in cleaned dir
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p.includes('handout.md')) return false; // handout doesn't exist yet
+      return true; // cleaned dir exists
     });
 
     // Act
@@ -246,7 +248,6 @@ describe('HandoutStep', () => {
     mockResolveAiConfig.mockReturnValue({
       systemPrompt: 'Create handout',
       temperature: 0,
-      maxTokens: 150000,
     });
 
     // Act
@@ -277,11 +278,14 @@ describe('HandoutStep', () => {
     expect(mockReadFileSync).toHaveBeenCalled();
   });
 
-  it('should filter out handout.md and summary.md from cleaned files', async () => {
+  it('should process all .md files from cleaned directory', async () => {
     // Arrange
-    mockReaddirSync.mockReturnValue(['part-1.md', 'handout.md', 'summary.md', 'part-2.md'] as any);
-    mockExistsSync.mockImplementation((path: string) => {
-      return path.includes('handout.md') ? false : true;
+    // The cleaned directory only contains part files — handout.md and summary.md
+    // live in the parent outputDir, not in cleaned/
+    mockReaddirSync.mockReturnValue(['part-1.md', 'part-2.md'] as any);
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p.includes('handout.md')) return false; // handout doesn't exist yet
+      return true; // cleaned dir exists
     });
     mockReadFileSync.mockReturnValue('content');
 
@@ -289,14 +293,11 @@ describe('HandoutStep', () => {
     await step.runAsync(mockContext);
 
     // Assert
-    // Should only process part-1.md and part-2.md, not handout.md or summary.md
+    // Should process both part files
     const readCalls = mockReadFileSync.mock.calls.filter((call: any[]) =>
-      call[0].includes('.md')
+      call[0].includes('part-')
     );
-    const handoutCall = readCalls.find((call: any[]) => call[0].includes('handout.md'));
-    const summaryCall = readCalls.find((call: any[]) => call[0].includes('summary.md'));
-    expect(handoutCall).toBeUndefined();
-    expect(summaryCall).toBeUndefined();
+    expect(readCalls.length).toBe(2);
   });
 
   it('should handle chunking when content exceeds token limits', async () => {
@@ -312,7 +313,6 @@ describe('HandoutStep', () => {
     mockResolveAiConfig.mockReturnValue({
       systemPrompt: 'Create handout',
       temperature: 0,
-      maxTokens: 150000,
     });
     // Mock chunk result
     mockGenerateTextAsync.mockResolvedValue('chunk handout');
@@ -340,7 +340,6 @@ describe('HandoutStep', () => {
     mockResolveAiConfig.mockReturnValue({
       systemPrompt: 'Create handout',
       temperature: 0,
-      maxTokens: 150000,
     });
     // Mock multiple chunk results and final merge
     mockGenerateTextAsync
@@ -412,7 +411,6 @@ describe('HandoutStep', () => {
     mockResolveAiConfig.mockReturnValue({
       systemPrompt: 'Create handout',
       temperature: 0,
-      maxTokens: 150000,
     });
     mockGenerateTextAsync.mockResolvedValue('chunk handout');
 

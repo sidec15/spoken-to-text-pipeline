@@ -2,7 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Step, StepContext } from "../step.js";
 import { createAiService, resolveAiConfig } from "../../services/ai/aiServiceFactory.js";
-import { resolveOutputDir } from "../../utils/resolveOutputDir.js";
 import { loadContextText } from "../../utils/loadContextText.js";
 import type { AiService, AiGenerateOptions } from "../../services/ai/ai.types.js";
 import type { SupportedProfile, PipelineConfig } from "../../config/config.types.js";
@@ -13,11 +12,9 @@ export class SummaryStep implements Step {
   readonly name = "summary";
 
   async runAsync(ctx: StepContext): Promise<void> {
-    const { config, baseDir, logger, progress } = ctx;
+    const { config, baseDir, outputDir, logger, progress } = ctx;
 
     logger.info("Starting Summary step");
-
-    const outputDir = resolveOutputDir(config, baseDir);
     const summaryPath = path.join(outputDir, "summary.md");
 
     if (!this.checkIdempotency(summaryPath, logger)) {
@@ -46,7 +43,6 @@ export class SummaryStep implements Step {
 
     const aiService = createAiService(config, "summary");
     const contextText = loadContextText(config.context?.textSources, baseDir);
-    const maxTokens = this.calculateMaxTokens(wordCount, aiOptions);
 
     const summary = await this.generateSummary(
       aiService,
@@ -54,7 +50,6 @@ export class SummaryStep implements Step {
       inputContent,
       estimatedInputTokens,
       wordCount,
-      maxTokens,
       contextText,
       logger,
       progress,
@@ -107,22 +102,12 @@ export class SummaryStep implements Step {
     return wordCount;
   }
 
-  private calculateMaxTokens(
-    wordCount: number,
-    aiOptions: Omit<AiGenerateOptions, "userPrompt">,
-  ): number {
-    // Estimate maxTokens based on word count target (roughly 1 word ≈ 1.3 tokens)
-    const targetTokens = Math.ceil(wordCount * 1.3);
-    return aiOptions.maxTokens ?? targetTokens;
-  }
-
   private async generateSummary(
     aiService: AiService,
     aiOptions: Omit<AiGenerateOptions, "userPrompt">,
     inputContent: string,
     estimatedInputTokens: number,
     wordCount: number,
-    maxTokens: number,
     contextText: string | undefined,
     logger: Logger,
     progress: ProgressReporter | undefined,
@@ -141,7 +126,6 @@ export class SummaryStep implements Step {
         inputContent,
         wordCount,
         logger,
-        maxTokens,
         progress,
         contextText,
       );
@@ -151,7 +135,6 @@ export class SummaryStep implements Step {
       aiService,
       aiOptions,
       inputContent,
-      maxTokens,
       contextText,
       logger,
       progress,
@@ -162,7 +145,6 @@ export class SummaryStep implements Step {
     aiService: AiService,
     aiOptions: Omit<AiGenerateOptions, "userPrompt">,
     inputContent: string,
-    maxTokens: number,
     contextText: string | undefined,
     logger: Logger,
     progress: ProgressReporter | undefined,
@@ -175,7 +157,7 @@ export class SummaryStep implements Step {
       manualContextText: contextText || undefined,
       userPrompt: inputContent,
       temperature: aiOptions.temperature,
-      maxTokens,
+      maxTokens: aiOptions.maxTokens,
     });
     progress?.increment();
     progress?.stop();
@@ -201,10 +183,16 @@ export class SummaryStep implements Step {
       logger.info("Reading handout.md for summary input");
       return fs.readFileSync(handoutPath, "utf-8");
     } else {
-      // Meeting/Other: read and merge all part-XX.md files
+      // Meeting/Other: read and merge all part-XX.md files from the cleaned directory
+      const cleanedDir = path.join(outputDir, "cleaned");
+      if (!fs.existsSync(cleanedDir)) {
+        logger.warn("Cleaned directory not found, cannot generate summary");
+        return null;
+      }
+
       const cleanedFiles = fs
-        .readdirSync(outputDir)
-        .filter((f) => f.endsWith(".md") && f !== "handout.md" && f !== "summary.md")
+        .readdirSync(cleanedDir)
+        .filter((f) => f.endsWith(".md"))
         .sort((a, b) => {
           // Extract numeric part from filenames (e.g., "part-1.md" -> 1, "part-01.md" -> 1, "part-10.md" -> 10)
           const extractNumber = (filename: string): number => {
@@ -224,7 +212,7 @@ export class SummaryStep implements Step {
       // Merge all cleaned files with clear separators
       const mergedContent = cleanedFiles
         .map((file, index) => {
-          const content = fs.readFileSync(path.join(outputDir, file), "utf-8");
+          const content = fs.readFileSync(path.join(cleanedDir, file), "utf-8");
           return `---\n## Part ${index + 1}\n\n${content}\n`;
         })
         .join("\n\n");
@@ -288,11 +276,10 @@ export class SummaryStep implements Step {
    */
   private async generateSummaryWithChunking(
     aiService: AiService,
-    aiOptions: { systemPrompt: string; temperature?: number },
+    aiOptions: { systemPrompt: string; temperature?: number; maxTokens?: number },
     inputContent: string,
     wordCount: number,
     logger: StepContext["logger"],
-    maxTokens: number,
     progress?: StepContext["progress"],
     contextText?: string,
   ): Promise<string> {
@@ -304,7 +291,6 @@ export class SummaryStep implements Step {
       aiOptions,
       chunks,
       wordCount,
-      maxTokens,
       progress,
       contextText,
     );
@@ -313,7 +299,7 @@ export class SummaryStep implements Step {
       return chunkSummaries[0];
     }
 
-    return this.mergeChunkSummaries(aiService, aiOptions, chunkSummaries, wordCount, maxTokens, contextText);
+    return this.mergeChunkSummaries(aiService, aiOptions, chunkSummaries, wordCount, contextText);
   }
 
   /**
@@ -374,10 +360,9 @@ export class SummaryStep implements Step {
    */
   private async summarizeChunks(
     aiService: AiService,
-    aiOptions: { systemPrompt: string; temperature?: number },
+    aiOptions: { systemPrompt: string; temperature?: number; maxTokens?: number },
     chunks: string[],
     wordCount: number,
-    maxTokens: number,
     progress?: StepContext["progress"],
     contextText?: string,
   ): Promise<string[]> {
@@ -401,7 +386,7 @@ export class SummaryStep implements Step {
         manualContextText: contextText || undefined,
         userPrompt: chunk,
         temperature: aiOptions.temperature,
-        maxTokens: Math.ceil(maxTokens / chunks.length),
+        maxTokens: aiOptions.maxTokens,
       });
 
       chunkSummaries.push(chunkSummary);
@@ -421,10 +406,9 @@ export class SummaryStep implements Step {
    */
   private async mergeChunkSummaries(
     aiService: AiService,
-    aiOptions: { systemPrompt: string; temperature?: number },
+    aiOptions: { systemPrompt: string; temperature?: number; maxTokens?: number },
     chunkSummaries: string[],
     wordCount: number,
-    maxTokens: number,
     contextText?: string,
   ): Promise<string> {
     const mergedSummaries = chunkSummaries
@@ -450,7 +434,7 @@ Output a complete, unified summary.`;
       manualContextText: contextText || undefined,
       userPrompt: mergedSummaries,
       temperature: aiOptions.temperature,
-      maxTokens,
+      maxTokens: aiOptions.maxTokens,
     });
 
     return finalSummary;

@@ -5,6 +5,7 @@ import type { ProgressReporter } from "../services/progress.js";
 export interface StepContext {
   config: PipelineConfig;
   baseDir?: string;
+  outputDir: string;
   dryRun?: boolean;
   logger: Logger;
   progress: ProgressReporter;

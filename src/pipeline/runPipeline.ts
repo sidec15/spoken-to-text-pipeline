@@ -7,6 +7,7 @@ import { CleaningStep } from "./steps/cleaningStep.js";
 import { HandoutStep } from "./steps/handoutStep.js";
 import { SummaryStep } from "./steps/summaryStep.js";
 import type { ProgressReporter } from "../services/progress.js";
+import { resolveOutputDir } from "../utils/resolveOutputDir.js";
 
 /**
  * No-op progress reporter for programmatic usage when no progress reporter is provided.
@@ -83,6 +84,9 @@ export async function runPipeline(options: PipelineOptions): Promise<PipelineRes
     return { success: true };
   }
 
+  // Resolve output directory once so all steps use the same path (important for timestamp suffix)
+  const outputDir = resolveOutputDir(config, baseDir);
+
   const runner = new PipelineRunner([
     new LoadProfileStep(),
     new AsrStep(),
@@ -92,7 +96,7 @@ export async function runPipeline(options: PipelineOptions): Promise<PipelineRes
   ]);
 
   try {
-    await runner.run({ config, baseDir, dryRun, logger, progress });
+    await runner.run({ config, baseDir, outputDir, dryRun, logger, progress });
     logger.info("Pipeline completed successfully");
     return { success: true };
   } catch (error) {

@@ -3,7 +3,6 @@ import path from "node:path";
 import type { Step, StepContext } from "../step.js";
 import { WhisperAsrService } from "../../services/asr/whisperAsrService.js";
 import { resolveWhisperConfig } from "../../services/asr/resolveWhisperConfig.js";
-import { resolveOutputDir } from "../../utils/resolveOutputDir.js";
 import type { ProgressReporter } from "../../types.js";
 
 export class AsrStep implements Step {
@@ -20,16 +19,15 @@ export class AsrStep implements Step {
     const resolvedBaseDir = baseDir ?? process.cwd();
     const inputDir = path.isAbsolute(inputDirRaw) ? inputDirRaw : path.resolve(resolvedBaseDir, inputDirRaw);
     
-    const outputDir = resolveOutputDir(config, baseDir);
-    if (outputDir === "") {
-      throw new Error("Output directory is not set");
-    }
+    const outputDir = ctx.outputDir;
 
     logger.info("Starting ASR step");
     logger.debug(`Audio input dir: ${inputDir}`);
     logger.debug(`Output dir: ${outputDir}`);
 
     fs.mkdirSync(outputDir, { recursive: true });
+    const transcriptsDir = path.join(outputDir, "transcripts");
+    fs.mkdirSync(transcriptsDir, { recursive: true });
 
     const audioFiles = fs.readdirSync(inputDir).filter((f) => f.toLowerCase().endsWith(".wav"));
 
@@ -40,7 +38,7 @@ export class AsrStep implements Step {
 
     const filesToProcess = audioFiles.filter((file) => {
       const base = path.parse(file).name;
-      const outputFile = path.join(outputDir, `${base}.txt`);
+      const outputFile = path.join(transcriptsDir, `${base}.txt`);
       return !fs.existsSync(outputFile);
     });
 
@@ -60,7 +58,7 @@ export class AsrStep implements Step {
     for (const file of filesToProcess) {
       const base = path.parse(file).name;
       const inputPath = path.join(inputDir, file);
-      const outputPath = path.join(outputDir, `${base}.txt`);
+      const outputPath = path.join(transcriptsDir, `${base}.txt`);
 
       const fileLogger = logger.withContext({ file });
 

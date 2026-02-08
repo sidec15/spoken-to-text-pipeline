@@ -32,6 +32,7 @@ describe('OpenAiService', () => {
       userPrompt: 'Hello, world!',
     };
     mockCreate.mockResolvedValue({
+      status: 'completed',
       output_text: 'Generated response',
     });
 
@@ -58,7 +59,7 @@ describe('OpenAiService', () => {
       systemPrompt: 'Test',
       userPrompt: 'Test',
     };
-    mockCreate.mockResolvedValue({ output_text: 'Response' });
+    mockCreate.mockResolvedValue({ status: 'completed', output_text: 'Response' });
 
     // Act
     await serviceWithModel.generateTextAsync(options);
@@ -69,7 +70,7 @@ describe('OpenAiService', () => {
     );
   });
 
-  it('should pass temperature and maxTokens', async () => {
+  it('should pass temperature and maxTokens when explicitly set', async () => {
     // Arrange
     const options: AiGenerateOptions = {
       systemPrompt: 'Test',
@@ -77,7 +78,7 @@ describe('OpenAiService', () => {
       temperature: 0.7,
       maxTokens: 1000,
     };
-    mockCreate.mockResolvedValue({ output_text: 'Response' });
+    mockCreate.mockResolvedValue({ status: 'completed', output_text: 'Response' });
 
     // Act
     await service.generateTextAsync(options);
@@ -88,6 +89,40 @@ describe('OpenAiService', () => {
         temperature: 0.7,
         max_output_tokens: 1000,
       })
+    );
+  });
+
+  it('should not send max_output_tokens when maxTokens is not set', async () => {
+    // Arrange
+    const options: AiGenerateOptions = {
+      systemPrompt: 'Test',
+      userPrompt: 'Test',
+    };
+    mockCreate.mockResolvedValue({ status: 'completed', output_text: 'Response' });
+
+    // Act
+    await service.generateTextAsync(options);
+
+    // Assert
+    const callArgs = mockCreate.mock.calls[0][0];
+    expect(callArgs).not.toHaveProperty('max_output_tokens');
+  });
+
+  it('should throw error when response is incomplete', async () => {
+    // Arrange
+    const options: AiGenerateOptions = {
+      systemPrompt: 'Test',
+      userPrompt: 'Test',
+    };
+    mockCreate.mockResolvedValue({
+      status: 'incomplete',
+      incomplete_details: { reason: 'max_output_tokens' },
+      output_text: '',
+    });
+
+    // Act & Assert
+    await expect(service.generateTextAsync(options)).rejects.toThrow(
+      /OpenAI response incomplete.*max_output_tokens/
     );
   });
 
@@ -124,7 +159,7 @@ describe('OpenAiService', () => {
       userPrompt: 'Test',
       manualContextText: 'Context text',
     };
-    mockCreate.mockResolvedValue({ output_text: 'Response' });
+    mockCreate.mockResolvedValue({ status: 'completed', output_text: 'Response' });
 
     // Act
     await service.generateTextAsync(options);
@@ -150,7 +185,7 @@ describe('OpenAiService', () => {
       userPrompt: 'Test',
       previousOutputExcerpt: 'Previous output',
     };
-    mockCreate.mockResolvedValue({ output_text: 'Response' });
+    mockCreate.mockResolvedValue({ status: 'completed', output_text: 'Response' });
 
     // Act
     await service.generateTextAsync(options);

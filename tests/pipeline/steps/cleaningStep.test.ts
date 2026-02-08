@@ -97,6 +97,7 @@ describe('CleaningStep', () => {
     };
     mockContext = {
       config: mockConfig,
+      outputDir: './output',
       logger: createMockLogger(),
       progress: createMockProgressReporter(),
     };
@@ -105,7 +106,10 @@ describe('CleaningStep', () => {
   it('should call AI service with cleaning prompt', async () => {
     // Arrange
     mockReaddirSync.mockReturnValue(['transcript1.txt'] as any);
-    mockExistsSync.mockReturnValue(false);
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p.includes('transcripts')) return true;  // transcripts dir exists
+      return false;                                 // cleaned files don't exist
+    });
     mockReadFileSync.mockReturnValue('raw transcript text');
 
     // Act
@@ -118,7 +122,10 @@ describe('CleaningStep', () => {
   it('should process transcription text', async () => {
     // Arrange
     mockReaddirSync.mockReturnValue(['transcript1.txt'] as any);
-    mockExistsSync.mockReturnValue(false);
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p.includes('transcripts')) return true;
+      return false;
+    });
     mockReadFileSync.mockReturnValue('raw transcript text');
 
     // Act
@@ -131,7 +138,10 @@ describe('CleaningStep', () => {
   it('should handle AI service errors', async () => {
     // Arrange
     mockReaddirSync.mockReturnValue(['transcript1.txt'] as any);
-    mockExistsSync.mockReturnValue(false);
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p.includes('transcripts')) return true;
+      return false;
+    });
     mockReadFileSync.mockReturnValue('raw transcript text');
     const mockErrorGenerateTextAsync = jest.fn<() => Promise<string>>().mockRejectedValue(new Error('AI error'));
     mockCreateAiService.mockReturnValue({
@@ -145,7 +155,10 @@ describe('CleaningStep', () => {
   it('should write cleaned text', async () => {
     // Arrange
     mockReaddirSync.mockReturnValue(['transcript1.txt'] as any);
-    mockExistsSync.mockReturnValue(false);
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p.includes('transcripts')) return true;
+      return false;
+    });
     mockReadFileSync.mockReturnValue('raw transcript text');
 
     // Act
@@ -158,7 +171,10 @@ describe('CleaningStep', () => {
   it('should update progress', async () => {
     // Arrange
     mockReaddirSync.mockReturnValue(['transcript1.txt'] as any);
-    mockExistsSync.mockReturnValue(false);
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p.includes('transcripts')) return true;
+      return false;
+    });
     mockReadFileSync.mockReturnValue('raw transcript text');
 
     // Act
@@ -172,6 +188,10 @@ describe('CleaningStep', () => {
 
   it('should skip if no raw transcripts found', async () => {
     // Arrange
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p.includes('transcripts')) return true; // dir exists
+      return false;
+    });
     mockReaddirSync.mockReturnValue([] as any);
 
     // Act
@@ -187,7 +207,7 @@ describe('CleaningStep', () => {
   it('should skip if all transcripts already cleaned', async () => {
     // Arrange
     mockReaddirSync.mockReturnValue(['transcript1.txt'] as any);
-    mockExistsSync.mockReturnValue(true); // .md files already exist
+    mockExistsSync.mockReturnValue(true); // transcripts dir + .md files already exist
 
     // Act
     await step.runAsync(mockContext);
@@ -202,8 +222,9 @@ describe('CleaningStep', () => {
   it('should use previous output excerpt from last cleaned file', async () => {
     // Arrange
     mockReaddirSync.mockReturnValue(['transcript1.txt', 'transcript2.txt'] as any);
-    mockExistsSync.mockImplementation((path: string) => {
-      return path.includes('transcript1.md'); // First file already cleaned
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p.includes('transcripts')) return true; // transcripts dir exists
+      return p.includes('transcript1.md'); // First file already cleaned
     });
     mockReadFileSync
       .mockReturnValueOnce('previous cleaned content with last 2000 chars')
@@ -229,8 +250,9 @@ describe('CleaningStep', () => {
   it('should use previous file excerpt if no file was cleaned in this run', async () => {
     // Arrange
     mockReaddirSync.mockReturnValue(['transcript1.txt', 'transcript2.txt'] as any);
-    mockExistsSync.mockImplementation((path: string) => {
-      return path.includes('transcript1.md'); // Previous file exists but wasn't cleaned in this run
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p.includes('transcripts')) return true; // transcripts dir exists
+      return p.includes('transcript1.md'); // Previous file exists but wasn't cleaned in this run
     });
     mockReadFileSync
       .mockReturnValueOnce('previous cleaned content')
@@ -250,7 +272,10 @@ describe('CleaningStep', () => {
   it('should not use previous excerpt if no previous file exists', async () => {
     // Arrange
     mockReaddirSync.mockReturnValue(['transcript1.txt'] as any);
-    mockExistsSync.mockReturnValue(false);
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p.includes('transcripts')) return true;
+      return false;
+    });
     mockReadFileSync.mockReturnValue('raw transcript text');
 
     // Act
@@ -264,38 +289,57 @@ describe('CleaningStep', () => {
     );
   });
 
-  it('should calculate maxTokens based on input length', async () => {
+  it('should not send maxTokens when not explicitly configured', async () => {
     // Arrange
-    const longText = 'x'.repeat(10000); // ~2500 tokens
+    const longText = 'x'.repeat(10000);
     mockReaddirSync.mockReturnValue(['transcript1.txt'] as any);
-    mockExistsSync.mockReturnValue(false);
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p.includes('transcripts')) return true;
+      return false;
+    });
     mockReadFileSync.mockReturnValue(longText);
     mockResolveAiConfig.mockReturnValue({
       systemPrompt: 'Clean the text',
       temperature: 0,
-      // maxTokens not provided, should be calculated
+      // maxTokens not provided — should remain undefined
     });
 
     // Act
     await step.runAsync(mockContext);
 
     // Assert
-    expect(mockGenerateTextAsync).toHaveBeenCalledWith(
-      expect.objectContaining({
-        maxTokens: expect.any(Number),
-      })
-    );
-    // Should be approximately 2x input tokens (5000 tokens)
     const call = mockGenerateTextAsync.mock.calls[0][0];
-    expect(call.maxTokens).toBeGreaterThan(4000);
-    expect(call.maxTokens).toBeLessThan(6000);
+    expect(call.maxTokens).toBeUndefined();
+  });
+
+  it('should pass maxTokens when explicitly configured', async () => {
+    // Arrange
+    mockReaddirSync.mockReturnValue(['transcript1.txt'] as any);
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p.includes('transcripts')) return true;
+      return false;
+    });
+    mockReadFileSync.mockReturnValue('raw transcript text');
+    mockResolveAiConfig.mockReturnValue({
+      systemPrompt: 'Clean the text',
+      temperature: 0,
+      maxTokens: 2048,
+    });
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    const call = mockGenerateTextAsync.mock.calls[0][0];
+    expect(call.maxTokens).toBe(2048);
   });
 
   it('should handle empty previous cleaned excerpt after trim', async () => {
     // Arrange
     mockReaddirSync.mockReturnValue(['transcript1.txt', 'transcript2.txt'] as any);
-    mockExistsSync.mockImplementation((path: string) => {
-      return path.includes('transcript1.md'); // First file already cleaned
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p.includes('transcripts')) return true; // transcripts dir exists
+      return p.includes('transcript1.md'); // First file already cleaned
     });
     // Return content that when sliced to last 2000 chars and trimmed becomes empty
     // The code does: previousCleanedText.slice(-2000).trim() || undefined

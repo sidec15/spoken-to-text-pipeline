@@ -99,6 +99,11 @@ ${options.userPrompt}
     // Sending it causes a 400 "Unsupported parameter" error from the API.
     const reasoning = isReasoningModel(this.model);
 
+    // max_output_tokens is intentionally omitted by default.
+    // The model stops naturally when done and billing is based on actual usage.
+    // For reasoning models the budget includes internal reasoning tokens, so
+    // setting it too low causes empty responses.  Only pass it when explicitly
+    // configured by the user.
     const requestParams: Parameters<typeof this.client.responses.create>[0] = {
       model: this.model,
       input,
@@ -110,9 +115,18 @@ ${options.userPrompt}
       }),
     };
 
-    const response = await this.client.responses.create(requestParams);
+    const response = await this.client.responses.create(requestParams) as OpenAI.Responses.Response;
 
-    // Type assertion: responses.create returns Response (not Stream) when not streaming
-    return (response as OpenAI.Responses.Response).output_text;
+    // Guard against incomplete responses (e.g. reasoning model exhausted the token budget)
+    if (response.status === "incomplete") {
+      const reason = response.incomplete_details?.reason ?? "unknown";
+      throw new Error(
+        `OpenAI response incomplete (reason: ${reason}). ` +
+        `Model '${this.model}' with max_output_tokens=${options.maxTokens ?? "default"} ` +
+        `did not produce a complete answer. Consider increasing or removing maxTokens.`,
+      );
+    }
+
+    return response.output_text;
   }
 }

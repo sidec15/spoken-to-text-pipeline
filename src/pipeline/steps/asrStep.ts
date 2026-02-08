@@ -10,17 +10,17 @@ export class AsrStep implements Step {
   readonly name = "asr";
 
   async runAsync(ctx: StepContext): Promise<void> {
-    const { config, logger, progress } = ctx;
+    const { config, baseDir, logger, progress } = ctx;
 
     const inputDirRaw = config.paths?.inputDir ?? "";
     if (inputDirRaw === "") {
       throw new Error("Input directory is not set");
     }
     // Resolve inputDir relative to baseDir if provided, otherwise relative to process.cwd()
-    const baseDir = config.baseDir ?? process.cwd();
-    const inputDir = path.isAbsolute(inputDirRaw) ? inputDirRaw : path.resolve(baseDir, inputDirRaw);
+    const resolvedBaseDir = baseDir ?? process.cwd();
+    const inputDir = path.isAbsolute(inputDirRaw) ? inputDirRaw : path.resolve(resolvedBaseDir, inputDirRaw);
     
-    const outputDir = resolveOutputDir(config);
+    const outputDir = resolveOutputDir(config, baseDir);
     if (outputDir === "") {
       throw new Error("Output directory is not set");
     }

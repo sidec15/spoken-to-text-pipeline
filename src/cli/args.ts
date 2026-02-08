@@ -9,6 +9,8 @@ export interface CliArgs {
   configPath: string;
   /** Base directory for resolving relative paths in configuration */
   baseDir?: string;
+  /** If true, run in dry-run mode (validate config and show plan without executing) */
+  dryRun?: boolean;
 }
 
 /**
@@ -39,6 +41,8 @@ export function parseArgs(argv: string[]): CliArgs {
       } else {
         throw new Error(`Missing value for option ${arg}`);
       }
+    } else if (arg === "--dry-run" || arg === "-d") {
+      args.dryRun = true;
     } else if (arg === "--help" || arg === "-h") {
       printHelp();
       process.exit(0);
@@ -71,6 +75,7 @@ Usage: spoken-to-text [OPTIONS] [CONFIG_PATH]
 Options:
   -c, --config PATH      Path to the pipeline configuration file (default: pipeline.config.json)
   -b, --base-dir PATH     Base directory for resolving relative paths in configuration (default: current working directory)
+  -d, --dry-run           Run in dry-run mode: validate configuration and show execution plan without executing
   -h, --help              Show this help message
 
 Arguments:
@@ -81,5 +86,8 @@ Examples:
   spoken-to-text --config my-config.json
   spoken-to-text -c ./configs/production.json
   spoken-to-text --base-dir /path/to/project --config config.json
+  spoken-to-text -b ./project -c config.json
+  spoken-to-text --dry-run --config config.json
+  spoken-to-text -d -c config.json
 `);
 }

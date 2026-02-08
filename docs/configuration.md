@@ -167,31 +167,9 @@ The `paths` object defines input and output directories.
 }
 ```
 
-- **`inputDir`** (optional): Directory containing input audio files. Only `.wav` files are processed. Files are processed in alphabetical order. Use absolute paths or paths relative to the base directory (see [Base Directory](#base-directory)). Default: `"./input"`
+- **`inputDir`** (optional): Directory containing input audio files. Only `.wav` files are processed. Files are processed in alphabetical order. Use absolute paths or paths relative to the current working directory. Default: `"./input"`
 
-- **`outputDir`** (optional): Base output directory where all pipeline outputs are written. All outputs (raw transcripts, cleaned files, handouts, summaries) are written directly to this directory (no subfolders). If `output.addTimestamp` is `true`, a timestamp suffix (`yyyyMMddHHmmss`) is appended to this path. Use absolute paths or paths relative to the base directory (see [Base Directory](#base-directory)). Default: `"./output"`
-
-### Base Directory
-
-When using the CLI, you can specify a base directory using the `--base-dir` (or `-b`) option. All relative paths in the configuration file (including `paths.inputDir`, `paths.outputDir`, and `context.textSources`) are resolved relative to this base directory instead of the current working directory.
-
-**Examples:**
-
-```bash
-# All paths resolved relative to /path/to/project
-spoken-to-text --base-dir /path/to/project --config config.json
-
-# All paths resolved relative to ./project (relative to current directory)
-spoken-to-text -b ./project -c config.json
-```
-
-**Behavior:**
-- If `--base-dir` is not provided, paths are resolved relative to the current working directory (default behavior)
-- Absolute paths in the configuration are always used as-is, regardless of the base directory
-- The base directory affects:
-  - `paths.inputDir` - Input audio directory
-  - `paths.outputDir` - Output directory
-  - `context.textSources` - Context file paths
+- **`outputDir`** (optional): Base output directory where all pipeline outputs are written. All outputs (raw transcripts, cleaned files, handouts, summaries) are written directly to this directory (no subfolders). If `output.addTimestamp` is `true`, a timestamp suffix (`yyyyMMddHHmmss`) is appended to this path. Use absolute paths or paths relative to the current working directory. Default: `"./output"`
 
 **Example with timestamp:**
 
@@ -235,7 +213,7 @@ The optional `context` object allows you to provide reference materials to impro
 }
 ```
 
-- **`textSources`** (optional): Array of file paths containing reference text. Files must be `.txt` or `.md` format. Paths are resolved relative to the base directory (see [Base Directory](#base-directory)) if using the CLI with `--base-dir`, otherwise relative to the current working directory. Absolute paths are used as-is. Default: `undefined` (no context files loaded)
+- **`textSources`** (optional): Array of file paths containing reference text. Files must be `.txt` or `.md` format. Use absolute paths or paths relative to the current working directory. Absolute paths are used as-is. Default: `undefined` (no context files loaded)
 
 **How context is used:**
 

@@ -12,11 +12,11 @@ export class CleaningStep implements Step {
   readonly name = "cleaning";
 
   async runAsync(ctx: StepContext): Promise<void> {
-    const { config, logger, progress } = ctx;
+    const { config, baseDir, logger, progress } = ctx;
 
     logger.info("Starting Cleaning step");
 
-    const outputDir = resolveOutputDir(config);
+    const outputDir = resolveOutputDir(config, baseDir);
 
     fs.mkdirSync(outputDir, { recursive: true });
 
@@ -43,7 +43,7 @@ export class CleaningStep implements Step {
     const aiOptions = resolveAiConfig(config, "cleaning");
     const aiService = createAiService(config, "cleaning");
 
-    const contextText = loadContextText(config.context?.textSources, config.baseDir);
+    const contextText = loadContextText(config.context?.textSources, baseDir);
 
     progress?.start(filesToProcess.length, "Cleaning transcripts");
 

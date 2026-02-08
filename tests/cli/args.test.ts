@@ -27,6 +27,7 @@ describe('parseArgs', () => {
     expect(result).toEqual({
       configPath: 'pipeline.config.json',
       baseDir: undefined,
+      dryRun: undefined,
     });
   });
 
@@ -38,6 +39,7 @@ describe('parseArgs', () => {
     expect(result).toEqual({
       configPath: 'custom-config.json',
       baseDir: undefined,
+      dryRun: undefined,
     });
   });
 
@@ -49,6 +51,7 @@ describe('parseArgs', () => {
     expect(result).toEqual({
       configPath: 'short-config.json',
       baseDir: undefined,
+      dryRun: undefined,
     });
   });
 
@@ -60,6 +63,7 @@ describe('parseArgs', () => {
     expect(result).toEqual({
       configPath: 'my-config.json',
       baseDir: undefined,
+      dryRun: undefined,
     });
   });
 
@@ -81,6 +85,7 @@ describe('parseArgs', () => {
     expect(result).toEqual({
       configPath: 'pipeline.config.json',
       baseDir: '/path/to/project',
+      dryRun: undefined,
     });
   });
 
@@ -92,6 +97,7 @@ describe('parseArgs', () => {
     expect(result).toEqual({
       configPath: 'pipeline.config.json',
       baseDir: './project',
+      dryRun: undefined,
     });
   });
 
@@ -103,6 +109,67 @@ describe('parseArgs', () => {
     expect(result).toEqual({
       configPath: 'my-config.json',
       baseDir: '/path/to/project',
+      dryRun: undefined,
+    });
+  });
+
+  it('should parse --dry-run option', () => {
+    // Act
+    const result = parseArgs(['--dry-run']);
+
+    // Assert
+    expect(result).toEqual({
+      configPath: 'pipeline.config.json',
+      baseDir: undefined,
+      dryRun: true,
+    });
+  });
+
+  it('should parse -d option', () => {
+    // Act
+    const result = parseArgs(['-d']);
+
+    // Assert
+    expect(result).toEqual({
+      configPath: 'pipeline.config.json',
+      baseDir: undefined,
+      dryRun: true,
+    });
+  });
+
+  it('should parse --dry-run with --config', () => {
+    // Act
+    const result = parseArgs(['--dry-run', '--config', 'my-config.json']);
+
+    // Assert
+    expect(result).toEqual({
+      configPath: 'my-config.json',
+      baseDir: undefined,
+      dryRun: true,
+    });
+  });
+
+  it('should parse -d with -c', () => {
+    // Act
+    const result = parseArgs(['-d', '-c', 'my-config.json']);
+
+    // Assert
+    expect(result).toEqual({
+      configPath: 'my-config.json',
+      baseDir: undefined,
+      dryRun: true,
+    });
+  });
+
+  it('should parse --dry-run with --base-dir and --config', () => {
+    // Act
+    const result = parseArgs(['--dry-run', '--config', 'my-config.json', '--base-dir', '/path/to/project']);
+
+    // Assert
+    expect(result).toEqual({
+      configPath: 'my-config.json',
+      baseDir: '/path/to/project',
+      dryRun: true,
     });
   });
 
@@ -169,6 +236,7 @@ describe('parseArgs', () => {
     expect(result).toEqual({
       configPath: 'config-from-flag.json',
       baseDir: undefined,
+      dryRun: undefined,
     });
   });
 
@@ -180,6 +248,7 @@ describe('parseArgs', () => {
     expect(result).toEqual({
       configPath: 'positional-config.json',
       baseDir: undefined,
+      dryRun: undefined,
     });
   });
 

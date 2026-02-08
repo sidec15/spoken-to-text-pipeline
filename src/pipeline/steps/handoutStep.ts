@@ -13,9 +13,9 @@ export class HandoutStep implements Step {
   readonly name = "handout";
 
   async runAsync(ctx: StepContext): Promise<void> {
-    const { config, logger, progress } = ctx;
+    const { config, baseDir, logger, progress } = ctx;
 
-    const outputDir = resolveOutputDir(config);
+    const outputDir = resolveOutputDir(config, baseDir);
     const handoutPath = path.join(outputDir, "handout.md");
 
     if (!this.checkProfileAndIdempotency(config, handoutPath, logger)) {
@@ -32,7 +32,7 @@ export class HandoutStep implements Step {
 
     const aiOptions = resolveAiConfig(config, "handout");
     const aiService = createAiService(config, "handout");
-    const contextText = loadContextText(config.context?.textSources, config.baseDir);
+    const contextText = loadContextText(config.context?.textSources, baseDir);
     const maxTokens = this.calculateMaxTokens(estimatedInputTokens, aiOptions);
 
     const handout = await this.generateHandout(

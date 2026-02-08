@@ -113,13 +113,7 @@ export function loadConfig(configPath: string, baseDir?: string): PipelineConfig
   // Validate final merged config
   validateFinalConfig(mergedConfig, absolutePath);
 
-  // Set baseDir on the config if provided
-  const finalConfig = mergedConfig as PipelineConfig;
-  if (baseDir) {
-    finalConfig.baseDir = resolvedBaseDir;
-  }
-
-  return finalConfig;
+  return mergedConfig as PipelineConfig;
 }
 
 /**

@@ -34,7 +34,7 @@ class NoOpProgressReporter implements ProgressReporter {
  * @throws Error if the pipeline fails
  */
 export async function runPipeline(options: PipelineOptions): Promise<PipelineResult> {
-  const { config, logger: providedLogger, progress: providedProgress } = options;
+  const { config, baseDir, dryRun, logger: providedLogger, progress: providedProgress } = options;
 
   // Create logger if not provided
   const logger =
@@ -49,6 +49,10 @@ export async function runPipeline(options: PipelineOptions): Promise<PipelineRes
 
   // Create no-op progress reporter if not provided
   const progress: ProgressReporter = providedProgress ?? new NoOpProgressReporter();
+
+  if (dryRun) {
+    logger.info("Running in DRY-RUN mode - no files will be modified or API calls made");
+  }
 
   logger.info("Starting pipeline");
 
@@ -74,6 +78,11 @@ export async function runPipeline(options: PipelineOptions): Promise<PipelineRes
     logger.warn("No paths configured");
   }
 
+  if (dryRun) {
+    logger.info("Dry-run completed - configuration validated successfully");
+    return { success: true };
+  }
+
   const runner = new PipelineRunner([
     new LoadProfileStep(),
     new AsrStep(),
@@ -83,7 +92,7 @@ export async function runPipeline(options: PipelineOptions): Promise<PipelineRes
   ]);
 
   try {
-    await runner.run({ config, logger, progress });
+    await runner.run({ config, baseDir, dryRun, logger, progress });
     logger.info("Pipeline completed successfully");
     return { success: true };
   } catch (error) {

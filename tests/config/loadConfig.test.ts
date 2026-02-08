@@ -136,7 +136,7 @@ describe('loadConfig', () => {
       expect(mockExistsSync).toHaveBeenCalled();
     });
 
-    it('should set baseDir when provided', () => {
+    it('should resolve config path relative to baseDir when provided', () => {
       // Arrange
       const relativePath = './config.json';
       const baseDir = '/custom/base';
@@ -148,8 +148,9 @@ describe('loadConfig', () => {
 
       // Assert
       expect(result).toBeDefined();
-      expect(result.baseDir).toBe(path.resolve(process.cwd(), baseDir));
       expect(result.profile).toBe('lecture');
+      // baseDir should NOT be in the config object
+      expect(result.baseDir).toBeUndefined();
     });
 
     it('should resolve config path relative to baseDir when provided', () => {
@@ -178,7 +179,10 @@ describe('loadConfig', () => {
       const result = loadConfig(relativePath, baseDir);
 
       // Assert
-      expect(result.baseDir).toBe(baseDir);
+      expect(result).toBeDefined();
+      expect(result.profile).toBe('lecture');
+      // baseDir should NOT be in the config object
+      expect(result.baseDir).toBeUndefined();
       const expectedConfigPath = path.resolve(baseDir, relativePath);
       expect(mockExistsSync).toHaveBeenCalledWith(expectedConfigPath);
     });

@@ -117,13 +117,6 @@ export interface AiConfig {
  */
 export interface PipelineConfig {
   /**
-   * Base directory for resolving relative paths in configuration (optional).
-   * If not provided, paths are resolved relative to the current working directory.
-   * Default: undefined (uses process.cwd())
-   */
-  baseDir?: string;
-
-  /**
    * Profile that determines processing behavior, prompts, and available steps (required).
    * Lecture profile includes handout generation; meeting/other profiles skip it.
    */

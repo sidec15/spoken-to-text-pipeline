@@ -13,11 +13,11 @@ export class SummaryStep implements Step {
   readonly name = "summary";
 
   async runAsync(ctx: StepContext): Promise<void> {
-    const { config, logger, progress } = ctx;
+    const { config, baseDir, logger, progress } = ctx;
 
     logger.info("Starting Summary step");
 
-    const outputDir = resolveOutputDir(config);
+    const outputDir = resolveOutputDir(config, baseDir);
     const summaryPath = path.join(outputDir, "summary.md");
 
     if (!this.checkIdempotency(summaryPath, logger)) {
@@ -45,7 +45,7 @@ export class SummaryStep implements Step {
     );
 
     const aiService = createAiService(config, "summary");
-    const contextText = loadContextText(config.context?.textSources, config.baseDir);
+    const contextText = loadContextText(config.context?.textSources, baseDir);
     const maxTokens = this.calculateMaxTokens(wordCount, aiOptions);
 
     const summary = await this.generateSummary(

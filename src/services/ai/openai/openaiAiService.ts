@@ -1,5 +1,10 @@
 import OpenAI from "openai";
 import type { AiService, AiGenerateOptions } from "../ai.types.js";
+import {
+  formatInputContentPrompt,
+  formatManualContextPrompt,
+  formatPreviousOutputExcerptPrompt,
+} from "../../../config/aiPrompts.js";
 
 /**
  * OpenAI reasoning models do NOT support the `temperature` parameter.
@@ -46,23 +51,7 @@ export class OpenAiService implements AiService {
     if (options.manualContextText?.trim()) {
       input.push({
         role: "user",
-        content: `
-OPTIONAL MANUAL CONTEXT (REFERENCE ONLY — DO NOT MODIFY)
-
-The following text is provided only to improve terminological accuracy,
-theoretical coherence, and contextual understanding.
-
-IMPORTANT RULES:
-- This content is REFERENCE ONLY
-- Do NOT rewrite, summarize, or modify it
-- Do NOT repeat it in the output
-- Do NOT explicitly refer to it
-- Use it only to better understand the content being processed
-
----
-${options.manualContextText}
----
-        `.trim(),
+        content: formatManualContextPrompt(options.manualContextText),
       });
     }
 
@@ -70,29 +59,14 @@ ${options.manualContextText}
     if (options.previousOutputExcerpt?.trim()) {
       input.push({
         role: "user",
-        content: `
-PREVIOUS OUTPUT EXCERPT (REFERENCE ONLY)
-
-Provided only to preserve stylistic and conceptual continuity.
-Do NOT rewrite, summarize, or repeat this content.
-
----
-${options.previousOutputExcerpt}
----
-        `.trim(),
+        content: formatPreviousOutputExcerptPrompt(options.previousOutputExcerpt),
       });
     }
 
     // 4. Main input content (Prompt 4 – mandatory)
     input.push({
       role: "user",
-      content: `
-INPUT CONTENT
-
----
-${options.userPrompt}
----
-      `.trim(),
+      content: formatInputContentPrompt(options.userPrompt),
     });
 
     // Reasoning models (gpt-5*, o1*, o3*, o4*) do NOT support temperature.

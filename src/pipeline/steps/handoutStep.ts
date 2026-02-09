@@ -171,7 +171,7 @@ export class HandoutStep implements Step {
       manualContextText: contextText || undefined,
       userPrompt: mergedContent,
       temperature: aiOptions.temperature,
-      maxTokens: aiOptions.maxTokens,
+      // maxTokens is intentionally not set for handout to allow full-length output
     });
   }
 
@@ -301,7 +301,7 @@ export class HandoutStep implements Step {
         manualContextText: contextText || undefined,
         userPrompt: chunkContent,
         temperature: aiOptions.temperature,
-        maxTokens: aiOptions.maxTokens,
+        // maxTokens is intentionally not set for handout to allow full-length output
       });
 
       chunkResults.push(chunkHandout);
@@ -346,7 +346,7 @@ Output a complete, unified handout with table of contents.`;
       manualContextText: contextText || undefined,
       userPrompt: mergedChunks,
       temperature: aiOptions.temperature,
-      maxTokens: aiOptions.maxTokens,
+      // maxTokens is intentionally not set for handout to allow full-length output
     });
 
     return finalHandout;

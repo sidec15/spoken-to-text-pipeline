@@ -4,7 +4,7 @@ import {
   formatInputContentPrompt,
   formatManualContextPrompt,
   formatPreviousOutputExcerptPrompt,
-} from "../../../config/aiPrompts.js";
+} from "../../../config/profilePresets.js";
 
 /**
  * OpenAI reasoning models do NOT support the `temperature` parameter.

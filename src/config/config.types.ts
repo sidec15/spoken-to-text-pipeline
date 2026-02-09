@@ -79,7 +79,7 @@ export interface StepAiConfig {
      * Maximum tokens in the generated output (optional).
      * If not specified, calculated dynamically based on input length and step type:
      * - cleaning: inputTokens * 2
-     * - handout: inputTokens * 1.5
+     * - handout: not used (no maxTokens limit)
      * - summary: summaryWordCount * 1.3 (wordCount calculated dynamically if not set)
      */
     maxTokens?: number;

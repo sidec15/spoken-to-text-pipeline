@@ -4,7 +4,7 @@ import {
   formatInputContentPrompt,
   formatManualContextPrompt,
   formatPreviousOutputExcerptPrompt,
-} from "../../../config/aiPrompts.js";
+} from "../../../config/profilePresets.js";
 
 /**
  * DeepSeek model parameter support:

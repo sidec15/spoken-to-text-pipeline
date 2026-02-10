@@ -21,15 +21,15 @@ export class SummaryStep implements Step {
       return;
     }
 
-    const inputContent = this.getInputContent(config, outputDir, logger);
-    if (!inputContent) {
+    const inputResult = this.getInputContent(config, outputDir, logger);
+    if (!inputResult) {
       logger.warn("No input content found, skipping Summary step");
       return;
     }
 
+    const { content: inputContent, inputType } = inputResult;
     const estimatedInputTokens = this.estimateTokens(inputContent, logger);
     const aiOptions = resolveAiConfig(config, "summary");
-    const inputType = this.determineInputType(config.profile);
     const wordCount = this.calculateWordCount(
       config,
       inputContent,
@@ -73,11 +73,6 @@ export class SummaryStep implements Step {
     const estimatedInputTokens = Math.ceil(content.length / 4);
     logger.info(`Estimated input tokens: ${estimatedInputTokens}`);
     return estimatedInputTokens;
-  }
-
-  private determineInputType(profile: SupportedProfile): "handout" | "transcript" {
-    // Determine input type for dynamic calculation
-    return profile === "lecture" ? "handout" : "transcript";
   }
 
   private calculateWordCount(
@@ -165,60 +160,52 @@ export class SummaryStep implements Step {
   }
 
   /**
-   * Gets input content based on profile:
-   * - Lecture: reads handout.md
-   * - Meeting/Other: reads and merges all part-XX.md files
+   * Gets input content for summary. All profiles use handout.md when available;
+   * otherwise falls back to merged cleaned files (e.g. when handout step is disabled).
    */
   private getInputContent(
-    config: StepContext["config"],
+    _config: StepContext["config"],
     outputDir: string,
     logger: StepContext["logger"],
-  ): string | null {
-    if (config.profile === "lecture") {
-      const handoutPath = path.join(outputDir, "handout.md");
-      if (!fs.existsSync(handoutPath)) {
-        logger.warn("Handout not found, cannot generate summary for lecture profile");
-        return null;
-      }
+  ): { content: string; inputType: "handout" | "transcript" } | null {
+    const handoutPath = path.join(outputDir, "handout.md");
+    if (fs.existsSync(handoutPath)) {
       logger.info("Reading handout.md for summary input");
-      return fs.readFileSync(handoutPath, "utf-8");
-    } else {
-      // Meeting/Other: read and merge all part-XX.md files from the cleaned directory
-      const cleanedDir = path.join(outputDir, "cleaned");
-      if (!fs.existsSync(cleanedDir)) {
-        logger.warn("Cleaned directory not found, cannot generate summary");
-        return null;
-      }
-
-      const cleanedFiles = fs
-        .readdirSync(cleanedDir)
-        .filter((f) => f.endsWith(".md"))
-        .sort((a, b) => {
-          // Extract numeric part from filenames (e.g., "part-1.md" -> 1, "part-01.md" -> 1, "part-10.md" -> 10)
-          const extractNumber = (filename: string): number => {
-            const match = filename.match(/(\d+)/);
-            return match ? parseInt(match[1], 10) : Infinity;
-          };
-          return extractNumber(a) - extractNumber(b);
-        });
-
-      if (cleanedFiles.length === 0) {
-        logger.warn("No cleaned transcript files found, cannot generate summary");
-        return null;
-      }
-
-      logger.info(`Found ${cleanedFiles.length} cleaned transcript parts to merge for summary`);
-
-      // Merge all cleaned files with clear separators
-      const mergedContent = cleanedFiles
-        .map((file, index) => {
-          const content = fs.readFileSync(path.join(cleanedDir, file), "utf-8");
-          return `---\n## Part ${index + 1}\n\n${content}\n`;
-        })
-        .join("\n\n");
-
-      return mergedContent;
+      const content = fs.readFileSync(handoutPath, "utf-8");
+      return { content, inputType: "handout" };
     }
+
+    const cleanedDir = path.join(outputDir, "cleaned");
+    if (!fs.existsSync(cleanedDir)) {
+      logger.warn("Cleaned directory not found, cannot generate summary");
+      return null;
+    }
+
+    const cleanedFiles = fs
+      .readdirSync(cleanedDir)
+      .filter((f) => f.endsWith(".md"))
+      .sort((a, b) => {
+        const extractNumber = (filename: string): number => {
+          const match = filename.match(/(\d+)/);
+          return match ? parseInt(match[1], 10) : Infinity;
+        };
+        return extractNumber(a) - extractNumber(b);
+      });
+
+    if (cleanedFiles.length === 0) {
+      logger.warn("No cleaned transcript files found, cannot generate summary");
+      return null;
+    }
+
+    logger.info(`Found ${cleanedFiles.length} cleaned transcript parts to merge for summary`);
+    const mergedContent = cleanedFiles
+      .map((file, index) => {
+        const content = fs.readFileSync(path.join(cleanedDir, file), "utf-8");
+        return `---\n## Part ${index + 1}\n\n${content}\n`;
+      })
+      .join("\n\n");
+
+    return { content: mergedContent, inputType: "transcript" };
   }
 
   /**

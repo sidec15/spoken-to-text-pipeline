@@ -93,12 +93,14 @@ describe('loadConfig', () => {
     "meeting": {
       "prompts": {
         "cleaning": "Clean meeting transcript",
+        "handout": "Create meeting handout",
         "summary": "Create meeting summary"
       }
     },
     "other": {
       "prompts": {
         "cleaning": "Clean transcript",
+        "handout": "Create handout",
         "summary": "Create summary"
       }
     }
@@ -282,8 +284,8 @@ describe('loadConfig', () => {
         },
         profiles: {
           lecture: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          meeting: { prompts: { cleaning: 'test', summary: 'test' } },
-          other: { prompts: { cleaning: 'test', summary: 'test' } }
+          meeting: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
+          other: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } }
         }
       };
       mockReadFileSync.mockReturnValue(JSON.stringify(invalidConfig));
@@ -1081,8 +1083,8 @@ describe('loadConfig', () => {
         },
         profiles: {
           lecture: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          meeting: { prompts: { cleaning: 'test', summary: 'test' } },
-          other: { prompts: { cleaning: 'test', summary: 'test' } }
+          meeting: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
+          other: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } }
         }
       };
       mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
@@ -1107,8 +1109,8 @@ describe('loadConfig', () => {
         },
         profiles: {
           lecture: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          meeting: { prompts: { cleaning: 'test', summary: 'test' } },
-          other: { prompts: { cleaning: 'test', summary: 'test' } }
+          meeting: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
+          other: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } }
         }
       };
       mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
@@ -1134,8 +1136,8 @@ describe('loadConfig', () => {
         },
         profiles: {
           lecture: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          meeting: { prompts: { cleaning: 'test', summary: 'test' } },
-          other: { prompts: { cleaning: 'test', summary: 'test' } }
+          meeting: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
+          other: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } }
         }
       };
       mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
@@ -1157,8 +1159,8 @@ describe('loadConfig', () => {
         },
         profiles: {
           lecture: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          meeting: { prompts: { cleaning: 'test', summary: 'test' } },
-          other: { prompts: { cleaning: 'test', summary: 'test' } }
+          meeting: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
+          other: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } }
         }
       };
       mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
@@ -1182,8 +1184,8 @@ describe('loadConfig', () => {
         },
         profiles: {
           lecture: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          meeting: { prompts: { cleaning: 'test', summary: 'test' } },
-          other: { prompts: { cleaning: 'test', summary: 'test' } }
+          meeting: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
+          other: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } }
         }
       };
       mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
@@ -1207,8 +1209,8 @@ describe('loadConfig', () => {
         },
         profiles: {
           lecture: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          meeting: { prompts: { cleaning: 'test', summary: 'test' } },
-          other: { prompts: { cleaning: 'test', summary: 'test' } }
+          meeting: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
+          other: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } }
         }
       };
       mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
@@ -1228,8 +1230,8 @@ describe('loadConfig', () => {
         profile: 'lecture',
         profiles: {
           lecture: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          meeting: { prompts: { cleaning: 'test', summary: 'test' } },
-          other: { prompts: { cleaning: 'test', summary: 'test' } }
+          meeting: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
+          other: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } }
         }
       };
       mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
@@ -1254,8 +1256,8 @@ describe('loadConfig', () => {
         },
         profiles: {
           lecture: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          meeting: { prompts: { cleaning: 'test', summary: 'test' } },
-          other: { prompts: { cleaning: 'test', summary: 'test' } }
+          meeting: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
+          other: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } }
         }
       };
       mockReadFileSync.mockReturnValue(JSON.stringify(configObj));

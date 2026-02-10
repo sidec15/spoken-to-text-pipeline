@@ -125,15 +125,4 @@ describe('resolveOpenAiConfig', () => {
     );
   });
 
-  it('should throw error for unsupported profile/step combination', () => {
-    // Arrange
-    const config = createMockConfig();
-    config.profile = 'meeting';
-    const stepConfig = createStepConfig();
-
-    // Act & Assert
-    expect(() => resolveOpenAiConfig(config, 'handout', stepConfig)).toThrow(
-      /No preset for profile 'meeting', step 'handout'/
-    );
-  });
 });

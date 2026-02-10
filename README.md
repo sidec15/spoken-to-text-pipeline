@@ -27,7 +27,7 @@ This project is a **pipeline orchestrator** for spoken-to-text workflows. It coo
 
 * Orchestrates transcription of audio files using external ASR services (e.g., Whisper)
 * Cleans raw ASR output to remove filler words, fix punctuation, and improve readability
-* Generates structured handouts from lecture transcripts (lecture profile)
+* Generates structured handouts
 * Creates summaries of transcribed content with configurable length targets
 * Processes multiple audio files sequentially, maintaining context across parts
 * Supports batch processing with idempotent operations
@@ -164,7 +164,7 @@ See [Programmatic Usage](docs/programmatic-usage.md) for more details.
 
 - **Profile-based processing:** Optimized workflows for lectures, meetings, and general transcription
 - **AI-powered cleaning:** Removes filler words, fixes punctuation, improves readability
-- **Structured outputs:** Generates handouts with table of contents (lecture profile)
+- **Structured outputs:** Generates handouts with table of contents
 - **Dynamic summaries:** Automatically calculates summary length based on content size
 - **Idempotent operations:** Safe to re-run, only processes new or changed files
 - **Multiple AI providers:** Support for OpenAI and DeepSeek

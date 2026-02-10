@@ -90,10 +90,10 @@ describe('HandoutStep', () => {
           prompts: { cleaning: 'test', handout: 'test', summary: 'test' },
         },
         meeting: {
-          prompts: { cleaning: 'test', summary: 'test' },
+          prompts: { cleaning: 'test', handout: 'test', summary: 'test' },
         },
         other: {
-          prompts: { cleaning: 'test', summary: 'test' },
+          prompts: { cleaning: 'test', handout: 'test', summary: 'test' },
         },
       },
     };
@@ -166,18 +166,21 @@ describe('HandoutStep', () => {
     expect(mockWriteFile).toHaveBeenCalled();
   });
 
-  it('should skip for non-lecture profiles', async () => {
-    // Arrange
+  it('should run handout step for meeting profile', async () => {
+    // Arrange - all profiles now run handout
     mockConfig.profile = 'meeting';
     mockReaddirSync.mockReturnValue(['cleaned1.md'] as any);
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('handout.md') ? false : true;
+    });
+    mockReadFileSync.mockReturnValue('cleaned text');
 
     // Act
     await step.runAsync(mockContext);
 
     // Assert
-    expect(mockContext.logger.info).toHaveBeenCalledWith(
-      expect.stringContaining('skipped')
-    );
+    expect(mockCreateAiService).toHaveBeenCalledWith(mockConfig, 'handout');
+    expect(mockWriteFile).toHaveBeenCalled();
   });
 
   it('should skip if handout already exists', async () => {

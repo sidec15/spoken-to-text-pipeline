@@ -70,12 +70,11 @@ When fields are not provided in the configuration file, the following defaults a
 
 ## Profiles
 
-The `profile` field determines which processing profile to use. Each profile has different default prompts, ASR settings, and available steps.
+The `profile` field determines which processing profile to use. All profiles use the same steps (cleaning, handout, summary); each profile has different default prompts and ASR settings.
 
 **Supported profiles:**
 
 - **`"lecture"`** - Optimized for educational lectures
-  - Includes handout generation step
   - Prompts focus on preserving educational content and structure
   - Default ASR settings: temperature=0, beamSize=5, bestOf=5
   - VAD enabled with threshold=0.45, minSilenceMs=700, maxSpeechS=60
@@ -86,23 +85,23 @@ The `profile` field determines which processing profile to use. Each profile has
     - Summary (`summary.md`) with key concepts and theoretical frameworks
 
 - **`"meeting"`** - Optimized for meeting transcripts
-  - Skips handout generation
   - Prompts focus on decisions, action items, and key discussion points
   - Default ASR settings: temperature=0.2, beamSize=3, bestOf=3
   - VAD enabled with threshold=0.6, minSilenceMs=500, maxSpeechS=30
   - **Expected outputs:**
     - Raw transcripts (`.txt` files) from ASR step
     - Cleaned transcripts (`.md` files) from cleaning step
+    - Meeting handout (`handout.md`) with structured meeting documentation
     - Summary (`summary.md`) with decisions, action items, and key discussion points
 
 - **`"other"`** - General-purpose transcription
-  - Skips handout generation
-  - Generic prompts for cleaning and summarization
+  - Generic prompts for cleaning, handout, and summarization
   - Default ASR settings: temperature=0, beamSize=5, bestOf=5
   - VAD enabled with threshold=0.5, minSilenceMs=600, maxSpeechS=45
   - **Expected outputs:**
     - Raw transcripts (`.txt` files) from ASR step
     - Cleaned transcripts (`.md` files) from cleaning step
+    - Handout (`handout.md`) with structured content
     - Summary (`summary.md`) with main ideas and key information
 
 **Example:**
@@ -484,7 +483,7 @@ ollama pull qwen2.5:7b
 The optional `steps` object allows you to configure specific pipeline steps at the top level of the configuration.
 
 - **`cleaning`** (optional): Configuration for cleaning step
-- **`handout`** (optional): Configuration for handout step (lecture profile only)
+- **`handout`** (optional): Configuration for handout step (all profiles)
 - **`summary`** (optional): Configuration for summary step
 
 Each step configuration can specify:
@@ -547,7 +546,7 @@ When a step is disabled, it will be skipped during pipeline execution. This is u
 If not specified, temperature defaults to profile-specific preset values:
 
 - **Cleaning**: `0` (all profiles) - Deterministic cleaning
-- **Handout**: `0` (lecture profile) - Deterministic structure
+- **Handout**: `0` (all profiles) - Deterministic structure
 - **Summary**: 
   - `0.2` (lecture profile)
   - `0.3` (meeting profile)
@@ -718,12 +717,14 @@ The `profiles` object defines custom prompts for each profile. This section is r
     "meeting": {
       "prompts": {
         "cleaning": "",
+        "handout": "",
         "summary": ""
       }
     },
     "other": {
       "prompts": {
         "cleaning": "",
+        "handout": "",
         "summary": ""
       }
     }
@@ -731,11 +732,9 @@ The `profiles` object defines custom prompts for each profile. This section is r
 }
 ```
 
-**Required prompts by profile:**
+**Required prompts by profile (all profiles use the same steps):**
 
-- **Lecture**: `cleaning`, `handout`, `summary`
-- **Meeting**: `cleaning`, `summary`
-- **Other**: `cleaning`, `summary`
+- **Lecture, Meeting, Other**: `cleaning`, `handout`, `summary`
 
 **Using default prompts:**
 
@@ -760,12 +759,14 @@ You can override default prompts by providing custom prompt text. Prompts are sy
     "meeting": {
       "prompts": {
         "cleaning": "Clean the meeting transcript, preserving decisions and action items.",
+        "handout": "Transform cleaned meeting content into a structured meeting handout.",
         "summary": "Summarize the meeting, highlighting decisions and action items."
       }
     },
     "other": {
       "prompts": {
         "cleaning": "Clean and normalize the transcript.",
+        "handout": "Transform cleaned content into a structured handout.",
         "summary": "Create a summary of the content."
       }
     }
@@ -832,7 +833,7 @@ The following table provides a quick reference for all configuration parameters:
 | `steps.cleaning.aiConfig.overrides` | `object` | No | Uses `ai.default.overrides` | - | Override parameters |
 | `steps.cleaning.aiConfig.overrides.temperature` | `number` | No | Profile-specific presets | 0-2 | Temperature override |
 | `steps.cleaning.aiConfig.overrides.maxTokens` | `number` | No | Not set (model default) | Positive integer | Max tokens override (not recommended for reasoning models) |
-| `steps.handout` | `object` | No | `undefined` | - | Handout step configuration (lecture profile only) |
+| `steps.handout` | `object` | No | `undefined` | - | Handout step configuration (all profiles) |
 | `steps.handout.enabled` | `boolean` | No | `true` | `true`, `false` | Enable or disable handout step |
 | `steps.handout.aiConfig` | `object` | No | Uses `ai.default` | - | AI configuration for handout step |
 | `steps.handout.aiConfig.provider` | `string` | No | Uses `ai.default.provider` | `"openai"`, `"deepseek"`, `"ollama"` | Override provider |

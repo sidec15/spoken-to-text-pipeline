@@ -90,10 +90,10 @@ describe('SummaryStep', () => {
           prompts: { cleaning: 'test', handout: 'test', summary: 'test' },
         },
         meeting: {
-          prompts: { cleaning: 'test', summary: 'test' },
+          prompts: { cleaning: 'test', handout: 'test', summary: 'test' },
         },
         other: {
-          prompts: { cleaning: 'test', summary: 'test' },
+          prompts: { cleaning: 'test', handout: 'test', summary: 'test' },
         },
       },
     };
@@ -200,12 +200,13 @@ describe('SummaryStep', () => {
     expect(mockCreateAiService).not.toHaveBeenCalled();
   });
 
-  it('should skip if no input content found for lecture profile', async () => {
-    // Arrange
-    mockConfig.profile = 'lecture';
+  it('should skip if no input content found', async () => {
+    // Arrange - no handout, cleaned dir missing (or empty)
     mockReaddirSync.mockReturnValue([] as any);
-    mockExistsSync.mockImplementation((path: string) => {
-      return path.includes('summary.md') ? false : false; // handout.md doesn't exist
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p.includes('handout.md')) return false;
+      if (p.includes('summary.md')) return false;
+      return false; // cleaned dir not present
     });
 
     // Act
@@ -213,17 +214,17 @@ describe('SummaryStep', () => {
 
     // Assert
     expect(mockContext.logger.warn).toHaveBeenCalledWith(
-      'Handout not found, cannot generate summary for lecture profile'
+      'Cleaned directory not found, cannot generate summary'
     );
     expect(mockCreateAiService).not.toHaveBeenCalled();
   });
 
-  it('should skip if no cleaned files found for meeting profile', async () => {
-    // Arrange
-    mockConfig.profile = 'meeting';
-    mockReaddirSync.mockReturnValue([] as any); // No .md files in cleaned dir
+  it('should skip when handout missing and no cleaned files', async () => {
+    // Arrange - handout.md missing, cleaned dir exists but empty (all profiles)
+    mockReaddirSync.mockReturnValue([] as any);
     mockExistsSync.mockImplementation((p: string) => {
-      if (p.includes('summary.md')) return false; // summary doesn't exist yet
+      if (p.includes('handout.md')) return false;
+      if (p.includes('summary.md')) return false;
       return true; // cleaned dir exists
     });
 
@@ -237,9 +238,8 @@ describe('SummaryStep', () => {
     expect(mockCreateAiService).not.toHaveBeenCalled();
   });
 
-  it('should read handout.md for lecture profile', async () => {
-    // Arrange
-    mockConfig.profile = 'lecture';
+  it('should read handout.md when present', async () => {
+    // Arrange - handout exists (all profiles use it when available)
     mockReaddirSync.mockReturnValue(['handout.md'] as any);
     mockExistsSync.mockImplementation((path: string) => {
       return path.includes('summary.md') ? false : path.includes('handout.md');
@@ -259,12 +259,13 @@ describe('SummaryStep', () => {
     );
   });
 
-  it('should merge cleaned files for meeting profile', async () => {
-    // Arrange
-    mockConfig.profile = 'meeting';
+  it('should merge cleaned files when handout missing', async () => {
+    // Arrange - no handout.md, use cleaned files (e.g. handout step disabled)
     mockReaddirSync.mockReturnValue(['part-1.md', 'part-2.md'] as any);
     mockExistsSync.mockImplementation((path: string) => {
-      return path.includes('summary.md') ? false : true;
+      if (path.includes('handout.md')) return false;
+      if (path.includes('summary.md')) return false;
+      return true;
     });
     mockReadFileSync.mockReturnValue('part content');
 
@@ -345,12 +346,13 @@ describe('SummaryStep', () => {
     );
   });
 
-  it('should sort files by numeric part for meeting profile', async () => {
-    // Arrange
-    mockConfig.profile = 'meeting';
+  it('should sort files by numeric part when using cleaned input', async () => {
+    // Arrange - no handout so summary uses cleaned files
     mockReaddirSync.mockReturnValue(['part-10.md', 'part-2.md', 'part-1.md'] as any);
     mockExistsSync.mockImplementation((path: string) => {
-      return path.includes('summary.md') ? false : true;
+      if (path.includes('handout.md')) return false;
+      if (path.includes('summary.md')) return false;
+      return true;
     });
     mockReadFileSync.mockReturnValue('content');
 

@@ -48,21 +48,12 @@ export class HandoutStep implements Step {
   }
 
   private checkProfileAndIdempotency(
-    config: PipelineConfig,
+    _config: PipelineConfig,
     handoutPath: string,
     logger: Logger,
   ): boolean {
-    // Handout is only for lecture profile
-    if (config.profile !== "lecture") {
-      logger.info(
-        `Handout step skipped for profile '${config.profile}' (only available for lecture)`,
-      );
-      return false;
-    }
-
     logger.info("Starting Handout step");
 
-    // Idempotency check
     if (fs.existsSync(handoutPath)) {
       logger.info("Handout already exists, skipping Handout step");
       return false;

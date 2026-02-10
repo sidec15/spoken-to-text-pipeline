@@ -22,9 +22,8 @@ describe('profilePresets', () => {
       // Assert
       expect(preset).toBeDefined();
       expect(preset.cleaning).toBeDefined();
+      expect(preset.handout).toBeDefined();
       expect(preset.summary).toBeDefined();
-      // Meeting profile should not have handout
-      expect(preset.handout).toBeUndefined();
     });
 
     it('should get preset for other profile', () => {
@@ -34,9 +33,8 @@ describe('profilePresets', () => {
       // Assert
       expect(preset).toBeDefined();
       expect(preset.cleaning).toBeDefined();
+      expect(preset.handout).toBeDefined();
       expect(preset.summary).toBeDefined();
-      // Other profile should not have handout
-      expect(preset.handout).toBeUndefined();
     });
 
     it('should have preset structure matching expected format', () => {
@@ -61,6 +59,8 @@ describe('profilePresets', () => {
       const meetingPreset = AI_PROFILE_PRESETS.meeting;
       expect(meetingPreset.cleaning).toHaveProperty('temperature');
       expect(meetingPreset.cleaning).toHaveProperty('systemPrompt');
+      expect(meetingPreset.handout).toHaveProperty('temperature');
+      expect(meetingPreset.handout).toHaveProperty('systemPrompt');
       expect(meetingPreset.summary).toHaveProperty('temperature');
       expect(meetingPreset.summary).toHaveProperty('systemPrompt');
 
@@ -68,6 +68,8 @@ describe('profilePresets', () => {
       const otherPreset = AI_PROFILE_PRESETS.other;
       expect(otherPreset.cleaning).toHaveProperty('temperature');
       expect(otherPreset.cleaning).toHaveProperty('systemPrompt');
+      expect(otherPreset.handout).toHaveProperty('temperature');
+      expect(otherPreset.handout).toHaveProperty('systemPrompt');
       expect(otherPreset.summary).toHaveProperty('temperature');
       expect(otherPreset.summary).toHaveProperty('systemPrompt');
     });

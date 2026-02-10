@@ -85,7 +85,7 @@ spoken-to-text --config my-config.json
 The pipeline will:
 1. Transcribe all audio files using Whisper
 2. Clean the raw transcripts with AI
-3. Generate a handout (lecture profile) or summary based on your profile
+3. Generate handout and summary
 4. Write all outputs to the `outputDir` directory
 
 Check the output directory for cleaned `.md` files, handouts, and summaries.
@@ -96,7 +96,7 @@ The pipeline generates several types of output files:
 
 - **Raw transcripts** (`.txt` files) - Direct output from Whisper ASR
 - **Cleaned transcripts** (`.md` files) - AI-cleaned versions with proper formatting
-- **Handout** (`handout.md`) - Structured document with table of contents (lecture profile only)
+- **Handout** (`handout.md`) - Structured document with table of contents
 - **Summary** (`summary.md`) - Summary of the content
 
 See [Pipeline Steps](pipeline-steps.md) for detailed information about each step.

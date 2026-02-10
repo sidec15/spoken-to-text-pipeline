@@ -1,7 +1,8 @@
 /**
- * Supported pipeline profiles that determine processing behavior and prompts.
- * - "lecture": Optimized for educational lectures (includes handout generation)
- * - "meeting": Optimized for meeting transcripts (focuses on decisions and action items)
+ * Supported pipeline profiles. All profiles use the same steps (cleaning, handout, summary);
+ * profile only affects default prompts and ASR defaults.
+ * - "lecture": Optimized for educational lectures
+ * - "meeting": Optimized for meeting transcripts (decisions, action items)
  * - "other": General-purpose transcription and cleaning
  */
 export type SupportedProfile = "lecture" | "meeting" | "other";
@@ -71,7 +72,7 @@ export interface StepAiConfig {
      * Lower values make output more deterministic, higher values more creative.
      * Default: Profile-specific preset values:
      * - cleaning: 0 (all profiles)
-     * - handout: 0 (lecture profile only)
+     * - handout: 0 (all profiles)
      * - summary: 0.2 (lecture), 0.3 (meeting), 0.3 (other)
      */
     temperature?: number;
@@ -129,8 +130,8 @@ export interface AiConfig {
  */
 export interface PipelineConfig {
   /**
-   * Profile that determines processing behavior, prompts, and available steps (required).
-   * Lecture profile includes handout generation; meeting/other profiles skip it.
+   * Profile that determines default prompts and ASR defaults (required).
+   * All profiles use the same steps (cleaning, handout, summary).
    */
   profile: SupportedProfile;
 
@@ -402,24 +403,28 @@ export interface PipelineConfig {
     };
     /**
      * Meeting profile configuration (optional).
-     * Includes prompts for cleaning and summary (no handout step).
+     * Includes prompts for cleaning, handout, and summary.
      */
     meeting?: {
       prompts?: {
         /** System prompt for cleaning meeting transcripts (optional) */
         cleaning?: string;
+        /** System prompt for generating meeting handouts (optional) */
+        handout?: string;
         /** System prompt for generating summaries (optional) */
         summary?: string;
       };
     };
     /**
      * Other profile configuration (optional).
-     * General-purpose prompts for cleaning and summary.
+     * General-purpose prompts for cleaning, handout, and summary.
      */
     other?: {
       prompts?: {
         /** System prompt for cleaning general transcripts (optional) */
         cleaning?: string;
+        /** System prompt for generating handouts (optional) */
+        handout?: string;
         /** System prompt for generating summaries (optional) */
         summary?: string;
       };

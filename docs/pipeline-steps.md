@@ -20,7 +20,7 @@ ASR Step (Transcription)
    ↓
 Cleaning Step
    ↓
-Handout Step (lecture profile only)
+Handout Step
    ↓
 Summary Step
    ↓
@@ -72,7 +72,7 @@ The cleaning step uses AI to clean and normalize raw transcripts.
 
 ## Handout Step
 
-The handout step generates a structured handout document from cleaned transcripts. **Only available for the `lecture` profile.**
+The handout step generates a structured handout document from cleaned transcripts. It runs for all profiles (unless disabled via `steps.handout.enabled`).
 
 **Input:** All cleaned transcript files (`.md` format) from cleaning step
 
@@ -85,7 +85,7 @@ The handout step generates a structured handout document from cleaned transcript
 - Creates a polished handout suitable for study or distribution
 
 **Behavior:**
-- Only runs for `lecture` profile
+- Runs for all profiles (lecture, meeting, other) when enabled
 - Reads all cleaned transcript files (excluding `handout.md` and `summary.md`)
 - Processes them in alphabetical order
 - Generates a unified handout with proper structure
@@ -99,8 +99,8 @@ The handout step generates a structured handout document from cleaned transcript
 The summary step generates a summary of the processed content.
 
 **Input:** 
-- For `lecture` profile: `handout.md` from handout step
-- For `meeting` and `other` profiles: All cleaned transcript files (`.md` format)
+- When `handout.md` exists (all profiles): Summary uses the handout
+- When handout is missing (e.g. handout step disabled): Merged cleaned transcript files (`.md` format)
 
 **Output:** `summary.md` file written to `paths.outputDir`
 
@@ -111,8 +111,8 @@ The summary step generates a summary of the processed content.
 - Adapts summary length to content size
 
 **Behavior:**
-- For `lecture` profile: Summarizes the handout
-- For `meeting`/`other` profiles: Summarizes all cleaned transcripts
+- Prefers `handout.md` when present (all profiles)
+- Falls back to merged cleaned files when handout is not available
 - Uses profile-specific prompts
 - Calculates target word count dynamically (see [Output Configuration](configuration.md#output-configuration))
 

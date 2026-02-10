@@ -413,19 +413,10 @@ function validateUserConfig(config: Record<string, unknown>, configPath: string)
               errors.push(`Invalid 'profiles.${profileName}.prompts' field (must be an object)`);
             } else {
               const prompts = profile.prompts as Record<string, unknown>;
-              if (profileName === "lecture") {
-                const validPrompts = ["cleaning", "handout", "summary"];
-                for (const promptName of validPrompts) {
-                  if (promptName in prompts && typeof prompts[promptName] !== "string") {
-                    errors.push(`Invalid 'profiles.${profileName}.prompts.${promptName}' field (must be a string)`);
-                  }
-                }
-              } else {
-                const validPrompts = ["cleaning", "summary"];
-                for (const promptName of validPrompts) {
-                  if (promptName in prompts && typeof prompts[promptName] !== "string") {
-                    errors.push(`Invalid 'profiles.${profileName}.prompts.${promptName}' field (must be a string)`);
-                  }
+              const validPrompts = ["cleaning", "handout", "summary"];
+              for (const promptName of validPrompts) {
+                if (promptName in prompts && typeof prompts[promptName] !== "string") {
+                  errors.push(`Invalid 'profiles.${profileName}.prompts.${promptName}' field (must be a string)`);
                 }
               }
             }
@@ -624,23 +615,12 @@ function validateFinalConfig(config: any, configPath: string): void {
                 errors.push(`Invalid 'profiles.${profileName}.prompts' field (must be an object)`);
               } else {
                 const prompts = config.profiles[profileName].prompts;
-                if (profileName === "lecture") {
-                  const validPrompts = ["cleaning", "handout", "summary"];
-                  for (const promptName of validPrompts) {
-                    if (!(promptName in prompts) || prompts[promptName] === undefined) {
-                      errors.push(`Missing or invalid 'profiles.${profileName}.prompts.${promptName}' field`);
-                    } else if (typeof prompts[promptName] !== "string") {
-                      errors.push(`Invalid 'profiles.${profileName}.prompts.${promptName}' field (must be a string)`);
-                    }
-                  }
-                } else {
-                  const validPrompts = ["cleaning", "summary"];
-                  for (const promptName of validPrompts) {
-                    if (!(promptName in prompts) || prompts[promptName] === undefined) {
-                      errors.push(`Missing or invalid 'profiles.${profileName}.prompts.${promptName}' field`);
-                    } else if (typeof prompts[promptName] !== "string") {
-                      errors.push(`Invalid 'profiles.${profileName}.prompts.${promptName}' field (must be a string)`);
-                    }
+                const validPrompts = ["cleaning", "handout", "summary"];
+                for (const promptName of validPrompts) {
+                  if (!(promptName in prompts) || prompts[promptName] === undefined) {
+                    errors.push(`Missing or invalid 'profiles.${profileName}.prompts.${promptName}' field`);
+                  } else if (typeof prompts[promptName] !== "string") {
+                    errors.push(`Invalid 'profiles.${profileName}.prompts.${promptName}' field (must be a string)`);
                   }
                 }
               }

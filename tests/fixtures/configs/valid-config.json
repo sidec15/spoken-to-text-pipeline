@@ -59,12 +59,14 @@
     "meeting": {
       "prompts": {
         "cleaning": "Clean meeting transcript",
+        "handout": "Create meeting handout",
         "summary": "Create meeting summary"
       }
     },
     "other": {
       "prompts": {
         "cleaning": "Clean transcript",
+        "handout": "Create handout",
         "summary": "Create summary"
       }
     }

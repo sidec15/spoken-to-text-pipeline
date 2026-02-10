@@ -97,7 +97,14 @@ export const CONFIG_DEFAULTS: Omit<PipelineConfig, "profile"> = {
     },
   },
   ai: {
-    providers: {},
+    providers: {
+      openai: {
+        apiKey: "",
+      },
+      deepseek: {
+        apiKey: "",
+      },
+    },
     default: {
       provider: "openai",
       model: "gpt-5-mini",

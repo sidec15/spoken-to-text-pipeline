@@ -46,6 +46,7 @@ describe('PipelineRunner', () => {
     mockProgress = createMockProgressReporter();
     mockContext = {
       config: mockConfig,
+      outputDir: './output',
       logger: mockLogger,
       progress: mockProgress,
     };
@@ -315,14 +316,14 @@ describe('PipelineRunner', () => {
     expect(stepLogger.info).toHaveBeenCalledWith('Step started');
   });
 
-  it('should run non-AI steps without checking enabled status', async () => {
-    // Arrange - non-AI step should run regardless of steps config
+  it('should skip non-AI step when enabled is false', async () => {
+    // Arrange - all steps (including asr) respect steps.*.enabled
     const step: Step = {
-      name: 'asr', // Not an AI step
+      name: 'asr',
       runAsync: jest.fn().mockResolvedValue(undefined),
     };
     mockConfig.steps = {
-      asr: { enabled: false }, // Even if disabled, non-AI steps should run
+      asr: { enabled: false },
     };
     const runner = new PipelineRunner([step]);
     const stepLogger = { ...mockLogger, info: jest.fn() };
@@ -332,9 +333,8 @@ describe('PipelineRunner', () => {
     await runner.run(mockContext);
 
     // Assert
-    expect(step.runAsync).toHaveBeenCalledTimes(1);
-    expect(stepLogger.info).toHaveBeenCalledWith('Step started');
-    expect(stepLogger.info).not.toHaveBeenCalledWith('Step disabled via configuration, skipping');
+    expect(step.runAsync).not.toHaveBeenCalled();
+    expect(stepLogger.info).toHaveBeenCalledWith('Step disabled via configuration, skipping');
   });
 
   it('should skip disabled AI step but continue with next step', async () => {

@@ -120,6 +120,36 @@ describe('aiServiceFactory', () => {
       expect(service).toBeDefined();
     });
 
+    it('should use SPOKEN_TO_TEXT_OPENAI_API_KEY when openai apiKey empty in config', () => {
+      const config = createMockConfig();
+      config.ai!.providers!.openai = { apiKey: '' };
+      const prev = process.env.SPOKEN_TO_TEXT_OPENAI_API_KEY;
+      process.env.SPOKEN_TO_TEXT_OPENAI_API_KEY = 'sk-env-openai';
+      try {
+        createAiService(config, 'cleaning');
+        expect(mockOpenAiService).toHaveBeenCalledWith('sk-env-openai', 'gpt-4o-mini');
+      } finally {
+        if (prev !== undefined) process.env.SPOKEN_TO_TEXT_OPENAI_API_KEY = prev;
+        else delete process.env.SPOKEN_TO_TEXT_OPENAI_API_KEY;
+      }
+    });
+
+    it('should use SPOKEN_TO_TEXT_DEEPSEEK_API_KEY when deepseek apiKey empty in config', () => {
+      const config = createMockConfig();
+      config.ai!.default!.provider = 'deepseek';
+      config.ai!.default!.model = 'deepseek-chat';
+      config.ai!.providers!.deepseek = { apiKey: '' };
+      const prev = process.env.SPOKEN_TO_TEXT_DEEPSEEK_API_KEY;
+      process.env.SPOKEN_TO_TEXT_DEEPSEEK_API_KEY = 'sk-env-deepseek';
+      try {
+        createAiService(config, 'cleaning');
+        expect(mockDeepSeekService).toHaveBeenCalledWith('sk-env-deepseek', 'deepseek-chat');
+      } finally {
+        if (prev !== undefined) process.env.SPOKEN_TO_TEXT_DEEPSEEK_API_KEY = prev;
+        else delete process.env.SPOKEN_TO_TEXT_DEEPSEEK_API_KEY;
+      }
+    });
+
     it('should create DeepSeek service', async () => {
       // Arrange
       const config = createMockConfig();

@@ -9,11 +9,14 @@ import { resolveOllamaConfig } from "./ollama/resolveOllamaConfig.js";
 
 export type AiStepName = "cleaning" | "handout" | "summary";
 
+/** All pipeline step names (ASR + AI steps). */
+export type StepName = "asr" | AiStepName;
+
 /**
  * Checks if a step is enabled.
  * Steps are enabled by default unless explicitly disabled via config.
  */
-export function isStepEnabled(config: PipelineConfig, step: AiStepName): boolean {
+export function isStepEnabled(config: PipelineConfig, step: StepName): boolean {
   const stepConfig = config.steps?.[step];
   // Default to true if not specified
   return stepConfig?.enabled !== false;
@@ -48,11 +51,13 @@ export function resolveStepConfig(
 }
 
 /**
- * Gets the API key for a provider from the provider pool.
+ * Gets the API key for a provider from the provider pool or environment.
+ * Environment variables: SPOKEN_TO_TEXT_OPENAI_API_KEY, SPOKEN_TO_TEXT_DEEPSEEK_API_KEY
  */
 function getApiKey(config: PipelineConfig, provider: string): string {
   if (provider === "openai") {
-    const apiKey = config.ai?.providers?.openai?.apiKey ?? "";
+    const fromConfig = (config.ai?.providers?.openai?.apiKey ?? "").trim();
+    const apiKey = fromConfig || (process.env.SPOKEN_TO_TEXT_OPENAI_API_KEY ?? "").trim();
     if (!apiKey) {
       throw new Error(`OpenAI provider not configured in provider pool`);
     }
@@ -60,7 +65,8 @@ function getApiKey(config: PipelineConfig, provider: string): string {
   }
 
   if (provider === "deepseek") {
-    const apiKey = config.ai?.providers?.deepseek?.apiKey ?? "";
+    const fromConfig = (config.ai?.providers?.deepseek?.apiKey ?? "").trim();
+    const apiKey = fromConfig || (process.env.SPOKEN_TO_TEXT_DEEPSEEK_API_KEY ?? "").trim();
     if (!apiKey) {
       throw new Error(`DeepSeek provider not configured in provider pool`);
     }

@@ -297,10 +297,10 @@ The `ai` object configures AI providers and models for text processing steps (cl
 The `providers` object contains configuration for all providers that may be used. **At least one provider must be configured** - this is required for the pipeline to function. You can configure multiple providers and switch between them per step.
 
 - **`openai`** (optional): OpenAI provider configuration
-  - `apiKey` (required if `openai` is provided): Your OpenAI API key (starts with `sk-`)
+  - `apiKey` (required if `openai` is provided): Your OpenAI API key (starts with `sk-`). If omitted, `SPOKEN_TO_TEXT_OPENAI_API_KEY` is used.
 
 - **`deepseek`** (optional): DeepSeek provider configuration
-  - `apiKey` (required if `deepseek` is provided): Your DeepSeek API key
+  - `apiKey` (required if `deepseek` is provided): Your DeepSeek API key. If omitted, `SPOKEN_TO_TEXT_DEEPSEEK_API_KEY` is used.
 
 - **`ollama`** (optional): Ollama provider configuration (local AI server, no API key required)
   - `baseUrl` (optional): Ollama server base URL. Default: `"http://localhost:11434/v1"`
@@ -812,9 +812,9 @@ The following table provides a quick reference for all configuration parameters:
 | **`ai`** | `object` | No | `{ providers: {}, default: { provider: "openai", model: "gpt-5-mini" } }` | - | AI provider configuration |
 | `ai.providers` | `object` | ⚠️ No | `{}` | - | Provider pool (at least one provider with API key required) |
 | `ai.providers.openai` | `object` | No | `undefined` | - | OpenAI provider config |
-| `ai.providers.openai.apiKey` | `string` | ⚠️ No | - | Valid API key (starts with `sk-`) | OpenAI API key (required if openai provider is configured) |
+| `ai.providers.openai.apiKey` | `string` | ⚠️ No | `SPOKEN_TO_TEXT_OPENAI_API_KEY` | Valid API key (starts with `sk-`) | OpenAI API key (or env var) |
 | `ai.providers.deepseek` | `object` | No | `undefined` | - | DeepSeek provider config |
-| `ai.providers.deepseek.apiKey` | `string` | ⚠️ No | - | Valid API key | DeepSeek API key (required if deepseek provider is configured) |
+| `ai.providers.deepseek.apiKey` | `string` | ⚠️ No | `SPOKEN_TO_TEXT_DEEPSEEK_API_KEY` | Valid API key | DeepSeek API key (or env var) |
 | `ai.providers.ollama` | `object` | No | `undefined` | - | Ollama provider config (no API key needed) |
 | `ai.providers.ollama.baseUrl` | `string` | No | `"http://localhost:11434/v1"` | Valid URL | Ollama server base URL |
 | `ai.default` | `object` | No | `{ provider: "openai", model: "gpt-5-mini" }` | - | Default AI configuration |

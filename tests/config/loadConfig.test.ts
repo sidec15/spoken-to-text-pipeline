@@ -651,15 +651,37 @@ describe('loadConfig', () => {
       expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'ai.providers.openai'/);
     });
 
-    it('should throw error for missing ai.providers.openai.apiKey', () => {
-      // Arrange
-      const configObj = JSON.parse(validConfigContent);
-      delete configObj.ai.providers.openai.apiKey;
-      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+    it('should throw error for missing ai.providers.openai.apiKey when env unset', () => {
+      // Arrange - env must be unset so validation still requires apiKey
+      const prev = process.env.SPOKEN_TO_TEXT_OPENAI_API_KEY;
+      delete process.env.SPOKEN_TO_TEXT_OPENAI_API_KEY;
+      try {
+        const configObj = JSON.parse(validConfigContent);
+        delete configObj.ai.providers.openai.apiKey;
+        mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
 
-      // Act & Assert
-      // This will fail final validation because openai provider has no apiKey
-      expect(() => loadConfig(validConfigPath)).toThrow(/Default provider 'openai' is not configured|At least one provider must be configured/);
+        // Act & Assert
+        expect(() => loadConfig(validConfigPath)).toThrow(/Default provider 'openai' is not configured|At least one provider must be configured/);
+      } finally {
+        if (prev !== undefined) process.env.SPOKEN_TO_TEXT_OPENAI_API_KEY = prev;
+      }
+    });
+
+    it('should use SPOKEN_TO_TEXT_OPENAI_API_KEY when openai apiKey not in config', () => {
+      const prev = process.env.SPOKEN_TO_TEXT_OPENAI_API_KEY;
+      process.env.SPOKEN_TO_TEXT_OPENAI_API_KEY = 'sk-env-openai-key';
+      try {
+        const configObj = JSON.parse(validConfigContent);
+        delete configObj.ai.providers.openai.apiKey;
+        mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+        const result = loadConfig(validConfigPath);
+
+        expect(result.ai.providers.openai?.apiKey).toBe('sk-env-openai-key');
+      } finally {
+        if (prev !== undefined) process.env.SPOKEN_TO_TEXT_OPENAI_API_KEY = prev;
+        else delete process.env.SPOKEN_TO_TEXT_OPENAI_API_KEY;
+      }
     });
 
     it('should throw error for invalid ai.default.provider', () => {
@@ -827,17 +849,39 @@ describe('loadConfig', () => {
       expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'ai.providers.deepseek' field \(must be an object\)/);
     });
 
-    it('should throw error for missing ai.providers.deepseek.apiKey', () => {
-      // Arrange
-      const configObj = JSON.parse(validConfigContent);
-      configObj.ai.providers.deepseek = {};
-      // Remove openai to ensure deepseek is the only provider
-      delete configObj.ai.providers.openai;
-      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+    it('should throw error for missing ai.providers.deepseek.apiKey when env unset', () => {
+      const prev = process.env.SPOKEN_TO_TEXT_DEEPSEEK_API_KEY;
+      delete process.env.SPOKEN_TO_TEXT_DEEPSEEK_API_KEY;
+      try {
+        const configObj = JSON.parse(validConfigContent);
+        configObj.ai.providers.deepseek = {};
+        delete configObj.ai.providers.openai;
+        mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
 
-      // Act & Assert
-      // This will fail final validation because deepseek has no apiKey
-      expect(() => loadConfig(validConfigPath)).toThrow(/At least one provider must be configured/);
+        expect(() => loadConfig(validConfigPath)).toThrow(/At least one provider must be configured/);
+      } finally {
+        if (prev !== undefined) process.env.SPOKEN_TO_TEXT_DEEPSEEK_API_KEY = prev;
+      }
+    });
+
+    it('should use SPOKEN_TO_TEXT_DEEPSEEK_API_KEY when deepseek apiKey not in config', () => {
+      const prev = process.env.SPOKEN_TO_TEXT_DEEPSEEK_API_KEY;
+      process.env.SPOKEN_TO_TEXT_DEEPSEEK_API_KEY = 'sk-env-deepseek-key';
+      try {
+        const configObj = JSON.parse(validConfigContent);
+        configObj.ai.providers.deepseek = {};
+        delete configObj.ai.providers.openai;
+        configObj.ai.default = { provider: 'deepseek', model: 'deepseek-chat' };
+        delete configObj.steps;
+        mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+        const result = loadConfig(validConfigPath);
+
+        expect(result.ai.providers.deepseek?.apiKey).toBe('sk-env-deepseek-key');
+      } finally {
+        if (prev !== undefined) process.env.SPOKEN_TO_TEXT_DEEPSEEK_API_KEY = prev;
+        else delete process.env.SPOKEN_TO_TEXT_DEEPSEEK_API_KEY;
+      }
     });
 
     it('should throw error for missing ai.default field', () => {

@@ -27,7 +27,7 @@ export interface AiProviderPool {
    * Default: undefined (OpenAI provider not available)
    */
   openai?: {
-    /** OpenAI API key (required if openai provider is configured) */
+    /** OpenAI API key (required if openai provider is configured). Can be omitted if SPOKEN_TO_TEXT_OPENAI_API_KEY is set. */
     apiKey: string;
   };
   /**
@@ -35,7 +35,7 @@ export interface AiProviderPool {
    * Default: undefined (DeepSeek provider not available)
    */
   deepseek?: {
-    /** DeepSeek API key (required if deepseek provider is configured) */
+    /** DeepSeek API key (required if deepseek provider is configured). Can be omitted if SPOKEN_TO_TEXT_DEEPSEEK_API_KEY is set. */
     apiKey: string;
   };
   /**
@@ -345,6 +345,11 @@ export interface PipelineConfig {
    * Default: undefined (all steps enabled, using ai.default or OpenAI gpt-5-mini)
    */
   steps?: {
+    /**
+     * Configuration for ASR (transcription) step (optional).
+     * Only enabled can be set; ASR uses config.asr for provider/settings.
+     */
+    asr?: { enabled?: boolean };
     /**
      * Configuration for cleaning step (optional).
      */

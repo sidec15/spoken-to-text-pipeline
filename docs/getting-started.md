@@ -64,7 +64,7 @@ Create a `pipeline.config.json` file with minimal required fields:
 }
 ```
 
-Replace `your-openai-api-key` and `http://localhost:9000/asr` with your actual values. The pipeline uses built-in default prompts for the selected profile.
+Replace `your-openai-api-key` and `http://localhost:9000/asr` with your actual values. You can also set `SPOKEN_TO_TEXT_OPENAI_API_KEY` (and `SPOKEN_TO_TEXT_DEEPSEEK_API_KEY` for DeepSeek) instead of putting keys in the config file. The pipeline uses built-in default prompts for the selected profile.
 
 For detailed configuration options, see the [Configuration Reference](configuration.md).
 

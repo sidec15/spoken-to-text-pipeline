@@ -1,5 +1,5 @@
 import type { Step, StepContext } from "./step.js";
-import { isStepEnabled, type AiStepName } from "../services/ai/aiServiceFactory.js";
+import { isStepEnabled, type StepName } from "../services/ai/aiServiceFactory.js";
 
 export class PipelineRunner {
   private readonly steps: Step[];
@@ -12,13 +12,9 @@ export class PipelineRunner {
     for (const step of this.steps) {
       const stepLogger = ctx.logger.withContext({ step: step.name });
 
-      // Check if this is an AI step and if it's disabled
-      const aiStepNames: AiStepName[] = ["cleaning", "handout", "summary"];
-      if (aiStepNames.includes(step.name as AiStepName)) {
-        if (!isStepEnabled(ctx.config, step.name as AiStepName)) {
-          stepLogger.info(`Step disabled via configuration, skipping`);
-          continue;
-        }
+      if (!isStepEnabled(ctx.config, step.name as StepName)) {
+        stepLogger.info(`Step disabled via configuration, skipping`);
+        continue;
       }
 
       stepLogger.info("Step started");

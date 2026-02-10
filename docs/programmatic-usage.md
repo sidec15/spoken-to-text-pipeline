@@ -64,7 +64,7 @@ const config: PipelineConfig = {
   ai: {
     providers: {
       openai: {
-        apiKey: process.env.OPENAI_API_KEY!
+        apiKey: process.env.SPOKEN_TO_TEXT_OPENAI_API_KEY ?? process.env.OPENAI_API_KEY ?? ""
       }
     }
   }

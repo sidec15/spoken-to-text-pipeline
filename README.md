@@ -92,6 +92,8 @@ Create a `pipeline.config.json` file:
 }
 ```
 
+You can omit API keys from the config by setting `SPOKEN_TO_TEXT_OPENAI_API_KEY` and/or `SPOKEN_TO_TEXT_DEEPSEEK_API_KEY` in the environment.
+
 ### Step 3: Run
 
 Place your `.wav` audio files in the `inputDir` directory, then run:

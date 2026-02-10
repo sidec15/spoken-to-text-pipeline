@@ -113,6 +113,8 @@ export function loadConfig(configPath: string, baseDir?: string): PipelineConfig
     mergedConfig.ai = CONFIG_DEFAULTS.ai;
   }
 
+  injectApiKeysFromEnv(mergedConfig);
+
   // Validate final merged config
   validateFinalConfig(mergedConfig, absolutePath);
 
@@ -342,7 +344,7 @@ function validateUserConfig(config: Record<string, unknown>, configPath: string)
       errors.push("Invalid 'steps' field (must be an object)");
     } else {
       const steps = config.steps as Record<string, unknown>;
-      const validStepNames = ["cleaning", "handout", "summary"];
+      const validStepNames = ["asr", "cleaning", "handout", "summary"];
 
       for (const stepName of validStepNames) {
         if (stepName in steps && steps[stepName] !== undefined) {
@@ -353,7 +355,12 @@ function validateUserConfig(config: Record<string, unknown>, configPath: string)
             errors.push(`Invalid 'steps.${stepName}.enabled' field (must be a boolean)`);
           }
 
-          // Validate aiConfig field
+          // ASR step has no aiConfig
+          if (stepName === "asr") {
+            continue;
+          }
+
+          // Validate aiConfig field (cleaning, handout, summary)
           if ("aiConfig" in stepConfig && stepConfig.aiConfig !== undefined) {
             if (typeof stepConfig.aiConfig !== "object" || stepConfig.aiConfig === null) {
               errors.push(`Invalid 'steps.${stepName}.aiConfig' field (must be an object)`);
@@ -450,6 +457,23 @@ function validateUserConfig(config: Record<string, unknown>, configPath: string)
 
   if (errors.length > 0) {
     throw new Error(`Config validation failed (${configPath}):\n${errors.map((e) => `  - ${e}`).join("\n")}`);
+  }
+}
+
+/**
+ * Injects OpenAI and DeepSeek API keys from environment when not specified in config.
+ * Env vars: SPOKEN_TO_TEXT_OPENAI_API_KEY, SPOKEN_TO_TEXT_DEEPSEEK_API_KEY
+ */
+function injectApiKeysFromEnv(config: any): void {
+  const prov = config.ai?.providers;
+  if (!prov || typeof prov !== "object") return;
+  if (prov.openai && typeof prov.openai === "object") {
+    const fromConfig = (typeof prov.openai.apiKey === "string" && prov.openai.apiKey.trim()) || "";
+    prov.openai.apiKey = fromConfig || (process.env.SPOKEN_TO_TEXT_OPENAI_API_KEY ?? "").trim();
+  }
+  if (prov.deepseek && typeof prov.deepseek === "object") {
+    const fromConfig = (typeof prov.deepseek.apiKey === "string" && prov.deepseek.apiKey.trim()) || "";
+    prov.deepseek.apiKey = fromConfig || (process.env.SPOKEN_TO_TEXT_DEEPSEEK_API_KEY ?? "").trim();
   }
 }
 

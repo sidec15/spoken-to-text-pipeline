@@ -63,7 +63,7 @@ spoken-to-text -d -c config.json
 ## Command Options
 
 - `-c, --config PATH` - Path to the pipeline configuration file (default: `pipeline.config.json`)
-- `-b, --base-dir PATH` - Base directory for resolving relative paths in configuration (default: current working directory)
+- `-b, --base-dir PATH` - Base directory for resolving relative paths in configuration (default: directory of the config file; see [Path resolution](configuration.md#paths-configuration))
 - `-d, --dry-run` - Run in dry-run mode: validate configuration and show execution plan without executing
 - `-h, --help` - Display help message and exit
 

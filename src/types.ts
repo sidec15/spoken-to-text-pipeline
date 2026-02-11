@@ -25,7 +25,7 @@ export type { ProgressReporter } from "./services/progress.js";
 export interface PipelineOptions {
   /** Pipeline configuration */
   config: PipelineConfig;
-  /** Optional base directory for resolving relative paths. If not provided, paths are resolved relative to process.cwd() */
+  /** Optional base directory for resolving relative paths. If not provided, paths are resolved relative to the config file directory (config.configDir), or process.cwd() if config was not loaded from a file. */
   baseDir?: string;
   /** If true, run in dry-run mode (validate config and show plan without executing) */
   dryRun?: boolean;

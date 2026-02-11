@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import type { PipelineOptions, PipelineResult } from '../../src/types.js';
 import { createMockLogger } from '../mocks/logger.mock.js';
@@ -77,12 +78,12 @@ describe('runPipeline', () => {
     // Act
     const result = await runPipelineFn(options);
 
-    // Assert
+    // Assert - when baseDir not provided, effectiveBaseDir is config.configDir ?? process.cwd(); mockConfig has no configDir
     expect(result).toEqual({ success: true });
     expect(mockRun).toHaveBeenCalledWith({
       config: mockConfig,
-      baseDir: undefined,
-      outputDir: expect.any(String),
+      baseDir: process.cwd(),
+      outputDir: path.resolve(process.cwd(), 'output'),
       dryRun: undefined,
       logger: mockLogger,
       progress: mockProgress,

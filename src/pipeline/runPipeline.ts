@@ -37,6 +37,9 @@ class NoOpProgressReporter implements ProgressReporter {
 export async function runPipeline(options: PipelineOptions): Promise<PipelineResult> {
   const { config, baseDir, dryRun, logger: providedLogger, progress: providedProgress } = options;
 
+  // Resolve all paths relative to: CLI baseDir if set, otherwise config file directory, otherwise cwd
+  const effectiveBaseDir = baseDir ?? config.configDir ?? process.cwd();
+
   // Create logger if not provided
   const logger =
     providedLogger ??
@@ -85,7 +88,7 @@ export async function runPipeline(options: PipelineOptions): Promise<PipelineRes
   }
 
   // Resolve output directory once so all steps use the same path (important for timestamp suffix)
-  const outputDir = resolveOutputDir(config, baseDir);
+  const outputDir = resolveOutputDir(config, effectiveBaseDir);
 
   const runner = new PipelineRunner([
     new LoadProfileStep(),
@@ -96,7 +99,7 @@ export async function runPipeline(options: PipelineOptions): Promise<PipelineRes
   ]);
 
   try {
-    await runner.run({ config, baseDir, outputDir, dryRun, logger, progress });
+    await runner.run({ config, baseDir: effectiveBaseDir, outputDir, dryRun, logger, progress });
     logger.info("Pipeline completed successfully");
     return { success: true };
   } catch (error) {

@@ -183,12 +183,19 @@ describe('aiServiceFactory', () => {
     });
 
     it('should throw error for missing provider', () => {
-      // Arrange
-      const config = createMockConfig();
-      config.ai.providers = {};
+      // Arrange - clear env so validation fails properly
+      const prevOpenai = process.env.SPOKEN_TO_TEXT_OPENAI_API_KEY;
+      delete process.env.SPOKEN_TO_TEXT_OPENAI_API_KEY;
+      try {
+        const config = createMockConfig();
+        config.ai.providers = {};
 
-      // Act & Assert
-      expect(() => createAiService(config, 'cleaning')).toThrow(/OpenAI provider not configured/);
+        // Act & Assert
+        expect(() => createAiService(config, 'cleaning')).toThrow(/OpenAI provider not configured/);
+      } finally {
+        if (prevOpenai !== undefined) process.env.SPOKEN_TO_TEXT_OPENAI_API_KEY = prevOpenai;
+        else delete process.env.SPOKEN_TO_TEXT_OPENAI_API_KEY;
+      }
     });
 
     it('should throw error for unsupported provider', () => {
@@ -201,13 +208,20 @@ describe('aiServiceFactory', () => {
     });
 
     it('should throw error for missing DeepSeek provider', () => {
-      // Arrange
-      const config = createMockConfig();
-      config.ai.default.provider = 'deepseek';
-      config.ai.providers = { openai: { apiKey: 'sk-test' } };
+      // Arrange - clear env so validation fails properly
+      const prevDeepseek = process.env.SPOKEN_TO_TEXT_DEEPSEEK_API_KEY;
+      delete process.env.SPOKEN_TO_TEXT_DEEPSEEK_API_KEY;
+      try {
+        const config = createMockConfig();
+        config.ai.default.provider = 'deepseek';
+        config.ai.providers = { openai: { apiKey: 'sk-test' } };
 
-      // Act & Assert
-      expect(() => createAiService(config, 'cleaning')).toThrow(/DeepSeek provider not configured/);
+        // Act & Assert
+        expect(() => createAiService(config, 'cleaning')).toThrow(/DeepSeek provider not configured/);
+      } finally {
+        if (prevDeepseek !== undefined) process.env.SPOKEN_TO_TEXT_DEEPSEEK_API_KEY = prevDeepseek;
+        else delete process.env.SPOKEN_TO_TEXT_DEEPSEEK_API_KEY;
+      }
     });
 
     it('should throw error for missing Ollama provider', () => {

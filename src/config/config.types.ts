@@ -89,7 +89,7 @@ export interface StepAiConfig {
 
 /**
  * Step configuration.
- * Defines enabled status and AI configuration for a step.
+ * Defines enabled status, optional prompt override, and AI configuration for a step.
  */
 export interface StepConfig {
   /**
@@ -98,6 +98,16 @@ export interface StepConfig {
    * Default: true (step is enabled)
    */
   enabled?: boolean;
+  /**
+   * Inline system prompt override (optional).
+   * Takes precedence over promptFile. If set, used instead of the profile default prompt.
+   */
+  prompt?: string;
+  /**
+   * Path to a text or markdown file containing the system prompt (optional).
+   * Resolved relative to the config file directory. Used only when prompt is not set.
+   */
+  promptFile?: string;
   /**
    * AI configuration for this step (optional).
    * If not provided, uses ai.default or OpenAI gpt-5-mini as fallback.
@@ -381,53 +391,8 @@ export interface PipelineConfig {
   };
 
   /**
-   * Profile-specific prompt configurations (optional).
-   * Each profile defines custom prompts for its supported steps.
-   * Prompts can override or extend the default profile presets.
-   * If not provided, uses prompts from profilePresets.ts
+   * Directory of the config file (optional, set by loadConfig when loading from file).
+   * Used to resolve relative paths such as steps.*.promptFile. Not part of user JSON.
    */
-  profiles?: {
-    /**
-     * Lecture profile configuration (optional).
-     * Includes prompts for cleaning, handout generation, and summary.
-     */
-    lecture?: {
-      prompts?: {
-        /** System prompt for cleaning lecture transcripts (optional) */
-        cleaning?: string;
-        /** System prompt for generating handouts from cleaned transcripts (optional) */
-        handout?: string;
-        /** System prompt for generating summaries (optional) */
-        summary?: string;
-      };
-    };
-    /**
-     * Meeting profile configuration (optional).
-     * Includes prompts for cleaning, handout, and summary.
-     */
-    meeting?: {
-      prompts?: {
-        /** System prompt for cleaning meeting transcripts (optional) */
-        cleaning?: string;
-        /** System prompt for generating meeting handouts (optional) */
-        handout?: string;
-        /** System prompt for generating summaries (optional) */
-        summary?: string;
-      };
-    };
-    /**
-     * Other profile configuration (optional).
-     * General-purpose prompts for cleaning, handout, and summary.
-     */
-    other?: {
-      prompts?: {
-        /** System prompt for cleaning general transcripts (optional) */
-        cleaning?: string;
-        /** System prompt for generating handouts (optional) */
-        handout?: string;
-        /** System prompt for generating summaries (optional) */
-        summary?: string;
-      };
-    };
-  };
+  configDir?: string;
 }

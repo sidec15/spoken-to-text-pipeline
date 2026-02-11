@@ -1,5 +1,6 @@
 import type { PipelineConfig, StepAiConfig } from "../../config/config.types.js";
 import type { AiService, AiGenerateOptions } from "./ai.types.js";
+import { loadContextText } from "../../utils/loadContextText.js";
 import { OpenAiService } from "./openai/openaiAiService.js";
 import { DeepSeekAiService } from "./deepseek/deepseekAiService.js";
 import { OllamaAiService } from "./ollama/ollamaAiService.js";
@@ -8,6 +9,25 @@ import { resolveDeepSeekConfig } from "./deepseek/resolveDeepSeekConfig.js";
 import { resolveOllamaConfig } from "./ollama/resolveOllamaConfig.js";
 
 export type AiStepName = "cleaning" | "handout" | "summary";
+
+/**
+ * Returns the step system prompt override from config if set.
+ * Precedence: steps[step].prompt (inline) > steps[step].promptFile (file content). Otherwise null.
+ */
+export function getStepPromptOverride(config: PipelineConfig, step: AiStepName): string | null {
+  const stepCfg = config.steps?.[step];
+  if (!stepCfg) return null;
+  const prompt = stepCfg.prompt;
+  if (typeof prompt === "string" && prompt.trim() !== "") {
+    return prompt.trim();
+  }
+  const promptFile = stepCfg.promptFile;
+  if (typeof promptFile === "string" && promptFile.trim() !== "") {
+    const baseDir = config.configDir ?? process.cwd();
+    return loadContextText([promptFile.trim()], baseDir);
+  }
+  return null;
+}
 
 /** All pipeline step names (ASR + AI steps). */
 export type StepName = "asr" | AiStepName;

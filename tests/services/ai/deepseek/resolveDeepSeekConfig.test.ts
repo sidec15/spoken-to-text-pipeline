@@ -21,17 +21,6 @@ describe('resolveDeepSeekConfig', () => {
         model: 'deepseek-chat',
       },
     },
-    profiles: {
-      lecture: {
-        prompts: { cleaning: 'test', handout: 'test', summary: 'test' },
-      },
-      meeting: {
-        prompts: { cleaning: 'test', summary: 'test' },
-      },
-      other: {
-        prompts: { cleaning: 'test', summary: 'test' },
-      },
-    },
   });
 
   const createStepConfig = (): StepAiConfig => ({
@@ -123,5 +112,21 @@ describe('resolveDeepSeekConfig', () => {
     expect(() => resolveDeepSeekConfig(config, 'cleaning', stepConfig)).toThrow(
       /AI provider is not DeepSeek/
     );
+  });
+
+  it('should use steps.cleaning.prompt when set', () => {
+    // Arrange
+    const config = createMockConfig();
+    config.steps = {
+      cleaning: { prompt: 'Custom DeepSeek cleaning prompt' },
+    };
+    const stepConfig = createStepConfig();
+
+    // Act
+    const result = resolveDeepSeekConfig(config, 'cleaning', stepConfig);
+
+    // Assert
+    expect(result.systemPrompt).toContain('Custom DeepSeek cleaning prompt');
+    expect(result.systemPrompt).toContain('it'); // Language instruction
   });
 });

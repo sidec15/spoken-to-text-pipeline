@@ -66,7 +66,7 @@ The cleaning step uses AI to clean and normalize raw transcripts.
 - Writes cleaned markdown files with the same base name
 - Example: `part-1.txt` → `part-1.md`
 
-**Configuration:** See [AI Provider Configuration](configuration.md#ai-provider-configuration) and [Profile Prompts](configuration.md#profile-prompts-configuration)
+**Configuration:** See [AI Provider Configuration](configuration.md#ai-provider-configuration) and [Step Configuration](configuration.md#step-configuration-steps) (including optional `prompt` / `promptFile` overrides).
 
 **Idempotency:** If a cleaned file already exists, the step is skipped for that file.
 
@@ -90,7 +90,7 @@ The handout step generates a structured handout document from cleaned transcript
 - Processes them in alphabetical order
 - Generates a unified handout with proper structure
 
-**Configuration:** See [AI Provider Configuration](configuration.md#ai-provider-configuration) and [Profile Prompts](configuration.md#profile-prompts-configuration)
+**Configuration:** See [AI Provider Configuration](configuration.md#ai-provider-configuration) and [Step Configuration](configuration.md#step-configuration-steps) (including optional `prompt` / `promptFile` overrides).
 
 **Idempotency:** If `handout.md` already exists, the step is skipped.
 

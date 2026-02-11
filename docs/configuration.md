@@ -23,7 +23,6 @@ The pipeline is configured via a JSON file (default: `pipeline.config.json`). Th
 - [ASR Configuration](#asr-configuration)
   - [Whisper Configuration](#whisper-configuration)
   - [Voice Activity Detection (VAD)](#voice-activity-detection-vad)
-- [Profile Prompts Configuration](#profile-prompts-configuration)
 - [Configuration Parameters Summary](#configuration-parameters-summary)
 
 ## Configuration File Structure
@@ -40,8 +39,7 @@ The configuration file is a JSON object with the following top-level structure:
   "asr": { ... },
   "ai": { ... },
   "steps": { ... },
-  "context": { ... },
-  "profiles": { ... }
+  "context": { ... }
 }
 ```
 
@@ -61,7 +59,6 @@ When fields are not provided in the configuration file, the following defaults a
 - **`ai.providers`**: `{}` (empty by default, but **at least one provider must be configured** - this is required for the pipeline to work)
 - **`ai.default`**: `{ provider: "openai", model: "gpt-5-mini" }`
 - **`context`**: `undefined` (no context files)
-- **`profiles`**: `undefined` (uses built-in prompts from profilePresets.ts)
 
 **Note:** Profile-specific ASR defaults are automatically applied based on the selected `profile`:
 - **Lecture**: `task="transcribe"`, `outputFormat="txt"`, `temperature=0`, `beamSize=5`, `bestOf=5`, `vad={enabled: true, threshold: 0.45, minSilenceMs: 700, maxSpeechS: 60}`
@@ -488,10 +485,14 @@ The optional `steps` object allows you to configure specific pipeline steps at t
 
 Each step configuration can specify:
 - `enabled` (optional): Enable or disable the step. If `false`, the step will be skipped. Default: `true` (step is enabled)
+- `prompt` (optional): Inline system prompt override for this step. Takes precedence over `promptFile`. If set, replaces the profile default prompt for this step.
+- `promptFile` (optional): Path to a text or markdown file (e.g. `.txt`, `.md`) containing the system prompt. Resolved relative to the config file directory. Used only when `prompt` is not set. Useful for long or structured prompts that are awkward to embed in JSON.
 - `aiConfig` (optional): AI configuration for this step. If not provided, uses `ai.default` or OpenAI gpt-5-mini as fallback
   - `provider` (optional): Override provider (`"openai"`, `"deepseek"`, or `"ollama"`). Default: uses `ai.default.provider` or `"openai"`
   - `model` (optional): Override model. Default: uses `ai.default.model` or `"gpt-5-mini"`
   - `overrides` (optional): Override temperature and/or maxTokens. Default: uses `ai.default.overrides` or profile-specific presets
+
+**Prompt override precedence:** If both `prompt` and `promptFile` are set for a step, `prompt` is used. If neither is set, the pipeline uses the built-in default prompt for the selected profile and step.
 
 **Example:**
 
@@ -700,82 +701,6 @@ The optional `vad` object configures Voice Activity Detection, which helps ident
 
   **Note:** The pipeline also implements a separate **connection timeout** of 30 seconds. If the server doesn't accept a connection within 30 seconds, the request fails immediately with a clear error message. This helps identify connection issues early, separate from request processing timeouts.
 
-## Profile Prompts Configuration
-
-The `profiles` object defines custom prompts for each profile. This section is required by the configuration schema, but if prompts are empty strings, the pipeline uses built-in default prompts optimized for each profile.
-
-```json
-{
-  "profiles": {
-    "lecture": {
-      "prompts": {
-        "cleaning": "",
-        "handout": "",
-        "summary": ""
-      }
-    },
-    "meeting": {
-      "prompts": {
-        "cleaning": "",
-        "handout": "",
-        "summary": ""
-      }
-    },
-    "other": {
-      "prompts": {
-        "cleaning": "",
-        "handout": "",
-        "summary": ""
-      }
-    }
-  }
-}
-```
-
-**Required prompts by profile (all profiles use the same steps):**
-
-- **Lecture, Meeting, Other**: `cleaning`, `handout`, `summary`
-
-**Using default prompts:**
-
-To use the built-in default prompts (recommended), set all prompt strings to empty strings (`""`). The pipeline will use optimized prompts based on the selected profile.
-
-**Customizing prompts:**
-
-You can override default prompts by providing custom prompt text. Prompts are system prompts sent to the AI model and should clearly describe the task and desired output format.
-
-**Example with custom prompts:**
-
-```json
-{
-  "profiles": {
-    "lecture": {
-      "prompts": {
-        "cleaning": "Clean and normalize the lecture transcript, preserving all educational content.",
-        "handout": "Transform cleaned transcripts into a structured handout with table of contents.",
-        "summary": "Create a concise summary of the handout, approximately 1000 words."
-      }
-    },
-    "meeting": {
-      "prompts": {
-        "cleaning": "Clean the meeting transcript, preserving decisions and action items.",
-        "handout": "Transform cleaned meeting content into a structured meeting handout.",
-        "summary": "Summarize the meeting, highlighting decisions and action items."
-      }
-    },
-    "other": {
-      "prompts": {
-        "cleaning": "Clean and normalize the transcript.",
-        "handout": "Transform cleaned content into a structured handout.",
-        "summary": "Create a summary of the content."
-      }
-    }
-  }
-}
-```
-
-See [Custom Prompts](advanced-topics.md#custom-prompts) in Advanced Topics for more details on prompt customization.
-
 ## Configuration Parameters Summary
 
 The following table provides a quick reference for all configuration parameters:
@@ -827,14 +752,18 @@ The following table provides a quick reference for all configuration parameters:
 | **`steps`** | `object` | No | `undefined` | - | Step configuration |
 | `steps.cleaning` | `object` | No | `undefined` | - | Cleaning step configuration |
 | `steps.cleaning.enabled` | `boolean` | No | `true` | `true`, `false` | Enable or disable cleaning step |
+| `steps.cleaning.prompt` | `string` | No | Profile default | Any string | Inline system prompt override (takes precedence over promptFile) |
+| `steps.cleaning.promptFile` | `string` | No | - | Path to .txt or .md file | Path to prompt file (relative to config file directory) |
 | `steps.cleaning.aiConfig` | `object` | No | Uses `ai.default` | - | AI configuration for cleaning step |
 | `steps.cleaning.aiConfig.provider` | `string` | No | Uses `ai.default.provider` | `"openai"`, `"deepseek"`, `"ollama"` | Override provider |
 | `steps.cleaning.aiConfig.model` | `string` | No | Uses `ai.default.model` | Valid model identifier | Override model |
 | `steps.cleaning.aiConfig.overrides` | `object` | No | Uses `ai.default.overrides` | - | Override parameters |
 | `steps.cleaning.aiConfig.overrides.temperature` | `number` | No | Profile-specific presets | 0-2 | Temperature override |
 | `steps.cleaning.aiConfig.overrides.maxTokens` | `number` | No | Not set (model default) | Positive integer | Max tokens override (not recommended for reasoning models) |
-| `steps.handout` | `object` | No | `undefined` | - | Handout step configuration (all profiles) |
+| `steps.handout` | `object` | No | `undefined` | - | Handout step configuration |
 | `steps.handout.enabled` | `boolean` | No | `true` | `true`, `false` | Enable or disable handout step |
+| `steps.handout.prompt` | `string` | No | Profile default | Any string | Inline system prompt override (takes precedence over promptFile) |
+| `steps.handout.promptFile` | `string` | No | - | Path to .txt or .md file | Path to prompt file (relative to config file directory) |
 | `steps.handout.aiConfig` | `object` | No | Uses `ai.default` | - | AI configuration for handout step |
 | `steps.handout.aiConfig.provider` | `string` | No | Uses `ai.default.provider` | `"openai"`, `"deepseek"`, `"ollama"` | Override provider |
 | `steps.handout.aiConfig.model` | `string` | No | Uses `ai.default.model` | Valid model identifier | Override model |
@@ -843,6 +772,8 @@ The following table provides a quick reference for all configuration parameters:
 | `steps.handout.aiConfig.overrides.maxTokens` | `number` | No | Calculated dynamically | Positive integer | Max tokens override |
 | `steps.summary` | `object` | No | `undefined` | - | Summary step configuration |
 | `steps.summary.enabled` | `boolean` | No | `true` | `true`, `false` | Enable or disable summary step |
+| `steps.summary.prompt` | `string` | No | Profile default | Any string | Inline system prompt override (takes precedence over promptFile) |
+| `steps.summary.promptFile` | `string` | No | - | Path to .txt or .md file | Path to prompt file (relative to config file directory) |
 | `steps.summary.aiConfig` | `object` | No | Uses `ai.default` | - | AI configuration for summary step |
 | `steps.summary.aiConfig.provider` | `string` | No | Uses `ai.default.provider` | `"openai"`, `"deepseek"`, `"ollama"` | Override provider |
 | `steps.summary.aiConfig.model` | `string` | No | Uses `ai.default.model` | Valid model identifier | Override model |
@@ -851,20 +782,6 @@ The following table provides a quick reference for all configuration parameters:
 | `steps.summary.aiConfig.overrides.maxTokens` | `number` | No | Calculated dynamically | Positive integer | Max tokens override |
 | **`context`** | `object` | No | `undefined` | - | Context materials |
 | `context.textSources` | `string[]` | No | `undefined` | Array of file paths | Reference text files (.txt or .md) |
-| **`profiles`** | `object` | No | `undefined` | - | Custom profile prompts |
-| `profiles.lecture` | `object` | No | `undefined` | - | Lecture profile prompts |
-| `profiles.lecture.prompts` | `object` | No | Uses built-in prompts | - | Custom prompts |
-| `profiles.lecture.prompts.cleaning` | `string` | No | Built-in prompt | Any string (empty string uses default) | Cleaning prompt |
-| `profiles.lecture.prompts.handout` | `string` | No | Built-in prompt | Any string (empty string uses default) | Handout prompt |
-| `profiles.lecture.prompts.summary` | `string` | No | Built-in prompt | Any string (empty string uses default) | Summary prompt |
-| `profiles.meeting` | `object` | No | `undefined` | - | Meeting profile prompts |
-| `profiles.meeting.prompts` | `object` | No | Uses built-in prompts | - | Custom prompts |
-| `profiles.meeting.prompts.cleaning` | `string` | No | Built-in prompt | Any string (empty string uses default) | Cleaning prompt |
-| `profiles.meeting.prompts.summary` | `string` | No | Built-in prompt | Any string (empty string uses default) | Summary prompt |
-| `profiles.other` | `object` | No | `undefined` | - | Other profile prompts |
-| `profiles.other.prompts` | `object` | No | Uses built-in prompts | - | Custom prompts |
-| `profiles.other.prompts.cleaning` | `string` | No | Built-in prompt | Any string (empty string uses default) | Cleaning prompt |
-| `profiles.other.prompts.summary` | `string` | No | Built-in prompt | Any string (empty string uses default) | Summary prompt |
 
 **Profile-Specific Defaults:**
 

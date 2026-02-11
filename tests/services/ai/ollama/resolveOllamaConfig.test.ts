@@ -21,17 +21,6 @@ describe('resolveOllamaConfig', () => {
         model: 'llama3.1:8b',
       },
     },
-    profiles: {
-      lecture: {
-        prompts: { cleaning: 'test', handout: 'test', summary: 'test' },
-      },
-      meeting: {
-        prompts: { cleaning: 'test', summary: 'test' },
-      },
-      other: {
-        prompts: { cleaning: 'test', summary: 'test' },
-      },
-    },
   });
 
   const createStepConfig = (): StepAiConfig => ({
@@ -123,5 +112,21 @@ describe('resolveOllamaConfig', () => {
     expect(() => resolveOllamaConfig(config, 'cleaning', stepConfig)).toThrow(
       /AI provider is not Ollama/
     );
+  });
+
+  it('should use steps.cleaning.prompt when set', () => {
+    // Arrange
+    const config = createMockConfig();
+    config.steps = {
+      cleaning: { prompt: 'Custom Ollama cleaning prompt' },
+    };
+    const stepConfig = createStepConfig();
+
+    // Act
+    const result = resolveOllamaConfig(config, 'cleaning', stepConfig);
+
+    // Assert
+    expect(result.systemPrompt).toContain('Custom Ollama cleaning prompt');
+    expect(result.systemPrompt).toContain('it'); // Language instruction
   });
 });

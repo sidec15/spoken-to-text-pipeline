@@ -51,7 +51,7 @@ To force reprocessing of a specific file:
 
 ## Custom Prompts
 
-You can customize the AI prompts used in each step by providing custom prompt text in your configuration.
+You can customize the AI prompts used in each step by setting **`prompt`** (inline string) or **`promptFile`** (path to a text or markdown file) under `steps.cleaning`, `steps.handout`, or `steps.summary`. The inline `prompt` takes precedence over `promptFile`. If neither is set, the pipeline uses the built-in default for the selected profile and step.
 
 ### Default Prompts
 
@@ -59,17 +59,36 @@ By default, the pipeline uses optimized prompts based on your selected profile. 
 
 ### Customizing Prompts
 
-Override default prompts in your configuration:
+Override the system prompt for a step in your configuration. For short prompts you can use **`prompt`** directly in the JSON; for long or structured prompts, use **`promptFile`** and put the content in a `.txt` or `.md` file (path is relative to the config file directory).
+
+**Example with inline prompts:**
 
 ```json
 {
-  "profiles": {
-    "lecture": {
-      "prompts": {
-        "cleaning": "Clean and normalize the lecture transcript, preserving all educational content.",
-        "handout": "Transform cleaned transcripts into a structured handout with table of contents.",
-        "summary": "Create a concise summary of the handout, approximately 1000 words."
-      }
+  "steps": {
+    "cleaning": {
+      "prompt": "Clean and normalize the lecture transcript, preserving all educational content."
+    },
+    "handout": {
+      "prompt": "Transform cleaned transcripts into a structured handout with table of contents."
+    },
+    "summary": {
+      "prompt": "Create a concise summary of the handout, approximately 1000 words."
+    }
+  }
+}
+```
+
+**Example with prompt files (for long prompts):**
+
+```json
+{
+  "steps": {
+    "cleaning": {
+      "promptFile": "./prompts/cleaning.md"
+    },
+    "summary": {
+      "promptFile": "./prompts/summary.txt"
     }
   }
 }

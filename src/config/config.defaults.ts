@@ -111,7 +111,4 @@ export const CONFIG_DEFAULTS: Omit<PipelineConfig, "profile"> = {
     },
   },
   context: undefined,
-  // Note: profiles.prompts are not included here as they come from profilePresets.ts
-  // Users can override them in their config if needed
-  profiles: undefined,
 };

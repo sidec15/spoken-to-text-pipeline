@@ -29,17 +29,6 @@ describe('LoadProfileStep', () => {
           model: 'gpt-4o-mini',
         },
       },
-      profiles: {
-        lecture: {
-          prompts: { cleaning: 'test', handout: 'test', summary: 'test' },
-        },
-        meeting: {
-          prompts: { cleaning: 'test', summary: 'test' },
-        },
-        other: {
-          prompts: { cleaning: 'test', summary: 'test' },
-        },
-      },
     };
     mockContext = {
       config: mockConfig,

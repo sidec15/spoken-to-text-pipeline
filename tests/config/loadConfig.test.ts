@@ -81,29 +81,6 @@ describe('loadConfig', () => {
         "model": "gpt-4o-mini"
       }
     }
-  },
-  "profiles": {
-    "lecture": {
-      "prompts": {
-        "cleaning": "Clean lecture transcript",
-        "handout": "Create handout from cleaned transcript",
-        "summary": "Create summary from handout"
-      }
-    },
-    "meeting": {
-      "prompts": {
-        "cleaning": "Clean meeting transcript",
-        "handout": "Create meeting handout",
-        "summary": "Create meeting summary"
-      }
-    },
-    "other": {
-      "prompts": {
-        "cleaning": "Clean transcript",
-        "handout": "Create handout",
-        "summary": "Create summary"
-      }
-    }
   }
 }`;
 
@@ -228,7 +205,6 @@ describe('loadConfig', () => {
       expect(result.paths).toBeDefined();
       expect(result.asr).toBeDefined();
       expect(result.ai).toBeDefined();
-      expect(result.profiles).toBeDefined();
     });
 
     it('should validate profile values (lecture, meeting, other)', () => {
@@ -276,16 +252,11 @@ describe('loadConfig', () => {
 
     it('should throw error for missing language fields', () => {
       // Arrange
-      const invalidConfig = { 
+      const invalidConfig = {
         profile: 'lecture',
         ai: {
           providers: { openai: { apiKey: 'test' } },
           default: { provider: 'openai', model: 'test' }
-        },
-        profiles: {
-          lecture: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          meeting: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          other: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } }
         }
       };
       mockReadFileSync.mockReturnValue(JSON.stringify(invalidConfig));
@@ -429,31 +400,68 @@ describe('loadConfig', () => {
       }
     });
 
-    it('should validate profiles structure', () => {
+    it('should set configDir to config file directory', () => {
       // Arrange
       mockReadFileSync.mockReturnValue(validConfigContent);
 
       // Act
       const result = loadConfig(validConfigPath);
 
-      // Assert
-      expect(result.profiles.lecture.prompts.cleaning).toBeDefined();
-      expect(result.profiles.lecture.prompts.handout).toBeDefined();
-      expect(result.profiles.lecture.prompts.summary).toBeDefined();
-      expect(result.profiles.meeting.prompts.cleaning).toBeDefined();
-      expect(result.profiles.meeting.prompts.summary).toBeDefined();
-      expect(result.profiles.other.prompts.cleaning).toBeDefined();
-      expect(result.profiles.other.prompts.summary).toBeDefined();
+      // Assert (loadConfig resolves path relative to cwd when not absolute)
+      const absolutePath = path.isAbsolute(validConfigPath)
+        ? validConfigPath
+        : path.resolve(process.cwd(), validConfigPath);
+      expect(result.configDir).toBe(path.dirname(absolutePath));
     });
 
-    it('should throw error for missing profile prompts', () => {
+    it('should accept steps.cleaning.prompt', () => {
       // Arrange
       const configObj = JSON.parse(validConfigContent);
-      delete configObj.profiles.lecture.prompts.cleaning;
+      configObj.steps.cleaning.prompt = 'Custom cleaning prompt';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act
+      const result = loadConfig(validConfigPath);
+
+      // Assert
+      expect(result.steps?.cleaning?.prompt).toBe('Custom cleaning prompt');
+    });
+
+    it('should accept steps.cleaning.promptFile', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.steps.cleaning.promptFile = './prompts/cleaning.md';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act
+      const result = loadConfig(validConfigPath);
+
+      // Assert
+      expect(result.steps?.cleaning?.promptFile).toBe('./prompts/cleaning.md');
+    });
+
+    it('should throw error for invalid steps.cleaning.prompt', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.steps = configObj.steps || {};
+      configObj.steps.cleaning = configObj.steps.cleaning || {};
+      configObj.steps.cleaning.prompt = 123;
       mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
 
       // Act & Assert
-      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'profiles.lecture.prompts.cleaning' field/);
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'steps.cleaning.prompt' field/);
+    });
+
+    it('should throw error for invalid steps.cleaning.promptFile', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.steps = configObj.steps || {};
+      configObj.steps.cleaning = configObj.steps.cleaning || {};
+      configObj.steps.cleaning.promptFile = 456;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'steps.cleaning.promptFile' field/);
     });
 
     it('should validate context (optional)', () => {
@@ -967,105 +975,6 @@ describe('loadConfig', () => {
       expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'steps.cleaning.aiConfig.overrides.maxTokens' field/);
     });
 
-    it('should throw error for missing profiles.lecture field', () => {
-      // Arrange
-      const configObj = JSON.parse(validConfigContent);
-      delete configObj.profiles.lecture;
-      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
-
-      // Act & Assert
-      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'profiles.lecture' field/);
-    });
-
-    it('should throw error for missing profiles.meeting field', () => {
-      // Arrange
-      const configObj = JSON.parse(validConfigContent);
-      delete configObj.profiles.meeting;
-      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
-
-      // Act & Assert
-      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'profiles.meeting' field/);
-    });
-
-    it('should throw error for missing profiles.other field', () => {
-      // Arrange
-      const configObj = JSON.parse(validConfigContent);
-      delete configObj.profiles.other;
-      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
-
-      // Act & Assert
-      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'profiles.other' field/);
-    });
-
-    it('should throw error for missing profiles.lecture.prompts field', () => {
-      // Arrange
-      const configObj = JSON.parse(validConfigContent);
-      delete configObj.profiles.lecture.prompts;
-      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
-
-      // Act & Assert
-      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'profiles.lecture.prompts' field/);
-    });
-
-    it('should throw error for missing profiles.meeting.prompts field', () => {
-      // Arrange
-      const configObj = JSON.parse(validConfigContent);
-      delete configObj.profiles.meeting.prompts;
-      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
-
-      // Act & Assert
-      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'profiles.meeting.prompts' field/);
-    });
-
-    it('should throw error for missing profiles.other.prompts field', () => {
-      // Arrange
-      const configObj = JSON.parse(validConfigContent);
-      delete configObj.profiles.other.prompts;
-      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
-
-      // Act & Assert
-      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'profiles.other.prompts' field/);
-    });
-
-    it('should throw error for missing profiles.meeting.prompts.cleaning', () => {
-      // Arrange
-      const configObj = JSON.parse(validConfigContent);
-      delete configObj.profiles.meeting.prompts.cleaning;
-      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
-
-      // Act & Assert
-      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'profiles.meeting.prompts.cleaning' field/);
-    });
-
-    it('should throw error for missing profiles.meeting.prompts.summary', () => {
-      // Arrange
-      const configObj = JSON.parse(validConfigContent);
-      delete configObj.profiles.meeting.prompts.summary;
-      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
-
-      // Act & Assert
-      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'profiles.meeting.prompts.summary' field/);
-    });
-
-    it('should throw error for missing profiles.other.prompts.cleaning', () => {
-      // Arrange
-      const configObj = JSON.parse(validConfigContent);
-      delete configObj.profiles.other.prompts.cleaning;
-      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
-
-      // Act & Assert
-      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'profiles.other.prompts.cleaning' field/);
-    });
-
-    it('should throw error for missing profiles.other.prompts.summary', () => {
-      // Arrange
-      const configObj = JSON.parse(validConfigContent);
-      delete configObj.profiles.other.prompts.summary;
-      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
-
-      // Act & Assert
-      expect(() => loadConfig(validConfigPath)).toThrow(/Missing or invalid 'profiles.other.prompts.summary' field/);
-    });
   });
 
   describe('fallback assignments after merge', () => {
@@ -1080,11 +989,6 @@ describe('loadConfig', () => {
         ai: {
           providers: { openai: { apiKey: 'test' } },
           default: { provider: 'openai', model: 'test' }
-        },
-        profiles: {
-          lecture: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          meeting: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          other: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } }
         }
       };
       mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
@@ -1106,11 +1010,6 @@ describe('loadConfig', () => {
         ai: {
           providers: { openai: { apiKey: 'test' } },
           default: { provider: 'openai', model: 'test' }
-        },
-        profiles: {
-          lecture: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          meeting: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          other: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } }
         }
       };
       mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
@@ -1133,11 +1032,6 @@ describe('loadConfig', () => {
         ai: {
           providers: { openai: { apiKey: 'test' } },
           default: { provider: 'openai', model: 'test' }
-        },
-        profiles: {
-          lecture: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          meeting: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          other: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } }
         }
       };
       mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
@@ -1156,11 +1050,6 @@ describe('loadConfig', () => {
         ai: {
           providers: { openai: { apiKey: 'test' } },
           default: { provider: 'openai', model: 'test' }
-        },
-        profiles: {
-          lecture: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          meeting: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          other: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } }
         }
       };
       mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
@@ -1181,11 +1070,6 @@ describe('loadConfig', () => {
         ai: {
           providers: { openai: { apiKey: 'test' } },
           default: { provider: 'openai', model: 'test' }
-        },
-        profiles: {
-          lecture: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          meeting: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          other: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } }
         }
       };
       mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
@@ -1206,11 +1090,6 @@ describe('loadConfig', () => {
         ai: {
           providers: { openai: { apiKey: 'test' } },
           default: { provider: 'openai', model: 'test' }
-        },
-        profiles: {
-          lecture: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          meeting: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          other: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } }
         }
       };
       mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
@@ -1227,12 +1106,7 @@ describe('loadConfig', () => {
     it('should assign default ai when missing after merge', () => {
       // Arrange - minimal config without ai
       const configObj = {
-        profile: 'lecture',
-        profiles: {
-          lecture: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          meeting: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          other: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } }
-        }
+        profile: 'lecture'
       };
       mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
 
@@ -1253,11 +1127,6 @@ describe('loadConfig', () => {
         ai: {
           providers: { openai: { apiKey: 'test' } },
           default: { provider: 'openai', model: 'test' }
-        },
-        profiles: {
-          lecture: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          meeting: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } },
-          other: { prompts: { cleaning: 'test', handout: 'test', summary: 'test' } }
         }
       };
       mockReadFileSync.mockReturnValue(JSON.stringify(configObj));

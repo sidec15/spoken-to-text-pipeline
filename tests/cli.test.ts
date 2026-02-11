@@ -37,11 +37,6 @@ describe('cli.ts', () => {
         providers: { openai: { apiKey: 'test-key' } },
         default: { provider: 'openai', model: 'gpt-4' },
       },
-      profiles: {
-        lecture: { prompts: { cleaning: '', handout: '', summary: '' } },
-        meeting: { prompts: { cleaning: '', summary: '' } },
-        other: { prompts: { cleaning: '', summary: '' } },
-      },
     };
     mockLoadConfig.mockReturnValue(mockConfig);
     mockRunPipeline.mockResolvedValue({ success: true } as never);

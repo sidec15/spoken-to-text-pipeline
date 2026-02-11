@@ -21,17 +21,6 @@ describe('resolveOpenAiConfig', () => {
         model: 'gpt-4o-mini',
       },
     },
-    profiles: {
-      lecture: {
-        prompts: { cleaning: 'test', handout: 'test', summary: 'test' },
-      },
-      meeting: {
-        prompts: { cleaning: 'test', summary: 'test' },
-      },
-      other: {
-        prompts: { cleaning: 'test', summary: 'test' },
-      },
-    },
   });
 
   const createStepConfig = (): StepAiConfig => ({
@@ -123,6 +112,40 @@ describe('resolveOpenAiConfig', () => {
     expect(() => resolveOpenAiConfig(config, 'cleaning', stepConfig)).toThrow(
       /AI provider is not OpenAI/
     );
+  });
+
+  it('should use steps.cleaning.prompt when set', () => {
+    // Arrange
+    const config = createMockConfig();
+    config.steps = {
+      cleaning: { prompt: 'Custom cleaning prompt' },
+    };
+    const stepConfig = createStepConfig();
+
+    // Act
+    const result = resolveOpenAiConfig(config, 'cleaning', stepConfig);
+
+    // Assert
+    expect(result.systemPrompt).toContain('Custom cleaning prompt');
+    expect(result.systemPrompt).toContain('it'); // Language instruction
+  });
+
+  it('should prefer steps.cleaning.prompt over promptFile when both set', () => {
+    // Arrange
+    const config = createMockConfig();
+    config.steps = {
+      cleaning: {
+        prompt: 'Inline prompt wins',
+        promptFile: './prompts/cleaning.md',
+      },
+    };
+    const stepConfig = createStepConfig();
+
+    // Act
+    const result = resolveOpenAiConfig(config, 'cleaning', stepConfig);
+
+    // Assert (inline prompt used; promptFile not loaded)
+    expect(result.systemPrompt).toContain('Inline prompt wins');
   });
 
 });

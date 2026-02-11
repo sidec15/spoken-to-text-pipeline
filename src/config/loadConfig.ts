@@ -115,6 +115,9 @@ export function loadConfig(configPath: string, baseDir?: string): PipelineConfig
 
   injectApiKeysFromEnv(mergedConfig);
 
+  // Set config file directory for resolving relative paths (e.g. steps.*.promptFile)
+  mergedConfig.configDir = path.dirname(absolutePath);
+
   // Validate final merged config
   validateFinalConfig(mergedConfig, absolutePath);
 
@@ -355,9 +358,17 @@ function validateUserConfig(config: Record<string, unknown>, configPath: string)
             errors.push(`Invalid 'steps.${stepName}.enabled' field (must be a boolean)`);
           }
 
-          // ASR step has no aiConfig
+          // ASR step has no aiConfig, prompt, or promptFile
           if (stepName === "asr") {
             continue;
+          }
+
+          // Validate prompt and promptFile (cleaning, handout, summary)
+          if ("prompt" in stepConfig && stepConfig.prompt !== undefined && typeof stepConfig.prompt !== "string") {
+            errors.push(`Invalid 'steps.${stepName}.prompt' field (must be a string)`);
+          }
+          if ("promptFile" in stepConfig && stepConfig.promptFile !== undefined && typeof stepConfig.promptFile !== "string") {
+            errors.push(`Invalid 'steps.${stepName}.promptFile' field (must be a string)`);
           }
 
           // Validate aiConfig field (cleaning, handout, summary)
@@ -388,35 +399,6 @@ function validateUserConfig(config: Record<string, unknown>, configPath: string)
                   if ("maxTokens" in overrides && typeof overrides.maxTokens !== "number") {
                     errors.push(`Invalid 'steps.${stepName}.aiConfig.overrides.maxTokens' field (must be a number)`);
                   }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // Validate profiles (if provided)
-  if ("profiles" in config && config.profiles !== undefined) {
-    if (typeof config.profiles !== "object" || config.profiles === null) {
-      errors.push("Invalid 'profiles' field (must be an object)");
-    } else {
-      const profiles = config.profiles as Record<string, unknown>;
-      const validProfileNames: SupportedProfile[] = ["lecture", "meeting", "other"];
-
-      for (const profileName of validProfileNames) {
-        if (profileName in profiles && profiles[profileName] !== undefined) {
-          const profile = profiles[profileName] as Record<string, unknown>;
-          if ("prompts" in profile && profile.prompts !== undefined) {
-            if (typeof profile.prompts !== "object" || profile.prompts === null) {
-              errors.push(`Invalid 'profiles.${profileName}.prompts' field (must be an object)`);
-            } else {
-              const prompts = profile.prompts as Record<string, unknown>;
-              const validPrompts = ["cleaning", "handout", "summary"];
-              for (const promptName of validPrompts) {
-                if (promptName in prompts && typeof prompts[promptName] !== "string") {
-                  errors.push(`Invalid 'profiles.${profileName}.prompts.${promptName}' field (must be a string)`);
                 }
               }
             }
@@ -593,43 +575,6 @@ function validateFinalConfig(config: any, configPath: string): void {
     } else {
       if (typeof config.asr.whisper.vad.enabled !== "boolean") {
         errors.push("Missing or invalid 'asr.whisper.vad.enabled' field");
-      }
-    }
-  }
-
-  // Validate profiles and prompts (only if provided - profiles is optional)
-  if (config.profiles !== undefined) {
-    if (typeof config.profiles !== "object" || config.profiles === null) {
-      errors.push("Invalid 'profiles' field (must be an object)");
-    } else {
-      const validProfileNames: SupportedProfile[] = ["lecture", "meeting", "other"];
-      for (const profileName of validProfileNames) {
-        if (profileName in config.profiles && config.profiles[profileName] !== undefined) {
-          if (typeof config.profiles[profileName] !== "object" || config.profiles[profileName] === null) {
-            errors.push(`Invalid 'profiles.${profileName}' field (must be an object)`);
-          } else {
-            if (!("prompts" in config.profiles[profileName]) || config.profiles[profileName].prompts === undefined) {
-              errors.push(`Missing or invalid 'profiles.${profileName}.prompts' field`);
-            } else {
-              if (typeof config.profiles[profileName].prompts !== "object" || config.profiles[profileName].prompts === null) {
-                errors.push(`Invalid 'profiles.${profileName}.prompts' field (must be an object)`);
-              } else {
-                const prompts = config.profiles[profileName].prompts;
-                const validPrompts = ["cleaning", "handout", "summary"];
-                for (const promptName of validPrompts) {
-                  if (!(promptName in prompts) || prompts[promptName] === undefined) {
-                    errors.push(`Missing or invalid 'profiles.${profileName}.prompts.${promptName}' field`);
-                  } else if (typeof prompts[promptName] !== "string") {
-                    errors.push(`Invalid 'profiles.${profileName}.prompts.${promptName}' field (must be a string)`);
-                  }
-                }
-              }
-            }
-          }
-        } else {
-          // Profile is missing but profiles object exists - this is an error
-          errors.push(`Missing or invalid 'profiles.${profileName}' field`);
-        }
       }
     }
   }

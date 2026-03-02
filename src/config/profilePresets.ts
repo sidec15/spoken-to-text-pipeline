@@ -8,9 +8,6 @@ export type AiStepName = "cleaning" | "handout" | "summary";
  * These prompts structure the messages sent to AI models for text processing.
  */
 
-/** Placeholder replaced at runtime with metadata values (title, authors, date, localized final line) when config provides them. */
-export const METADATA_BLOCK_PLACEHOLDER = "{{METADATA_BLOCK}}";
-
 /**
  * Formats the optional manual context prompt.
  * Used to provide reference-only context that improves terminological accuracy
@@ -146,6 +143,11 @@ Progressively transform raw lecture transcripts into clean, structured study mat
 - No references to future/missing parts
 - Maintain academic tone while improving clarity
 
+## Output Format
+- Do NOT add any title, header, or metadata at the beginning.
+- Output ONLY the content: start directly with the first heading or paragraph.
+- No init block, no "# Title", no author/date lines.
+
 ## Prohibited Actions
 - Do not create summaries or conclusions
 - Do not reorganize content thematically
@@ -201,32 +203,12 @@ It is a structured reorganization of the full content.
 The result must feel like a document someone could study from, print, or archive.
 
 --------------------------------------------------
-MANDATORY HEADER STRUCTURE
+OUTPUT FORMAT
 --------------------------------------------------
 
-The document MUST begin exactly with the following structure:
-
-# <Title>
-
-**<Authors>**
-**<Date>**
-
-***<Final line>***
-
-When metadata is provided below, use those values exactly. Otherwise infer from the transcript.
-
-${METADATA_BLOCK_PLACEHOLDER}
-
-Rules:
-
-- The title is a single H1 (#) heading.
-- The title is NOT numbered.
-- Authors and date are optional and included only if provided.
-- The final line is mandatory and must be localized according to the specified language. It must be the localized version of: "Lecture Handout"
-- Do NOT insert horizontal separators.
-- Do NOT generate a table of contents.
-
-After this header block, begin the structured academic content.
+- Do NOT add any title, header, or metadata at the beginning.
+- Output ONLY the content: start directly with the first heading or paragraph.
+- No init block, no "# Title", no author/date lines.
 
 --------------------------------------------------
 REORGANIZATION RULES
@@ -358,7 +340,7 @@ MARKDOWN RULES
 --------------------------------------------------
 
 - Output Markdown only.
-- Include the required header block.
+- Do NOT add any header block (header is added post-processing).
 - Use numbered headings.
 - Do NOT include a table of contents.
 - Do NOT include commentary or meta text.
@@ -423,29 +405,9 @@ FIRST BATCH BEHAVIOR (NO PREVIOUS HANDOUT)
 
 If no previous handout is provided:
 
-You MUST begin the document exactly with:
-
-# <Title>
-
-**<Authors>**
-**<Date>**
-
-***<Final line>***
-
-When metadata is provided below, use those values exactly. Otherwise infer from the transcript.
-
-${METADATA_BLOCK_PLACEHOLDER}
-
-Rules:
-
-- The title is a single H1 (#) heading.
-- The title is NOT numbered.
-- Authors and date are optional and included only if provided.
-- The final line is mandatory and must be localized according to the specified language. It must be the localized version of: "Lecture Handout"
-- Do NOT insert horizontal separators.
-- Do NOT generate a table of contents.
-
-After this header block, begin the structured academic content.
+- Do NOT add any title, header, or metadata at the beginning.
+- Output ONLY the content: start directly with the first heading or paragraph.
+- No init block, no "# Title", no author/date lines.
 
 --------------------------------------------------
 SUBSEQUENT BATCH BEHAVIOR (PREVIOUS HANDOUT EXISTS)
@@ -456,7 +418,7 @@ If a previous handout is provided:
 - Continue the existing document.
 - Do NOT rewrite the title.
 - Do NOT regenerate header information.
-- Do NOT recreate the header block.
+- Do NOT add or recreate any header block.
 - Do NOT restart numbering.
 - Do NOT duplicate previously covered material.
 - Append new structured content only.
@@ -566,7 +528,7 @@ MARKDOWN RULES
 --------------------------------------------------
 
 - Output Markdown only.
-- Include the required header block only once (first batch).
+- Do NOT add any header block (header is added post-processing).
 - Use numbered headings.
 - Do NOT include a table of contents.
 - Do NOT include commentary or meta text.
@@ -626,33 +588,12 @@ Produce a summary that:
 The goal is compression with fidelity, not simplification.
 
 --------------------------------------------------
-MANDATORY HEADER STRUCTURE
+OUTPUT FORMAT
 --------------------------------------------------
 
-The document MUST begin exactly with the following structure:
-
-# <Title>
-
-**<Authors>**
-**<Date>**
-
-***<Final line>***
-
-When metadata is provided below, use those values exactly. Otherwise infer from the original handout.
-
-${METADATA_BLOCK_PLACEHOLDER}
-
-Rules:
-
-- The title is a single H1 (#) heading.
-- The title is NOT numbered.
-- Authors and date are optional and included only if present in the original handout.
-- The final line is mandatory and must be localized according to the specified language. It must be the localized version of: "Lecture Summary"
-- Do NOT insert horizontal separators.
-- Do NOT generate a table of contents.
-- Do NOT invent or guess metadata.
-
-After this header block, begin the structured summary.
+- Do NOT add any title, header, or metadata at the beginning.
+- Output ONLY the content: start directly with the first heading or paragraph.
+- No init block, no "# Title", no author/date lines.
 
 --------------------------------------------------
 NUMBERED SECTIONS (MANDATORY)
@@ -765,7 +706,7 @@ MARKDOWN RULES
 --------------------------------------------------
 
 - Output Markdown only.
-- Include the required header block.
+- Do NOT add any header block (header is added post-processing).
 - Use numbered headings.
 - Do NOT include a table of contents.
 - Do NOT include commentary about the summarization process.
@@ -813,6 +754,7 @@ NOT like a transcript
   - Use **bold** for speaker names if present
   - Do NOT add headings, summaries, or commentary
   - Do NOT add or remove meaning
+  - Do NOT add any title, header, or metadata at the beginning. Output ONLY the content.
   
   OUTPUT
   Return ONLY the cleaned transcript in Markdown format.
@@ -856,30 +798,12 @@ This is NOT a summary.
 It is a structured reorganization of the full content.
 
 --------------------------------------------------
-MANDATORY HEADER STRUCTURE
+OUTPUT FORMAT
 --------------------------------------------------
 
-The document MUST begin exactly with the following structure:
-
-# <Title>
-
-**<Authors>**
-**<Date>**
-
-***<Final line>***
-
-When metadata is provided below, use those values exactly. Otherwise infer from the transcript.
-
-${METADATA_BLOCK_PLACEHOLDER}
-
-Rules:
-
-- The title is a single H1 (#) heading.
-- The title is NOT numbered.
-- Authors and date are optional and included only if provided.
-- The final line is mandatory and must be localized according to the specified language. It must be the localized version of: "Meeting Handout"
-- Do NOT insert horizontal separators.
-- Do NOT generate a table of contents.
+- Do NOT add any title, header, or metadata at the beginning.
+- Output ONLY the content: start directly with the first heading or paragraph.
+- No init block, no "# Title", no author/date lines.
 
 --------------------------------------------------
 NUMBERED SECTIONS (MANDATORY)
@@ -943,7 +867,7 @@ MARKDOWN RULES
 --------------------------------------------------
 
 - Output MUST be Markdown.
-- Include the required header block.
+- Do NOT add any header block (header is added post-processing).
 - Use numbered headings.
 - Use lists only where structurally helpful.
 - Do NOT include a table of contents.
@@ -980,33 +904,12 @@ Create a structured summary that:
 This is a structured synthesis, not a transcription.
 
 --------------------------------------------------
-MANDATORY HEADER STRUCTURE
+OUTPUT FORMAT
 --------------------------------------------------
 
-The document MUST begin exactly with the following structure:
-
-# <Title>
-
-**<Authors>**
-**<Date>**
-
-***<Final line>***
-
-When metadata is provided below, use those values exactly. Otherwise infer from the source.
-
-${METADATA_BLOCK_PLACEHOLDER}
-
-Rules:
-
-- The title is a single H1 (#) heading.
-- The title is NOT numbered.
-- Authors and date are optional and included only if explicitly present in the source.
-- The final line is mandatory and must be localized according to the specified language. It must be the localized version of: "Meeting Summary"
-- Do NOT insert horizontal separators.
-- Do NOT generate a table of contents.
-- Do NOT invent metadata.
-
-After this header block, begin the structured summary.
+- Do NOT add any title, header, or metadata at the beginning.
+- Output ONLY the content: start directly with the first heading or paragraph.
+- No init block, no "# Title", no author/date lines.
 
 --------------------------------------------------
 STRUCTURE RULES (MANDATORY)
@@ -1062,7 +965,7 @@ MARKDOWN RULES
 --------------------------------------------------
 
 - Output MUST be Markdown.
-- Include the required header block.
+- Do NOT add any header block (header is added post-processing).
 - Use numbered headings.
 - Use bullet lists only where structurally helpful.
 - Do NOT include a table of contents.
@@ -1098,33 +1001,12 @@ bullet fragments without structure
   Produce a clear and structured summary of a meeting transcript that can be used for documentation and follow-up.
   
   --------------------------------------------------
-  MANDATORY HEADER STRUCTURE
+  OUTPUT FORMAT
   --------------------------------------------------
   
-  The document MUST begin exactly with the following structure:
-  
-  # <Title>
-  
-  **<Authors>**
-  **<Date>**
-  
-  ***<Final line>***
-  
-  When metadata is provided below, use those values exactly. Otherwise infer from the source.
-  
-  ${METADATA_BLOCK_PLACEHOLDER}
-  
-  Rules:
-  
-  - The title is a single H1 (#) heading.
-  - The title is NOT numbered.
-  - Authors and date are optional and included only if explicitly present in the source.
-  - The final line is mandatory and must be localized according to the specified language. It must be the localized version of: "Meeting Summary"
-  - Do NOT insert horizontal separators.
-  - Do NOT generate a table of contents.
-  - Do NOT invent metadata.
-  
-  After this header block, begin the structured summary.
+  - Do NOT add any title, header, or metadata at the beginning.
+  - Output ONLY the content: start directly with the first heading or paragraph.
+  - No init block, no "# Title", no author/date lines.
   
   --------------------------------------------------
   CONTENT REQUIREMENTS
@@ -1198,6 +1080,7 @@ bullet fragments without structure
   - Use clear paragraph separation
   - Use **bold** for speaker names if present
   - Do NOT add headings, summaries, or commentary
+  - Do NOT add any title, header, or metadata at the beginning. Output ONLY the content.
   
   OUTPUT
   Return ONLY the cleaned transcript in Markdown format.
@@ -1240,32 +1123,12 @@ This is NOT a summary.
 It is a structured reorganization of the full content.
 
 --------------------------------------------------
-MANDATORY HEADER STRUCTURE
+OUTPUT FORMAT
 --------------------------------------------------
 
-The document MUST begin exactly with the following structure:
-
-# <Title>
-
-**<Authors>**
-**<Date>**
-
-***<Final line>***
-
-When metadata is provided below, use those values exactly. Otherwise infer from the transcript.
-
-${METADATA_BLOCK_PLACEHOLDER}
-
-Rules:
-
-- The title is a single H1 (#) heading.
-- The title is NOT numbered.
-- Authors and date are optional and included only if explicitly provided.
-- The final line is mandatory and must be localized according to the specified language. It must be the localized version of: "Handout"
-- Do NOT insert horizontal separators.
-- Do NOT generate a table of contents.
-
-After this header block, begin the structured content.
+- Do NOT add any title, header, or metadata at the beginning.
+- Output ONLY the content: start directly with the first heading or paragraph.
+- No init block, no "# Title", no author/date lines.
 
 --------------------------------------------------
 REORGANIZATION RULES
@@ -1324,7 +1187,7 @@ MARKDOWN RULES
 --------------------------------------------------
 
 - Output MUST be Markdown.
-- Include the required header block.
+- Do NOT add any header block (header is added post-processing).
 - Use numbered headings.
 - Do NOT include a table of contents.
 - Do NOT include commentary or meta-text.
@@ -1393,29 +1256,9 @@ FIRST BATCH BEHAVIOR (NO PREVIOUS HANDOUT)
 
 If no previous handout is provided:
 
-You MUST begin the document exactly with:
-
-# <Title>
-
-**<Authors>**
-**<Date>**
-
-***<Final line>***
-
-When metadata is provided below, use those values exactly. Otherwise infer from the transcript.
-
-${METADATA_BLOCK_PLACEHOLDER}
-
-Rules:
-
-- The title is a single H1 (#) heading.
-- The title is NOT numbered.
-- Authors and date are optional and included only if explicitly provided.
-- The final line is mandatory and must be localized according to the specified language. It must be the localized version of: "Handout"
-- Do NOT insert horizontal separators.
-- Do NOT generate a table of contents.
-
-After this header block, begin the structured content.
+- Do NOT add any title, header, or metadata at the beginning.
+- Output ONLY the content: start directly with the first heading or paragraph.
+- No init block, no "# Title", no author/date lines.
 
 --------------------------------------------------
 SUBSEQUENT BATCH BEHAVIOR (PREVIOUS HANDOUT EXISTS)
@@ -1426,7 +1269,7 @@ If a previous handout is provided:
 - Continue the existing document.
 - Do NOT rewrite the title.
 - Do NOT regenerate metadata.
-- Do NOT recreate the header block.
+- Do NOT add or recreate any header block.
 - Do NOT restart numbering.
 - Do NOT duplicate previously written content.
 - Append new structured content only.
@@ -1511,7 +1354,7 @@ MARKDOWN RULES
 --------------------------------------------------
 
 - Output MUST be Markdown.
-- Include the required header block only once (first batch).
+- Do NOT add any header block (header is added post-processing).
 - Use numbered headings.
 - Do NOT include a table of contents.
 - Do NOT include commentary or meta text.
@@ -1546,33 +1389,12 @@ bullet notes or slides
   Produce a clear, well-structured summary of spoken material intended for understanding, study, and later reference.
   
   --------------------------------------------------
-  MANDATORY HEADER STRUCTURE
+  OUTPUT FORMAT
   --------------------------------------------------
   
-  The document MUST begin exactly with the following structure:
-  
-  # <Title>
-  
-  **<Authors>**
-  **<Date>**
-  
-  ***<Final line>***
-  
-  When metadata is provided below, use those values exactly. Otherwise infer from the transcript.
-  
-  ${METADATA_BLOCK_PLACEHOLDER}
-  
-  Rules:
-  
-  - The title is a single H1 (#) heading.
-  - The title is NOT numbered.
-  - Authors and date are optional and included only if explicitly present in the source.
-  - The final line is mandatory and must be localized according to the specified language. It must be the localized version of: "Summary"
-  - Do NOT insert horizontal separators.
-  - Do NOT generate a table of contents.
-  - Do NOT invent metadata.
-  
-  After this header block, begin the structured summary.
+  - Do NOT add any title, header, or metadata at the beginning.
+  - Output ONLY the content: start directly with the first heading or paragraph.
+  - No init block, no "# Title", no author/date lines.
   
   --------------------------------------------------
   STYLE PRINCIPLE (IMPORTANT)

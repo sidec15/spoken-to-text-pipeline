@@ -113,13 +113,13 @@ The `profile` field determines which processing profile to use. All profiles use
 
 ## Metadata (title, authors, date)
 
-Optional metadata used in the **handout** and **summary** headers. When provided, the AI uses these values instead of inferring them from the transcript content.
+Optional metadata used in output headers. **Metadata is added post-processing**, not by the AI. The AI is instructed to output content only (no title, header, or metadata). After each step completes (cleaning, handout, summary), the pipeline prepends a metadata header using config values.
 
 - **`title`** (optional): Title of the lecture, meeting, or content. Used as the H1 heading.
 - **`authors`** (optional): Array of author/speaker names. Displayed as `**<Authors>**` in the header.
-- **`date`** (optional): Date string in any format (e.g. `"07 febbraio 2026"`, `"2026-02-07"`). Displayed as `**<Date>**` in the header.
+- **`date`** (optional): Date string or `Date` object (e.g. `"2026-02-07"`, `"07 febbraio 2026"`). Formatted and localized according to `language.output` (e.g. Italian locale → "7 febbraio 2026", English → "February 7, 2026").
 
-**Header structure (exact format when metadata is provided):**
+**Header structure (prepended to output):**
 
 ```
 # <Title>
@@ -127,12 +127,13 @@ Optional metadata used in the **handout** and **summary** headers. When provided
 **<Authors>**
 **<Date>**
 
-***<Localized label>***
+***<Step label>***
 ```
 
-The final line is localized based on `language.output`:
-- **Italian** (`it`): Handout → `***Dispense della lezione***`, Summary → `***Riassunto della lezione***`
-- **English** (`en`): Handout → `***Lecture Handout***`, Summary → `***Lecture Summary***`
+- **Cleaning**: Header is prepended only to the **first** cleaned file; subsequent parts have no header.
+- **Handout** and **Summary**: Header is prepended to the single output file.
+
+**Step labels** are predefined in English (e.g. "Lecture Handout", "Meeting Summary", "Cleaned transcript"). When `language.output` is not English, the pipeline uses the AI to translate the step label into the requested locale (e.g. Italian → "Dispense della lezione").
 
 **Example:**
 
@@ -140,11 +141,11 @@ The final line is localized based on `language.output`:
 {
   "title": "Repertorio dell'Aggressività",
   "authors": ["Prof. Ligozzi"],
-  "date": "07 febbraio 2026"
+  "date": "2026-02-07"
 }
 ```
 
-When omitted, the AI infers title, authors, and date from the transcript content.
+When title, authors, and date are omitted, the header contains only the step label (e.g. `***Lecture Handout***`).
 
 ## Language Configuration
 
@@ -808,9 +809,9 @@ The following table provides a quick reference for all configuration parameters:
 | Parameter | Type | Required | Default | Allowed Values | Notes |
 |-----------|------|----------|---------|----------------|-------|
 | **`profile`** | `string` | Yes | - | `"lecture"`, `"meeting"`, `"other"` | Determines processing behavior and available steps |
-| `title` | `string` | No | `undefined` | Any string | Title for handout/summary header |
-| `authors` | `string[]` | No | `undefined` | Array of strings | Author(s) for handout/summary header |
-| `date` | `string` | No | `undefined` | Any string | Date for handout/summary header (e.g. "07 febbraio 2026") |
+| `title` | `string` | No | `undefined` | Any string | Title for metadata header (cleaned first file, handout, summary) |
+| `authors` | `string[]` | No | `undefined` | Array of strings | Author(s) for metadata header |
+| `date` | `string` \| `Date` | No | `undefined` | Any string or Date | Date for metadata header; formatted per `language.output` |
 | **`language`** | `object` | No | `{ input: "en", output: "en" }` | - | Language configuration |
 | `language.input` | `string` | No | `"en"` | Valid Whisper language codes (`"it"`, `"en"`, `"es"`, `"fr"`, `"de"`, `"pt"`, `"ru"`, `"ja"`, `"zh"`, `"ko"`, etc.) | Input audio language |
 | `language.output` | `string` | No | `"en"` | Valid language codes | Output text language |

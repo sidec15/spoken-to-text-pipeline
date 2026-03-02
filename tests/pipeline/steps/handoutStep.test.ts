@@ -43,9 +43,14 @@ const mockResolveAiConfig = jest.fn().mockReturnValue({
   temperature: 0,
 });
 
+const mockBuildMetadataHeader = jest.fn().mockReturnValue('');
+const mockGetLocalizedStepLabel = jest.fn().mockResolvedValue('Lecture Handout');
+
 jest.unstable_mockModule('../../../src/services/ai/aiServiceFactory.js', () => ({
   createAiService: mockCreateAiService,
   resolveAiConfig: mockResolveAiConfig,
+  buildMetadataHeader: mockBuildMetadataHeader,
+  getLocalizedStepLabel: mockGetLocalizedStepLabel,
 }));
 
 // Mock loadContextText

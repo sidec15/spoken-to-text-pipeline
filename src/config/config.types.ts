@@ -8,6 +8,20 @@
 export type SupportedProfile = "lecture" | "meeting" | "other";
 
 /**
+ * Predefined step labels in English. Used for the ***Step*** line in output headers.
+ * Localized via AI when language.output is not English.
+ */
+export type OutputStepLabel =
+  | "Lecture Handout"
+  | "Meeting Handout"
+  | "Handout"
+  | "Lecture Summary"
+  | "Meeting Summary"
+  | "Summary"
+  | "Cleaned transcript"
+  | "Cleaned meeting transcript";
+
+/**
  * Supported AI providers for text processing steps (cleaning, handout, summary).
  */
 export type SupportedAiProvider = "openai" | "deepseek" | "ollama";

@@ -40,9 +40,14 @@ const mockResolveAiConfig = jest.fn().mockReturnValue({
   temperature: 0.2,
 });
 
+const mockBuildMetadataHeader = jest.fn().mockReturnValue('');
+const mockGetLocalizedStepLabel = jest.fn().mockResolvedValue('Lecture Summary');
+
 jest.unstable_mockModule('../../../src/services/ai/aiServiceFactory.js', () => ({
   createAiService: mockCreateAiService,
   resolveAiConfig: mockResolveAiConfig,
+  buildMetadataHeader: mockBuildMetadataHeader,
+  getLocalizedStepLabel: mockGetLocalizedStepLabel,
 }));
 
 // Mock loadContextText
@@ -374,12 +379,11 @@ describe('SummaryStep', () => {
     // Act
     await step.runAsync(mockContext);
 
-    // Assert
-    expect(mockWriteFile).toHaveBeenCalledWith(
-      expect.stringContaining('summary.md'),
-      'single chunk summary',
-      'utf-8'
-    );
+    // Assert - content includes header (from buildMetadataHeader mock) + summary
+    const writeCall = mockWriteFile.mock.calls[0];
+    expect(writeCall[0]).toMatch(/summary\.md/);
+    expect(writeCall[1]).toContain('single chunk summary');
+    expect(writeCall[2]).toBe('utf-8');
   });
 
   it('should merge multiple chunk summaries when content is very large', async () => {

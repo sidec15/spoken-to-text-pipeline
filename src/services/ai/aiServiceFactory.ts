@@ -1,4 +1,5 @@
 import type {
+  OutputStepLabel,
   PipelineConfig,
   StepAiConfig,
   StepConfig,
@@ -70,74 +71,92 @@ export function getStepPromptOverride(
   return null;
 }
 
-/** Localized labels for handout/summary header final line by profile and language. */
-const LOCALIZED_LABELS: Record<
-  string,
-  Record<
-    SupportedProfile,
-    { handout: string; summary: string }
-  >
+/** Mapping from (profile, step) to OutputStepLabel. */
+const STEP_LABEL_MAP: Record<
+  SupportedProfile,
+  Record<AiStepName, OutputStepLabel>
 > = {
-  it: {
-    lecture: { handout: "Dispense della lezione", summary: "Riassunto della lezione" },
-    meeting: { handout: "Dispense della riunione", summary: "Riassunto della riunione" },
-    other: { handout: "Dispense", summary: "Riassunto" },
+  lecture: {
+    cleaning: "Cleaned transcript",
+    handout: "Lecture Handout",
+    summary: "Lecture Summary",
   },
-  italian: {
-    lecture: { handout: "Dispense della lezione", summary: "Riassunto della lezione" },
-    meeting: { handout: "Dispense della riunione", summary: "Riassunto della riunione" },
-    other: { handout: "Dispense", summary: "Riassunto" },
+  meeting: {
+    cleaning: "Cleaned meeting transcript",
+    handout: "Meeting Handout",
+    summary: "Meeting Summary",
   },
-  en: {
-    lecture: { handout: "Lecture Handout", summary: "Lecture Summary" },
-    meeting: { handout: "Meeting Handout", summary: "Meeting Summary" },
-    other: { handout: "Handout", summary: "Summary" },
-  },
-  english: {
-    lecture: { handout: "Lecture Handout", summary: "Lecture Summary" },
-    meeting: { handout: "Meeting Handout", summary: "Meeting Summary" },
-    other: { handout: "Handout", summary: "Summary" },
+  other: {
+    cleaning: "Cleaned transcript",
+    handout: "Handout",
+    summary: "Summary",
   },
 };
 
-function getLocalizedLabel(
-  outputLanguage: string,
-  profile: SupportedProfile,
-  type: "handout" | "summary",
-): string {
-  const key = (outputLanguage ?? "").toLowerCase().trim();
-  const byLang = LOCALIZED_LABELS[key] ?? LOCALIZED_LABELS.en;
-  const labels = byLang[profile];
-  return labels[type];
+/** Returns the English step label for the given profile and step. */
+export function getStepLabel(
+  config: PipelineConfig,
+  step: AiStepName,
+): OutputStepLabel {
+  const profile = config.profile ?? "lecture";
+  return STEP_LABEL_MAP[profile][step];
 }
 
 /**
- * Formats metadata block for injection into handout/summary prompts.
- * Replaces {{METADATA_BLOCK}} placeholder in prompts.
- * When config provides title/authors/date, returns the values; otherwise returns fallback instruction.
+ * Returns the localized step label. For English locale, returns the label directly.
+ * For other locales, uses AI to translate the label.
  */
-export function formatMetadataBlock(
+export async function getLocalizedStepLabel(
   config: PipelineConfig,
-  step: "handout" | "summary",
-): string {
-  const { title, authors, date } = config;
-  const profile = config.profile ?? "lecture";
-  const outputLanguage = config.language?.output ?? "en";
-  const finalLine = getLocalizedLabel(outputLanguage, profile, step);
+  step: AiStepName,
+  aiService: AiService,
+): Promise<string> {
+  const label = getStepLabel(config, step);
+  const outputLang = (config.language?.output ?? "en").toLowerCase().trim();
+  if (outputLang === "en" || outputLang === "english") {
+    return label;
+  }
+  const prompt = `Translate the following phrase to ${outputLang}. Return only the translation, nothing else: ${label}`;
+  const translated = await aiService.generateTextAsync({
+    systemPrompt: "You are a translator. Output only the translated phrase, no other text.",
+    userPrompt: prompt,
+    temperature: 0,
+  });
+  return translated.trim();
+}
 
-  if (title || authors?.length || date) {
-    const parts: string[] = [];
-    if (title) parts.push(`Title: ${title}`);
-    if (authors?.length) parts.push(`Authors: ${authors.join(", ")}`);
-    if (date)
-      parts.push(
-        `Date: ${typeof date === "string" ? date : (date as Date).toLocaleDateString()}`,
-      );
-    parts.push(`Final line (use exactly): ***${finalLine}***`);
-    return `METADATA (use these values exactly):\n${parts.join("\n")}`;
+/**
+ * Builds the metadata header block to prepend to step output.
+ * Title, authors, and date from config; date formatted per output locale.
+ * Omits optional lines when empty; step label is always present.
+ */
+export function buildMetadataHeader(
+  config: PipelineConfig,
+  stepLabel: string,
+): string {
+  const parts: string[] = [];
+  const title = config.title?.trim();
+  const authors = config.authors?.length
+    ? config.authors.join(", ").trim()
+    : "";
+  const date = config.date;
+
+  if (title) parts.push(`# ${title}`);
+  if (authors) parts.push(`**${authors}**`);
+  if (date) {
+    const locale = config.language?.output ?? "en";
+    const localeBcp = locale.length === 2 ? `${locale}-${locale.toUpperCase()}` : locale;
+    const dateObj = typeof date === "string" ? new Date(date) : date;
+    const formatted = new Intl.DateTimeFormat(localeBcp, {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).format(dateObj);
+    parts.push(`**${formatted}**`);
   }
 
-  return `No metadata provided. Infer title, authors, and date from the transcript. Use the localized final line appropriate for the output language (e.g. ***${finalLine}*** for current language).`;
+  parts.push(`***${stepLabel}***`);
+  return parts.join("\n\n");
 }
 
 /** All pipeline step names (ASR + AI steps). */

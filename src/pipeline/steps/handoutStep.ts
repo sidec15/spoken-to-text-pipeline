@@ -2,7 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Step, StepContext } from "../step.js";
 import type { AiService, AiGenerateOptions, HandoutAiGenerateOptions } from "../../services/ai/ai.types.js";
-import { createAiService, resolveAiConfig } from "../../services/ai/aiServiceFactory.js";
+import {
+  buildMetadataHeader,
+  createAiService,
+  getLocalizedStepLabel,
+  resolveAiConfig,
+} from "../../services/ai/aiServiceFactory.js";
 import { loadContextText } from "../../utils/loadContextText.js";
 import type { Logger } from "../../services/logger.js";
 import type { ProgressReporter } from "../../services/progress.js";
@@ -66,7 +71,11 @@ export class HandoutStep implements Step {
       );
     }
 
-    await fs.promises.writeFile(handoutPath, handout, "utf-8");
+    const stepLabel = await getLocalizedStepLabel(config, "handout", aiService);
+    const header = buildMetadataHeader(config, stepLabel);
+    const contentToWrite = header + "\n\n" + handout;
+
+    await fs.promises.writeFile(handoutPath, contentToWrite, "utf-8");
     logger.info(`Handout saved to '${handoutPath}'`);
   }
 

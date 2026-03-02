@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import { AI_PROFILE_PRESETS, METADATA_BLOCK_PLACEHOLDER } from '../../src/config/profilePresets.js';
+import { AI_PROFILE_PRESETS } from '../../src/config/profilePresets.js';
 import type { PipelineConfig } from '../../src/config/config.types.js';
 
 describe('profilePresets', () => {
@@ -96,18 +96,17 @@ describe('profilePresets', () => {
       }
     });
 
-    it('should include METADATA_BLOCK_PLACEHOLDER in handout and summary prompts that have header structure', () => {
-      expect(METADATA_BLOCK_PLACEHOLDER).toBe('{{METADATA_BLOCK}}');
-
+    it('should include no-header instruction in handout and summary prompts', () => {
+      const noHeaderPhrase = 'Do NOT add any title, header, or metadata at the beginning';
       for (const profile of ['lecture', 'meeting', 'other'] as const) {
         const preset = AI_PROFILE_PRESETS[profile];
         if (preset?.handout?.systemPrompt) {
           const sp = preset.handout.systemPrompt as { singlePass?: string; incremental?: string };
-          expect(sp.singlePass).toContain(METADATA_BLOCK_PLACEHOLDER);
-          expect(sp.incremental).toContain(METADATA_BLOCK_PLACEHOLDER);
+          expect(sp.singlePass).toContain(noHeaderPhrase);
+          expect(sp.incremental).toContain(noHeaderPhrase);
         }
         if (preset?.summary?.systemPrompt) {
-          expect(preset.summary.systemPrompt).toContain(METADATA_BLOCK_PLACEHOLDER);
+          expect(preset.summary.systemPrompt).toContain(noHeaderPhrase);
         }
       }
     });

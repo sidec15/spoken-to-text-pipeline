@@ -52,6 +52,8 @@ describe('aiServiceFactory', () => {
   let createAiService: any;
   let resolveAiConfig: any;
   let resolveStepConfig: any;
+  let getStepLabel: any;
+  let buildMetadataHeader: any;
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -59,6 +61,8 @@ describe('aiServiceFactory', () => {
     createAiService = module.createAiService;
     resolveAiConfig = module.resolveAiConfig;
     resolveStepConfig = module.resolveStepConfig;
+    getStepLabel = module.getStepLabel;
+    buildMetadataHeader = module.buildMetadataHeader;
   });
 
   describe('resolveStepConfig', () => {
@@ -311,6 +315,66 @@ describe('aiServiceFactory', () => {
       expect(typeof systemPrompt.incremental).toBe('string');
       expect(systemPrompt.singlePass).toContain('it'); // Language instruction
       expect(systemPrompt.incremental).toContain('it');
+    });
+  });
+
+  describe('getStepLabel', () => {
+    it('should return correct labels for lecture profile', () => {
+      const config = createMockConfig();
+      expect(getStepLabel(config, 'cleaning')).toBe('Cleaned transcript');
+      expect(getStepLabel(config, 'handout')).toBe('Lecture Handout');
+      expect(getStepLabel(config, 'summary')).toBe('Lecture Summary');
+    });
+
+    it('should return correct labels for meeting profile', () => {
+      const config = createMockConfig();
+      config.profile = 'meeting';
+      expect(getStepLabel(config, 'cleaning')).toBe('Cleaned meeting transcript');
+      expect(getStepLabel(config, 'handout')).toBe('Meeting Handout');
+      expect(getStepLabel(config, 'summary')).toBe('Meeting Summary');
+    });
+
+    it('should return correct labels for other profile', () => {
+      const config = createMockConfig();
+      config.profile = 'other';
+      expect(getStepLabel(config, 'cleaning')).toBe('Cleaned transcript');
+      expect(getStepLabel(config, 'handout')).toBe('Handout');
+      expect(getStepLabel(config, 'summary')).toBe('Summary');
+    });
+  });
+
+  describe('buildMetadataHeader', () => {
+    it('should build header with title, authors, date, and step label', () => {
+      const config = createMockConfig();
+      config.title = 'Test Title';
+      config.authors = ['Author 1', 'Author 2'];
+      config.date = '2026-02-07';
+
+      const result = buildMetadataHeader(config, 'Lecture Handout');
+
+      expect(result).toContain('# Test Title');
+      expect(result).toContain('**Author 1, Author 2**');
+      expect(result).toContain('***Lecture Handout***');
+    });
+
+    it('should build header with only step label when no metadata', () => {
+      const config = createMockConfig();
+
+      const result = buildMetadataHeader(config, 'Lecture Summary');
+
+      expect(result).toBe('***Lecture Summary***');
+    });
+
+    it('should format date according to output locale', () => {
+      const config = createMockConfig();
+      config.title = 'Test';
+      config.date = '2026-02-07';
+      config.language = { input: 'en', output: 'en' };
+
+      const result = buildMetadataHeader(config, 'Handout');
+
+      expect(result).toContain('# Test');
+      expect(result).toContain('***Handout***');
     });
   });
 });

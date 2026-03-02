@@ -1,7 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Step, StepContext } from "../step.js";
-import { createAiService, resolveAiConfig } from "../../services/ai/aiServiceFactory.js";
+import {
+  buildMetadataHeader,
+  createAiService,
+  getLocalizedStepLabel,
+  resolveAiConfig,
+} from "../../services/ai/aiServiceFactory.js";
 import type { AiService, AiGenerateOptions } from "../../services/ai/ai.types.js";
 import type { Logger } from "../../services/logger.js";
 import type { ProgressReporter } from "../../services/progress.js";
@@ -45,7 +50,10 @@ export class CleaningStep implements Step {
       return;
     }
 
-    const aiOptions = resolveAiConfig(config, "cleaning");
+    const aiOptions = resolveAiConfig(config, "cleaning") as Omit<
+      AiGenerateOptions,
+      "userPrompt"
+    >;
     const aiService = createAiService(config, "cleaning");
 
     const contextText = loadContextText(config.context?.textSources, baseDir);
@@ -58,6 +66,7 @@ export class CleaningStep implements Step {
     for (let i = 0; i < filesToProcess.length; i++) {
       const file = filesToProcess[i];
       const outputPath = await this.processFile({
+        config,
         file,
         outputDir,
         cleanedDir,
@@ -79,6 +88,7 @@ export class CleaningStep implements Step {
   }
 
   private async processFile(params: {
+    config: StepContext["config"];
     file: string;
     outputDir: string;
     cleanedDir: string;
@@ -91,6 +101,7 @@ export class CleaningStep implements Step {
     progress: ProgressReporter | undefined;
   }): Promise<string> {
     const {
+      config,
       file,
       outputDir,
       cleanedDir,
@@ -146,7 +157,15 @@ export class CleaningStep implements Step {
       maxTokens: aiOptions.maxTokens,
     });
 
-    await fs.promises.writeFile(outputPath, cleaned, "utf-8");
+    let contentToWrite = cleaned;
+    const isFirstFile = rawFiles.indexOf(file) === 0;
+    if (isFirstFile) {
+      const stepLabel = await getLocalizedStepLabel(config, "cleaning", aiService);
+      const header = buildMetadataHeader(config, stepLabel);
+      contentToWrite = header + "\n\n" + cleaned;
+    }
+
+    await fs.promises.writeFile(outputPath, contentToWrite, "utf-8");
 
     fileLogger.silly(`Cleaned transcript saved to '${outputPath}'`);
     progress?.increment();

@@ -36,7 +36,10 @@ const mockCreateAiService = jest.fn().mockReturnValue({
   generateTextAsync: mockGenerateTextAsync,
 });
 const mockResolveAiConfig = jest.fn().mockReturnValue({
-  systemPrompt: 'Create handout',
+  systemPrompt: {
+    singlePass: 'Create handout (single-pass)',
+    incremental: 'Create handout (incremental)',
+  },
   temperature: 0,
 });
 
@@ -85,6 +88,9 @@ describe('HandoutStep', () => {
           model: 'gpt-4o-mini',
         },
       },
+      steps: {
+        handout: { strategy: 'incremental' as const },
+      },
     };
     mockContext = {
       config: mockConfig,
@@ -92,6 +98,19 @@ describe('HandoutStep', () => {
       logger: createMockLogger(),
       progress: createMockProgressReporter(),
     };
+  });
+
+  it('should throw when strategy is missing', async () => {
+    mockConfig.steps = {};
+    mockReaddirSync.mockReturnValue(['cleaned1.md'] as any);
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('handout.md') ? false : true;
+    });
+
+    await expect(step.runAsync(mockContext)).rejects.toThrow(
+      /Handout step requires strategy/
+    );
+    expect(mockCreateAiService).not.toHaveBeenCalled();
   });
 
   it('should call AI service with handout prompt', async () => {
@@ -230,7 +249,8 @@ describe('HandoutStep', () => {
   });
 
   it('should use chunking strategy for large content', async () => {
-    // Arrange
+    // Arrange - chunking only applies to single-pass strategy
+    mockConfig.steps = { handout: { strategy: 'single-pass' as const } };
     const largeContent = 'x'.repeat(400000); // ~100K tokens (exceeds MAX_SAFE_INPUT_TOKENS)
     mockReaddirSync.mockReturnValue(['part-1.md', 'part-2.md'] as any);
     mockExistsSync.mockImplementation((path: string) => {
@@ -238,7 +258,7 @@ describe('HandoutStep', () => {
     });
     mockReadFileSync.mockReturnValue(largeContent);
     mockResolveAiConfig.mockReturnValue({
-      systemPrompt: 'Create handout',
+      systemPrompt: { singlePass: 'Create handout', incremental: 'Create handout' },
       temperature: 0,
     });
 
@@ -293,9 +313,8 @@ describe('HandoutStep', () => {
   });
 
   it('should handle chunking when content exceeds token limits', async () => {
-    // Arrange
-    // Create content large enough to trigger chunking
-    // CHUNK_SIZE_CHARS = 80000 * 4 = 320000, so we need > 320000 chars
+    // Arrange - chunking only applies to single-pass strategy
+    mockConfig.steps = { handout: { strategy: 'single-pass' as const } };
     const largeContent = 'x'.repeat(400000);
     mockReaddirSync.mockReturnValue(['part-1.md', 'part-2.md'] as any);
     mockExistsSync.mockImplementation((path: string) => {
@@ -303,17 +322,15 @@ describe('HandoutStep', () => {
     });
     mockReadFileSync.mockReturnValue(largeContent);
     mockResolveAiConfig.mockReturnValue({
-      systemPrompt: 'Create handout',
+      systemPrompt: { singlePass: 'Create handout', incremental: 'Create handout' },
       temperature: 0,
     });
-    // Mock chunk result
     mockGenerateTextAsync.mockResolvedValue('chunk handout');
 
     // Act
     await step.runAsync(mockContext);
 
     // Assert
-    // Should use chunking strategy
     expect(mockContext.logger.warn).toHaveBeenCalledWith(
       expect.stringContaining('exceeds safe limit')
     );
@@ -321,19 +338,18 @@ describe('HandoutStep', () => {
   });
 
   it('should handle multiple chunks and merge', async () => {
-    // Arrange
-    // Create content large enough to trigger multiple chunks
-    const largeContent = 'x'.repeat(700000); // Large enough for multiple chunks
+    // Arrange - chunking only applies to single-pass strategy
+    mockConfig.steps = { handout: { strategy: 'single-pass' as const } };
+    const largeContent = 'x'.repeat(700000);
     mockReaddirSync.mockReturnValue(['part-1.md', 'part-2.md', 'part-3.md'] as any);
     mockExistsSync.mockImplementation((path: string) => {
       return path.includes('handout.md') ? false : true;
     });
     mockReadFileSync.mockReturnValue(largeContent);
     mockResolveAiConfig.mockReturnValue({
-      systemPrompt: 'Create handout',
+      systemPrompt: { singlePass: 'Create handout', incremental: 'Create handout' },
       temperature: 0,
     });
-    // Mock multiple chunk results and final merge
     mockGenerateTextAsync
       .mockResolvedValueOnce('chunk 1 handout')
       .mockResolvedValueOnce('chunk 2 handout')
@@ -343,7 +359,6 @@ describe('HandoutStep', () => {
     await step.runAsync(mockContext);
 
     // Assert
-    // Should call generateTextAsync multiple times (chunks + merge)
     expect(mockGenerateTextAsync.mock.calls.length).toBeGreaterThanOrEqual(2);
     expect(mockWriteFile).toHaveBeenCalled();
   });
@@ -363,7 +378,7 @@ describe('HandoutStep', () => {
     await step.runAsync(mockContext);
 
     // Assert
-    expect(mockLoadContextText).toHaveBeenCalledWith(['ref1.txt', 'ref2.md'], undefined);
+    expect(mockLoadContextText).toHaveBeenCalledWith(['ref1.txt', 'ref2.md']);
     expect(mockGenerateTextAsync).toHaveBeenCalled();
     const generateCall = (mockGenerateTextAsync.mock.calls[0] as any[])[0] as any;
     expect(generateCall.manualContextText).toBe(contextText);
@@ -383,14 +398,15 @@ describe('HandoutStep', () => {
     await step.runAsync(mockContext);
 
     // Assert
-    expect(mockLoadContextText).toHaveBeenCalledWith(undefined, undefined);
+    expect(mockLoadContextText).toHaveBeenCalledWith([]);
     expect(mockGenerateTextAsync).toHaveBeenCalled();
     const generateCall = (mockGenerateTextAsync.mock.calls[0] as any[])[0] as any;
     expect(generateCall.manualContextText).toBeUndefined();
   });
 
   it('should pass context to AI service during chunking', async () => {
-    // Arrange
+    // Arrange - chunking only applies to single-pass strategy
+    mockConfig.steps = { handout: { strategy: 'single-pass' as const } };
     const contextText = 'reference material content';
     (mockLoadContextText as jest.Mock).mockReturnValue(contextText);
     mockConfig.context = { textSources: ['ref.txt'] };
@@ -401,7 +417,7 @@ describe('HandoutStep', () => {
     });
     mockReadFileSync.mockReturnValue(largeContent);
     mockResolveAiConfig.mockReturnValue({
-      systemPrompt: 'Create handout',
+      systemPrompt: { singlePass: 'Create handout', incremental: 'Create handout' },
       temperature: 0,
     });
     mockGenerateTextAsync.mockResolvedValue('chunk handout');
@@ -410,7 +426,6 @@ describe('HandoutStep', () => {
     await step.runAsync(mockContext);
 
     // Assert
-    // Should pass context to all AI calls (chunks and merge)
     expect(mockGenerateTextAsync.mock.calls.length).toBeGreaterThan(0);
     mockGenerateTextAsync.mock.calls.forEach((call: any[]) => {
       expect(call[0]).toMatchObject({

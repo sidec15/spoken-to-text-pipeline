@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Step, StepContext } from "../step.js";
-import type { AiService, AiGenerateOptions } from "../../services/ai/ai.types.js";
+import type { AiService, AiGenerateOptions, HandoutAiGenerateOptions } from "../../services/ai/ai.types.js";
 import { createAiService, resolveAiConfig } from "../../services/ai/aiServiceFactory.js";
 import { loadContextText } from "../../utils/loadContextText.js";
 import type { PipelineConfig } from "../../config/config.types.js";
@@ -24,24 +24,48 @@ export class HandoutStep implements Step {
       return;
     }
 
-    const mergedContent = this.mergeCleanedFiles(cleanedFiles, outputDir);
-    const estimatedInputTokens = this.estimateTokens(mergedContent, logger);
+    const strategy = config.steps?.handout?.strategy;
+    if (!strategy) {
+      throw new Error(
+        "Handout step requires strategy. Set steps.handout.strategy to 'incremental' or 'single-pass' in your pipeline config.",
+      );
+    }
 
-    const aiOptions = resolveAiConfig(config, "handout");
+    const aiOptions = resolveAiConfig(config, "handout") as Omit<HandoutAiGenerateOptions, "userPrompt">;
     const aiService = createAiService(config, "handout");
     const contextText = loadContextText(config.context?.textSources, baseDir);
 
-    const handout = await this.generateHandout(
-      aiService,
-      aiOptions,
-      cleanedFiles,
-      outputDir,
-      mergedContent,
-      estimatedInputTokens,
-      contextText,
-      logger,
-      progress,
-    );
+    const systemPrompt =
+      strategy === "incremental" ? aiOptions.systemPrompt.incremental : aiOptions.systemPrompt.singlePass;
+
+    let handout: string;
+    if (strategy === "incremental") {
+      logger.info("Using incremental handout strategy");
+      handout = await this.generateHandoutIncremental(
+        aiService,
+        { ...aiOptions, systemPrompt },
+        cleanedFiles,
+        outputDir,
+        contextText,
+        logger,
+        progress,
+      );
+    } else {
+      logger.info("Using single-pass handout strategy");
+      const mergedContent = this.mergeCleanedFiles(cleanedFiles, outputDir);
+      const estimatedInputTokens = this.estimateTokens(mergedContent, logger);
+      handout = await this.generateHandoutSinglePass(
+        aiService,
+        { ...aiOptions, systemPrompt },
+        cleanedFiles,
+        outputDir,
+        mergedContent,
+        estimatedInputTokens,
+        contextText,
+        logger,
+        progress,
+      );
+    }
 
     await fs.promises.writeFile(handoutPath, handout, "utf-8");
     logger.info(`Handout saved to '${handoutPath}'`);
@@ -109,7 +133,55 @@ export class HandoutStep implements Step {
     return estimatedInputTokens;
   }
 
-  private async generateHandout(
+  /** Last N characters of previous handout to pass as context (keeps token usage bounded). */
+  private static readonly PREVIOUS_HANDOUT_EXCERPT_CHARS = 4000;
+
+  private async generateHandoutIncremental(
+    aiService: AiService,
+    aiOptions: Omit<AiGenerateOptions, "userPrompt">,
+    cleanedFiles: string[],
+    outputDir: string,
+    contextText: string | undefined,
+    logger: Logger,
+    progress: ProgressReporter | undefined,
+  ): Promise<string> {
+    const cleanedDir = path.join(outputDir, "cleaned");
+    let accumulatedHandout = "";
+
+    progress?.start(cleanedFiles.length, "Generating handout (incremental)");
+
+    for (let i = 0; i < cleanedFiles.length; i++) {
+      const file = cleanedFiles[i];
+      const content = fs.readFileSync(path.join(cleanedDir, file), "utf-8");
+
+      progress?.updateMessage(
+        `Generating handout (incremental) - File ${i + 1}/${cleanedFiles.length}: ${file}`,
+      );
+
+      const userPrompt =
+        accumulatedHandout === ""
+          ? content
+          : `PREVIOUS HANDOUT (last portion only):\n\n${accumulatedHandout.slice(-HandoutStep.PREVIOUS_HANDOUT_EXCERPT_CHARS).trim()}\n\n---\n\nNEW TRANSCRIPT TO INTEGRATE:\n\n${content}`;
+
+      const result = await aiService.generateTextAsync({
+        systemPrompt: aiOptions.systemPrompt,
+        manualContextText: contextText || undefined,
+        userPrompt,
+        temperature: aiOptions.temperature,
+      });
+
+      accumulatedHandout =
+        accumulatedHandout === ""
+          ? result
+          : accumulatedHandout + "\n\n" + result;
+      progress?.increment();
+    }
+
+    progress?.stop();
+    return accumulatedHandout;
+  }
+
+  private async generateHandoutSinglePass(
     aiService: AiService,
     aiOptions: Omit<AiGenerateOptions, "userPrompt">,
     cleanedFiles: string[],
@@ -120,13 +192,11 @@ export class HandoutStep implements Step {
     logger: Logger,
     progress: ProgressReporter | undefined,
   ): Promise<string> {
-    // Conservative context limit: most models support at least 100K tokens
-    // Reserve space for system prompt (~500 tokens) and output buffer
-    const MAX_SAFE_INPUT_TOKENS = 90000; // Leave room for system prompt and output
+    const MAX_SAFE_INPUT_TOKENS = 90000;
 
     if (estimatedInputTokens > MAX_SAFE_INPUT_TOKENS) {
       logger.warn(
-        `Input content (${estimatedInputTokens} tokens) exceeds safe limit (${MAX_SAFE_INPUT_TOKENS} tokens). Using chunking strategy.`,
+        `Input content (${estimatedInputTokens} tokens) exceeds safe limit (${MAX_SAFE_INPUT_TOKENS} tokens). Using chunking fallback.`,
       );
       return await this.generateHandoutWithChunking(
         aiService,
@@ -139,30 +209,12 @@ export class HandoutStep implements Step {
       );
     }
 
-    return await this.generateSinglePassHandout(
-      aiService,
-      aiOptions,
-      mergedContent,
-      contextText,
-      logger,
-    );
-  }
-
-  private async generateSinglePassHandout(
-    aiService: AiService,
-    aiOptions: Omit<AiGenerateOptions, "userPrompt">,
-    mergedContent: string,
-    contextText: string | undefined,
-    logger: Logger,
-  ): Promise<string> {
-    // Single pass - process all content at once
     logger.info("Processing input content in a single pass");
     return await aiService.generateTextAsync({
       systemPrompt: aiOptions.systemPrompt,
       manualContextText: contextText || undefined,
       userPrompt: mergedContent,
       temperature: aiOptions.temperature,
-      // maxTokens is intentionally not set for handout to allow full-length output
     });
   }
 

@@ -82,7 +82,7 @@ const STEP_LABEL_MAP: Record<
     summary: "Lecture Summary",
   },
   meeting: {
-    cleaning: "Cleaned meeting transcript",
+    cleaning: "Cleaned transcript",
     handout: "Meeting Handout",
     summary: "Meeting Summary",
   },

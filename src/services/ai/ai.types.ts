@@ -12,7 +12,8 @@ export interface AiGenerateOptions {
   maxTokens?: number;
 }
 
-export interface HandoutAiGenerateOptions extends AiGenerateOptions {
+export interface HandoutAiGenerateOptions
+  extends Omit<AiGenerateOptions, "systemPrompt"> {
   systemPrompt: {
     singlePass: string;
     incremental: string;

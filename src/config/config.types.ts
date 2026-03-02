@@ -19,7 +19,7 @@ export type OutputStepLabel =
   | "Meeting Summary"
   | "Summary"
   | "Cleaned transcript"
-  | "Cleaned meeting transcript";
+  ;
 
 /**
  * Supported AI providers for text processing steps (cleaning, handout, summary).

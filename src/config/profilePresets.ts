@@ -1,5 +1,8 @@
 import type { PipelineConfig } from "./config.types.js";
-import type { AiGenerateOptions } from "../services/ai/ai.types.js";
+import type {
+  AiGenerateOptions,
+  HandoutAiGenerateOptions,
+} from "../services/ai/ai.types.js";
 
 export type AiStepName = "cleaning" | "handout" | "summary";
 
@@ -64,14 +67,21 @@ ${userPrompt}
   `.trim();
 }
 
+/** Preset type: cleaning/summary use string systemPrompt; handout uses dual prompts. */
+type ProfilePresets = Record<
+  PipelineConfig["profile"],
+  {
+    cleaning?: Omit<AiGenerateOptions, "userPrompt">;
+    handout?: Omit<HandoutAiGenerateOptions, "userPrompt">;
+    summary?: Omit<AiGenerateOptions, "userPrompt">;
+  }
+>;
+
 /**
  * Default AI presets organized by profile and step.
  * These are provider-agnostic defaults that can be overridden via config.
  */
-export const AI_PROFILE_PRESETS: Record<
-  PipelineConfig["profile"],
-  Partial<Record<AiStepName, Omit<AiGenerateOptions, "userPrompt">>>
-> = {
+export const AI_PROFILE_PRESETS: ProfilePresets = {
   lecture: {
     cleaning: {
       temperature: 0,

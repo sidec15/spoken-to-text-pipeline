@@ -48,7 +48,11 @@ describe('profilePresets', () => {
       expect(lecturePreset.handout).toHaveProperty('temperature');
       expect(lecturePreset.handout).toHaveProperty('systemPrompt');
       expect(typeof lecturePreset.handout?.temperature).toBe('number');
-      expect(typeof lecturePreset.handout?.systemPrompt).toBe('string');
+      // handout has dual prompts: singlePass and incremental
+      expect(lecturePreset.handout?.systemPrompt).toHaveProperty('singlePass');
+      expect(lecturePreset.handout?.systemPrompt).toHaveProperty('incremental');
+      expect(typeof lecturePreset.handout?.systemPrompt?.singlePass).toBe('string');
+      expect(typeof lecturePreset.handout?.systemPrompt?.incremental).toBe('string');
       
       expect(lecturePreset.summary).toHaveProperty('temperature');
       expect(lecturePreset.summary).toHaveProperty('systemPrompt');

@@ -1,5 +1,5 @@
-import type { PipelineConfig, StepAiConfig } from "../../config/config.types.js";
-import type { AiService, AiGenerateOptions } from "./ai.types.js";
+import type { PipelineConfig, StepAiConfig, StepConfig } from "../../config/config.types.js";
+import type { AiService, AiGenerateOptions, HandoutAiGenerateOptions } from "./ai.types.js";
 import { loadContextText } from "../../utils/loadContextText.js";
 import { OpenAiService } from "./openai/openaiAiService.js";
 import { DeepSeekAiService } from "./deepseek/deepseekAiService.js";
@@ -10,12 +10,48 @@ import { resolveOllamaConfig } from "./ollama/resolveOllamaConfig.js";
 
 export type AiStepName = "cleaning" | "handout" | "summary";
 
+export type HandoutStrategy = "incremental" | "single-pass";
+
 /**
  * Returns the step system prompt override from config if set.
- * Precedence: steps[step].prompt (inline) > steps[step].promptFile (file content). Otherwise null.
+ * For cleaning/summary: steps[step].prompt (inline) > steps[step].promptFile (file content).
+ * For handout: steps.handout[strategy].prompt > steps.handout[strategy].promptFile.
+ * Otherwise null.
  */
-export function getStepPromptOverride(config: PipelineConfig, step: AiStepName): string | null {
-  const stepCfg = config.steps?.[step];
+export function getStepPromptOverride(
+  config: PipelineConfig,
+  step: "cleaning" | "summary",
+): string | null;
+export function getStepPromptOverride(
+  config: PipelineConfig,
+  step: "handout",
+  strategy: HandoutStrategy,
+): string | null;
+export function getStepPromptOverride(
+  config: PipelineConfig,
+  step: AiStepName,
+  strategy?: HandoutStrategy,
+): string | null {
+  if (step === "handout" && strategy) {
+    const handoutCfg = config.steps?.handout;
+    if (!handoutCfg) return null;
+    const override = strategy === "incremental" ? handoutCfg.incremental : handoutCfg.singlePass;
+    if (!override) return null;
+    const prompt = override.prompt;
+    if (typeof prompt === "string" && prompt.trim() !== "") {
+      return prompt.trim();
+    }
+    const promptFile = override.promptFile;
+    if (typeof promptFile === "string" && promptFile.trim() !== "") {
+      const baseDir = config.configDir ?? process.cwd();
+      return loadContextText([promptFile.trim()], baseDir);
+    }
+    return null;
+  }
+
+  if (step === "handout") return null;
+
+  const stepCfg = config.steps?.[step] as StepConfig | undefined;
   if (!stepCfg) return null;
   const prompt = stepCfg.prompt;
   if (typeof prompt === "string" && prompt.trim() !== "") {
@@ -132,11 +168,12 @@ export function createAiService(config: PipelineConfig, step: AiStepName): AiSer
 /**
  * Resolves AI configuration options for a specific step.
  * Returns preset-based config merged with step-specific overrides.
+ * For handout step, returns HandoutAiGenerateOptions with separate singlePass and incremental prompts.
  */
 export function resolveAiConfig(
   config: PipelineConfig,
   step: AiStepName,
-): Omit<AiGenerateOptions, "userPrompt"> {
+): Omit<AiGenerateOptions, "userPrompt"> | Omit<HandoutAiGenerateOptions, "userPrompt"> {
   const stepConfig = resolveStepConfig(config, step);
 
   if (stepConfig.provider === "openai") {

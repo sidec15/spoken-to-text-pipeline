@@ -49,10 +49,16 @@ describe('resolveDeepSeekConfig', () => {
 
     // Act
     const result = resolveDeepSeekConfig(config, 'handout', stepConfig);
+    const systemPrompt = result.systemPrompt as { singlePass: string; incremental: string };
 
-    // Assert
-    expect(result.systemPrompt).toBeDefined();
-    expect(result.systemPrompt).toContain('it'); // Language instruction
+    // Assert - handout returns HandoutAiGenerateOptions with dual prompts
+    expect(systemPrompt).toBeDefined();
+    expect(systemPrompt).toHaveProperty('singlePass');
+    expect(systemPrompt).toHaveProperty('incremental');
+    expect(typeof systemPrompt.singlePass).toBe('string');
+    expect(typeof systemPrompt.incremental).toBe('string');
+    expect(systemPrompt.singlePass).toContain('it'); // Language instruction
+    expect(systemPrompt.incremental).toContain('it'); // Language instruction
   });
 
   it('should resolve config for summary step', () => {

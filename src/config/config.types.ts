@@ -115,14 +115,41 @@ export interface StepConfig {
   aiConfig?: Partial<StepAiConfig>;
 }
 
-export interface HandoutStepConfig extends StepConfig {
+/**
+ * Strategy-specific prompt override for handout step.
+ * Allows overriding the system prompt separately for each strategy.
+ */
+export interface HandoutStrategyPromptOverride {
+  /**
+   * Inline system prompt override (optional).
+   * Takes precedence over promptFile when both are set.
+   */
+  prompt?: string;
+  /**
+   * Path to a text or markdown file containing the system prompt (optional).
+   * Resolved relative to the config file directory. Used only when prompt is not set.
+   */
+  promptFile?: string;
+}
+
+export interface HandoutStepConfig extends Omit<StepConfig, "prompt" | "promptFile"> {
   /**
    * Strategy to use for the handout step (required).
-   * - "incremental": Split the handout into chunks, one for each input cleaned file, and process them incrementally.
-   * - "single-pass": Generate the handout in a single pass.
+   * - "incremental": Process one cleaned transcript file at a time, progressively extending the handout.
+   * - "single-pass": Merge all cleaned transcripts and generate the handout. Uses chunking fallback when content exceeds token limit.
    */
   strategy: "incremental" | "single-pass";
-};
+  /**
+   * Prompt override for single-pass strategy (optional).
+   * Falls back to profile preset when not provided.
+   */
+  singlePass?: HandoutStrategyPromptOverride;
+  /**
+   * Prompt override for incremental strategy (optional).
+   * Falls back to profile preset when not provided.
+   */
+  incremental?: HandoutStrategyPromptOverride;
+}
 
 /**
  * AI configuration for text processing steps.

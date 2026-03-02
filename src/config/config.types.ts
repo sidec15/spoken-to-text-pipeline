@@ -19,6 +19,7 @@ export type OutputStepLabel =
   | "Meeting Summary"
   | "Summary"
   | "Cleaned transcript"
+  | "Raw transcript"
   ;
 
 /**

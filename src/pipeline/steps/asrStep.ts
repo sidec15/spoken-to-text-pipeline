@@ -1,6 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Step, StepContext } from "../step.js";
+import {
+  buildMetadataHeader,
+  createAiService,
+  getLocalizedStepLabelForAsr,
+} from "../../services/ai/aiServiceFactory.js";
+import type { AiService } from "../../services/ai/ai.types.js";
 import { WhisperAsrService } from "../../services/asr/whisperAsrService.js";
 import { resolveWhisperConfig } from "../../services/asr/resolveWhisperConfig.js";
 import type { ProgressReporter } from "../../types.js";
@@ -53,16 +59,39 @@ export class AsrStep implements Step {
     // Only called when there are files to process, not when step is skipped
     const whisperConfig = resolveWhisperConfig(config);
 
+    // Create AI service only when needed for label localization (non-English output)
+    const outputLang = (config.language?.output ?? "en").toLowerCase().trim();
+    const needsAiForLabel = outputLang !== "en" && outputLang !== "english";
+    let aiServiceForLabel: AiService | undefined;
+    if (needsAiForLabel) {
+      try {
+        aiServiceForLabel = createAiService(config, "cleaning");
+      } catch {
+        // No AI config; will fall back to English label
+      }
+    }
+
     progress?.start(filesToProcess.length, "Transcribing audio");
 
-    for (const file of filesToProcess) {
+    for (let i = 0; i < filesToProcess.length; i++) {
+      const file = filesToProcess[i];
       const base = path.parse(file).name;
       const inputPath = path.join(inputDir, file);
       const outputPath = path.join(transcriptsDir, `${base}.txt`);
+      const isFirstFile = i === 0;
 
       const fileLogger = logger.withContext({ file });
 
-      await this.transcribeFileAsync(inputPath, outputPath, whisperConfig, fileLogger, progress);
+      await this.transcribeFileAsync(
+        inputPath,
+        outputPath,
+        whisperConfig,
+        config,
+        isFirstFile,
+        aiServiceForLabel,
+        fileLogger,
+        progress,
+      );
 
       progress?.increment();
     }
@@ -76,6 +105,9 @@ export class AsrStep implements Step {
     inputPath: string,
     outputPath: string,
     whisperConfig: ReturnType<typeof resolveWhisperConfig>,
+    config: StepContext["config"],
+    isFirstFile: boolean,
+    aiServiceForLabel: AiService | undefined,
     logger: StepContext["logger"],
     progress: ProgressReporter,
   ): Promise<void> {
@@ -91,7 +123,15 @@ export class AsrStep implements Step {
       whisperConfig.options,
     );
 
-    await fs.promises.writeFile(outputPath, transcriptionBuffer);
+    const text = transcriptionBuffer.toString("utf-8");
+    let contentToWrite = text;
+    if (isFirstFile) {
+      const stepLabel = await getLocalizedStepLabelForAsr(config, aiServiceForLabel);
+      const header = buildMetadataHeader(config, stepLabel);
+      contentToWrite = header + "\n\n" + text;
+    }
+
+    await fs.promises.writeFile(outputPath, contentToWrite, "utf-8");
 
     logger.silly(`Transcription saved to '${outputPath}'`);
   }

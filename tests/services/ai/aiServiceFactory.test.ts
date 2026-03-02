@@ -53,6 +53,8 @@ describe('aiServiceFactory', () => {
   let resolveAiConfig: any;
   let resolveStepConfig: any;
   let getStepLabel: any;
+  let getStepLabelForAsr: any;
+  let getLocalizedStepLabelForAsr: any;
   let buildMetadataHeader: any;
 
   beforeEach(async () => {
@@ -62,6 +64,8 @@ describe('aiServiceFactory', () => {
     resolveAiConfig = module.resolveAiConfig;
     resolveStepConfig = module.resolveStepConfig;
     getStepLabel = module.getStepLabel;
+    getStepLabelForAsr = module.getStepLabelForAsr;
+    getLocalizedStepLabelForAsr = module.getLocalizedStepLabelForAsr;
     buildMetadataHeader = module.buildMetadataHeader;
   });
 
@@ -329,7 +333,7 @@ describe('aiServiceFactory', () => {
     it('should return correct labels for meeting profile', () => {
       const config = createMockConfig();
       config.profile = 'meeting';
-      expect(getStepLabel(config, 'cleaning')).toBe('Cleaned meeting transcript');
+      expect(getStepLabel(config, 'cleaning')).toBe('Cleaned transcript');
       expect(getStepLabel(config, 'handout')).toBe('Meeting Handout');
       expect(getStepLabel(config, 'summary')).toBe('Meeting Summary');
     });
@@ -340,6 +344,33 @@ describe('aiServiceFactory', () => {
       expect(getStepLabel(config, 'cleaning')).toBe('Cleaned transcript');
       expect(getStepLabel(config, 'handout')).toBe('Handout');
       expect(getStepLabel(config, 'summary')).toBe('Summary');
+    });
+  });
+
+  describe('getStepLabelForAsr', () => {
+    it('should return Raw transcript for any profile', () => {
+      const config = createMockConfig();
+      expect(getStepLabelForAsr(config)).toBe('Raw transcript');
+      config.profile = 'meeting';
+      expect(getStepLabelForAsr(config)).toBe('Raw transcript');
+      config.profile = 'other';
+      expect(getStepLabelForAsr(config)).toBe('Raw transcript');
+    });
+  });
+
+  describe('getLocalizedStepLabelForAsr', () => {
+    it('should return English label when output is English', async () => {
+      const config = createMockConfig();
+      config.language = { input: 'it', output: 'en' };
+      const result = await getLocalizedStepLabelForAsr(config);
+      expect(result).toBe('Raw transcript');
+    });
+
+    it('should return English label when aiService is not provided', async () => {
+      const config = createMockConfig();
+      config.language = { input: 'it', output: 'it' };
+      const result = await getLocalizedStepLabelForAsr(config, undefined);
+      expect(result).toBe('Raw transcript');
     });
   });
 

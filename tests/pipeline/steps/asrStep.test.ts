@@ -58,7 +58,7 @@ describe('AsrStep', () => {
     step = new AsrStep();
     mockConfig = {
       profile: 'lecture',
-      language: { input: 'it', output: 'it' },
+      language: { input: 'it', output: 'en' },
       logging: { level: 'info', singleLine: true },
       paths: { inputDir: './input', outputDir: './output' },
       asr: {
@@ -131,6 +131,25 @@ describe('AsrStep', () => {
 
     // Assert
     expect(mockWriteFile).toHaveBeenCalled();
+  });
+
+  it('should prepend metadata header to first transcript', async () => {
+    // Arrange
+    mockConfig.title = 'Test Lecture';
+    mockConfig.authors = ['Author One'];
+    mockReaddirSync.mockReturnValue(['audio.wav'] as any);
+    mockExistsSync.mockReturnValue(false);
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert
+    expect(mockWriteFile).toHaveBeenCalled();
+    const writtenContent = mockWriteFile.mock.calls[0][1] as string;
+    expect(writtenContent).toContain('# Test Lecture');
+    expect(writtenContent).toContain('**Author One**');
+    expect(writtenContent).toContain('***Raw transcript***');
+    expect(writtenContent).toContain('transcript text');
   });
 
   it('should update progress', async () => {

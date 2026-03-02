@@ -125,6 +125,40 @@ export async function getLocalizedStepLabel(
   return translated.trim();
 }
 
+/** ASR step label (profile-independent). */
+const ASR_STEP_LABEL: OutputStepLabel = "Raw transcript";
+
+/** Returns the English step label for the ASR step. */
+export function getStepLabelForAsr(config: PipelineConfig): OutputStepLabel {
+  return ASR_STEP_LABEL;
+}
+
+/**
+ * Returns the localized step label for the ASR step.
+ * For English locale, returns the label directly.
+ * For other locales, uses AI to translate when aiService is provided; otherwise falls back to English.
+ */
+export async function getLocalizedStepLabelForAsr(
+  config: PipelineConfig,
+  aiService?: AiService,
+): Promise<string> {
+  const label = getStepLabelForAsr(config);
+  const outputLang = (config.language?.output ?? "en").toLowerCase().trim();
+  if (outputLang === "en" || outputLang === "english") {
+    return label;
+  }
+  if (!aiService) {
+    return label;
+  }
+  const prompt = `Translate the following phrase to ${outputLang}. Return only the translation, nothing else: ${label}`;
+  const translated = await aiService.generateTextAsync({
+    systemPrompt: "You are a translator. Output only the translated phrase, no other text.",
+    userPrompt: prompt,
+    temperature: 0,
+  });
+  return translated.trim();
+}
+
 /**
  * Builds the metadata header block to prepend to step output.
  * Title, authors, and date from config; date formatted per output locale.

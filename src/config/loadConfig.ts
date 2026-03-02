@@ -137,6 +137,25 @@ function validateUserConfig(config: Record<string, unknown>, configPath: string)
     }
   }
 
+  // Validate metadata (title, authors, date) - used in handout header
+  if ("title" in config && config.title !== undefined && typeof config.title !== "string") {
+    errors.push("Invalid 'title' field (must be a string)");
+  }
+  if ("authors" in config && config.authors !== undefined) {
+    if (!Array.isArray(config.authors)) {
+      errors.push("Invalid 'authors' field (must be an array of strings)");
+    } else {
+      for (let i = 0; i < config.authors.length; i++) {
+        if (typeof config.authors[i] !== "string") {
+          errors.push(`Invalid 'authors[${i}]' field (must be a string)`);
+        }
+      }
+    }
+  }
+  if ("date" in config && config.date !== undefined && typeof config.date !== "string") {
+    errors.push("Invalid 'date' field (must be a string)");
+  }
+
   // Validate language (if provided)
   if ("language" in config && config.language !== undefined) {
     if (typeof config.language !== "object" || config.language === null) {

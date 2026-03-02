@@ -178,6 +178,93 @@ describe('resolveOpenAiConfig', () => {
     expect(systemPrompt.singlePass).not.toContain('Custom incremental handout prompt');
   });
 
+  it('should include metadata block in handout prompts when title, authors, or date are set', () => {
+    // Arrange
+    const config = createMockConfig();
+    config.title = 'Post-razionalismo';
+    config.authors = ['Prof. Giovanni Turella'];
+    config.date = '07 febbraio 2026';
+    const stepConfig = createStepConfig();
+
+    // Act
+    const result = resolveOpenAiConfig(config, 'handout', stepConfig);
+    const systemPrompt = result.systemPrompt as { singlePass: string; incremental: string };
+
+    // Assert - metadata block present in both prompts
+    expect(systemPrompt.singlePass).toContain('METADATA');
+    expect(systemPrompt.singlePass).toContain('Title: Post-razionalismo');
+    expect(systemPrompt.singlePass).toContain('Authors: Prof. Giovanni Turella');
+    expect(systemPrompt.singlePass).toContain('Date: 07 febbraio 2026');
+    expect(systemPrompt.incremental).toContain('METADATA');
+    expect(systemPrompt.incremental).toContain('Title: Post-razionalismo');
+    expect(systemPrompt.incremental).toContain('Authors: Prof. Giovanni Turella');
+    expect(systemPrompt.incremental).toContain('Date: 07 febbraio 2026');
+  });
+
+  it('should not include metadata block when title, authors, and date are absent', () => {
+    // Arrange - createMockConfig has no title, authors, date
+    const config = createMockConfig();
+    const stepConfig = createStepConfig();
+
+    // Act
+    const result = resolveOpenAiConfig(config, 'handout', stepConfig);
+    const systemPrompt = result.systemPrompt as { singlePass: string; incremental: string };
+
+    // Assert
+    expect(systemPrompt.singlePass).not.toContain('METADATA (use these values exactly)');
+    expect(systemPrompt.incremental).not.toContain('METADATA (use these values exactly)');
+  });
+
+  it('should include Italian localized handout label when language.output is it', () => {
+    // Arrange - Italian output
+    const config = createMockConfig();
+    config.title = 'Repertorio dell\'Aggressività';
+    config.authors = ['Prof. Ligozzi'];
+    config.date = '07 febbraio 2026';
+    config.language = { input: 'it', output: 'it' };
+    const stepConfig = createStepConfig();
+
+    // Act
+    const result = resolveOpenAiConfig(config, 'handout', stepConfig);
+    const systemPrompt = result.systemPrompt as { singlePass: string; incremental: string };
+
+    // Assert - Italian localized label for handout
+    expect(systemPrompt.singlePass).toContain('***Dispense della lezione***');
+    expect(systemPrompt.incremental).toContain('***Dispense della lezione***');
+  });
+
+  it('should include metadata block in summary prompt when title, authors, or date are set', () => {
+    // Arrange
+    const config = createMockConfig();
+    config.title = 'Repertorio dell\'Aggressività';
+    config.authors = ['Prof. Ligozzi'];
+    config.date = '07 febbraio 2026';
+    config.language = { input: 'it', output: 'it' };
+    const stepConfig = createStepConfig();
+
+    // Act
+    const result = resolveOpenAiConfig(config, 'summary', stepConfig);
+
+    // Assert - metadata block present with Italian localized summary label
+    expect(result.systemPrompt).toContain('METADATA (use these values exactly)');
+    expect(result.systemPrompt).toContain('Title: Repertorio dell\'Aggressività');
+    expect(result.systemPrompt).toContain('Authors: Prof. Ligozzi');
+    expect(result.systemPrompt).toContain('Date: 07 febbraio 2026');
+    expect(result.systemPrompt).toContain('***Riassunto della lezione***');
+  });
+
+  it('should not include metadata block in summary when title, authors, and date are absent', () => {
+    // Arrange
+    const config = createMockConfig();
+    const stepConfig = createStepConfig();
+
+    // Act
+    const result = resolveOpenAiConfig(config, 'summary', stepConfig);
+
+    // Assert
+    expect(result.systemPrompt).not.toContain('METADATA (use these values exactly)');
+  });
+
   it('should prefer steps.cleaning.prompt over promptFile when both set', () => {
     // Arrange
     const config = createMockConfig();

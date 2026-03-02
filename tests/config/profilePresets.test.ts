@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import { AI_PROFILE_PRESETS } from '../../src/config/profilePresets.js';
+import { AI_PROFILE_PRESETS, METADATA_BLOCK_PLACEHOLDER } from '../../src/config/profilePresets.js';
 import type { PipelineConfig } from '../../src/config/config.types.js';
 
 describe('profilePresets', () => {
@@ -93,6 +93,22 @@ describe('profilePresets', () => {
       // Assert
       for (const profile of profiles) {
         expect(AI_PROFILE_PRESETS[profile]).toBeDefined();
+      }
+    });
+
+    it('should include METADATA_BLOCK_PLACEHOLDER in handout and summary prompts that have header structure', () => {
+      expect(METADATA_BLOCK_PLACEHOLDER).toBe('{{METADATA_BLOCK}}');
+
+      for (const profile of ['lecture', 'meeting', 'other'] as const) {
+        const preset = AI_PROFILE_PRESETS[profile];
+        if (preset?.handout?.systemPrompt) {
+          const sp = preset.handout.systemPrompt as { singlePass?: string; incremental?: string };
+          expect(sp.singlePass).toContain(METADATA_BLOCK_PLACEHOLDER);
+          expect(sp.incremental).toContain(METADATA_BLOCK_PLACEHOLDER);
+        }
+        if (preset?.summary?.systemPrompt) {
+          expect(preset.summary.systemPrompt).toContain(METADATA_BLOCK_PLACEHOLDER);
+        }
       }
     });
   });

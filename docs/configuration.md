@@ -7,6 +7,7 @@ The pipeline is configured via a JSON file (default: `pipeline.config.json`). Th
 - [Configuration File Structure](#configuration-file-structure)
 - [Configuration Defaults](#configuration-defaults)
 - [Profiles](#profiles)
+- [Metadata (title, authors, date)](#metadata-title-authors-date)
 - [Language Configuration](#language-configuration)
 - [Logging Configuration](#logging-configuration)
 - [Paths Configuration](#paths-configuration)
@@ -109,6 +110,41 @@ The `profile` field determines which processing profile to use. All profiles use
   "profile": "lecture"
 }
 ```
+
+## Metadata (title, authors, date)
+
+Optional metadata used in the **handout** and **summary** headers. When provided, the AI uses these values instead of inferring them from the transcript content.
+
+- **`title`** (optional): Title of the lecture, meeting, or content. Used as the H1 heading.
+- **`authors`** (optional): Array of author/speaker names. Displayed as `**<Authors>**` in the header.
+- **`date`** (optional): Date string in any format (e.g. `"07 febbraio 2026"`, `"2026-02-07"`). Displayed as `**<Date>**` in the header.
+
+**Header structure (exact format when metadata is provided):**
+
+```
+# <Title>
+
+**<Authors>**
+**<Date>**
+
+***<Localized label>***
+```
+
+The final line is localized based on `language.output`:
+- **Italian** (`it`): Handout → `***Dispense della lezione***`, Summary → `***Riassunto della lezione***`
+- **English** (`en`): Handout → `***Lecture Handout***`, Summary → `***Lecture Summary***`
+
+**Example:**
+
+```json
+{
+  "title": "Repertorio dell'Aggressività",
+  "authors": ["Prof. Ligozzi"],
+  "date": "07 febbraio 2026"
+}
+```
+
+When omitted, the AI infers title, authors, and date from the transcript content.
 
 ## Language Configuration
 
@@ -772,6 +808,9 @@ The following table provides a quick reference for all configuration parameters:
 | Parameter | Type | Required | Default | Allowed Values | Notes |
 |-----------|------|----------|---------|----------------|-------|
 | **`profile`** | `string` | Yes | - | `"lecture"`, `"meeting"`, `"other"` | Determines processing behavior and available steps |
+| `title` | `string` | No | `undefined` | Any string | Title for handout/summary header |
+| `authors` | `string[]` | No | `undefined` | Array of strings | Author(s) for handout/summary header |
+| `date` | `string` | No | `undefined` | Any string | Date for handout/summary header (e.g. "07 febbraio 2026") |
 | **`language`** | `object` | No | `{ input: "en", output: "en" }` | - | Language configuration |
 | `language.input` | `string` | No | `"en"` | Valid Whisper language codes (`"it"`, `"en"`, `"es"`, `"fr"`, `"de"`, `"pt"`, `"ru"`, `"ja"`, `"zh"`, `"ko"`, etc.) | Input audio language |
 | `language.output` | `string` | No | `"en"` | Valid language codes | Output text language |

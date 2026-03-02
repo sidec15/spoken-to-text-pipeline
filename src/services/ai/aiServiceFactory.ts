@@ -1,4 +1,9 @@
-import type { PipelineConfig, StepAiConfig, StepConfig } from "../../config/config.types.js";
+import type {
+  PipelineConfig,
+  StepAiConfig,
+  StepConfig,
+  SupportedProfile,
+} from "../../config/config.types.js";
 import type { AiService, AiGenerateOptions, HandoutAiGenerateOptions } from "./ai.types.js";
 import { loadContextText } from "../../utils/loadContextText.js";
 import { OpenAiService } from "./openai/openaiAiService.js";
@@ -63,6 +68,76 @@ export function getStepPromptOverride(
     return loadContextText([promptFile.trim()], baseDir);
   }
   return null;
+}
+
+/** Localized labels for handout/summary header final line by profile and language. */
+const LOCALIZED_LABELS: Record<
+  string,
+  Record<
+    SupportedProfile,
+    { handout: string; summary: string }
+  >
+> = {
+  it: {
+    lecture: { handout: "Dispense della lezione", summary: "Riassunto della lezione" },
+    meeting: { handout: "Dispense della riunione", summary: "Riassunto della riunione" },
+    other: { handout: "Dispense", summary: "Riassunto" },
+  },
+  italian: {
+    lecture: { handout: "Dispense della lezione", summary: "Riassunto della lezione" },
+    meeting: { handout: "Dispense della riunione", summary: "Riassunto della riunione" },
+    other: { handout: "Dispense", summary: "Riassunto" },
+  },
+  en: {
+    lecture: { handout: "Lecture Handout", summary: "Lecture Summary" },
+    meeting: { handout: "Meeting Handout", summary: "Meeting Summary" },
+    other: { handout: "Handout", summary: "Summary" },
+  },
+  english: {
+    lecture: { handout: "Lecture Handout", summary: "Lecture Summary" },
+    meeting: { handout: "Meeting Handout", summary: "Meeting Summary" },
+    other: { handout: "Handout", summary: "Summary" },
+  },
+};
+
+function getLocalizedLabel(
+  outputLanguage: string,
+  profile: SupportedProfile,
+  type: "handout" | "summary",
+): string {
+  const key = (outputLanguage ?? "").toLowerCase().trim();
+  const byLang = LOCALIZED_LABELS[key] ?? LOCALIZED_LABELS.en;
+  const labels = byLang[profile];
+  return labels[type];
+}
+
+/**
+ * Formats metadata block for injection into handout/summary prompts.
+ * Replaces {{METADATA_BLOCK}} placeholder in prompts.
+ * When config provides title/authors/date, returns the values; otherwise returns fallback instruction.
+ */
+export function formatMetadataBlock(
+  config: PipelineConfig,
+  step: "handout" | "summary",
+): string {
+  const { title, authors, date } = config;
+  const profile = config.profile ?? "lecture";
+  const outputLanguage = config.language?.output ?? "en";
+  const finalLine = getLocalizedLabel(outputLanguage, profile, step);
+
+  if (title || authors?.length || date) {
+    const parts: string[] = [];
+    if (title) parts.push(`Title: ${title}`);
+    if (authors?.length) parts.push(`Authors: ${authors.join(", ")}`);
+    if (date)
+      parts.push(
+        `Date: ${typeof date === "string" ? date : (date as Date).toLocaleDateString()}`,
+      );
+    parts.push(`Final line (use exactly): ***${finalLine}***`);
+    return `METADATA (use these values exactly):\n${parts.join("\n")}`;
+  }
+
+  return `No metadata provided. Infer title, authors, and date from the transcript. Use the localized final line appropriate for the output language (e.g. ***${finalLine}*** for current language).`;
 }
 
 /** All pipeline step names (ASR + AI steps). */

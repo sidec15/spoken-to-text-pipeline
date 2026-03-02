@@ -189,9 +189,10 @@ export interface PipelineConfig {
 
   /**
    * Date of the lecture, meeting or other content (optional).
+   * From JSON config this is a string (e.g. "07 febbraio 2026"); programmatic use may pass Date.
    * Default: undefined
    */
-  date?: Date;
+  date?: string | Date;
 
   /**
    * Profile that determines default prompts and ASR defaults (required).

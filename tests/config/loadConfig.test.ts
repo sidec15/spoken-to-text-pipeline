@@ -462,6 +462,63 @@ describe('loadConfig', () => {
       expect(result.steps?.cleaning?.promptFile).toBe('./prompts/cleaning.md');
     });
 
+    it('should accept title, authors, and date metadata', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.title = 'Post-razionalismo';
+      configObj.authors = ['Prof. Giovanni Turella'];
+      configObj.date = '07 febbraio 2026';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act
+      const result = loadConfig(validConfigPath);
+
+      // Assert
+      expect(result.title).toBe('Post-razionalismo');
+      expect(result.authors).toEqual(['Prof. Giovanni Turella']);
+      expect(result.date).toBe('07 febbraio 2026');
+    });
+
+    it('should throw error for invalid title type', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.title = 123;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'title' field/);
+    });
+
+    it('should throw error for invalid authors type', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.authors = 'not-an-array';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'authors' field/);
+    });
+
+    it('should throw error for invalid authors array element', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.authors = [123, 'valid'];
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'authors\[0\]'/);
+    });
+
+    it('should throw error for invalid date type', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.date = 2026;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'date' field/);
+    });
+
     it('should accept steps.handout.strategy', () => {
       // Arrange
       const configObj = JSON.parse(validConfigContent);

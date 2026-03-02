@@ -1,7 +1,7 @@
 import type { PipelineConfig, StepAiConfig } from "../../../config/config.types.js";
 import type { AiGenerateOptions, HandoutAiGenerateOptions } from "../ai.types.js";
-import { AI_PROFILE_PRESETS } from "../../../config/profilePresets.js";
-import { getStepPromptOverride } from "../aiServiceFactory.js";
+import { AI_PROFILE_PRESETS, METADATA_BLOCK_PLACEHOLDER } from "../../../config/profilePresets.js";
+import { formatMetadataBlock, getStepPromptOverride } from "../aiServiceFactory.js";
 
 export function resolveOpenAiConfig(
   config: PipelineConfig,
@@ -31,10 +31,17 @@ export function resolveOpenAiConfig(
     };
     const singlePassOverride = getStepPromptOverride(config, "handout", "single-pass");
     const incrementalOverride = getStepPromptOverride(config, "handout", "incremental");
+    const metadataBlock = formatMetadataBlock(config, "handout");
+    const singlePassBase =
+      singlePassOverride ?? handoutPreset.systemPrompt?.singlePass ?? "";
+    const incrementalBase =
+      incrementalOverride ?? handoutPreset.systemPrompt?.incremental ?? "";
     const singlePass =
-      (singlePassOverride ?? handoutPreset.systemPrompt?.singlePass ?? "") + languageInstruction;
+      singlePassBase.replace(METADATA_BLOCK_PLACEHOLDER, metadataBlock) +
+      languageInstruction;
     const incremental =
-      (incrementalOverride ?? handoutPreset.systemPrompt?.incremental ?? "") + languageInstruction;
+      incrementalBase.replace(METADATA_BLOCK_PLACEHOLDER, metadataBlock) +
+      languageInstruction;
 
     return {
       ...preset,
@@ -45,7 +52,11 @@ export function resolveOpenAiConfig(
 
   const promptOverride = getStepPromptOverride(config, step);
   const basePrompt = promptOverride ?? (preset.systemPrompt as string) ?? "";
-  const enhancedSystemPrompt = basePrompt + languageInstruction;
+  const metadataBlock =
+    step === "summary" ? formatMetadataBlock(config, "summary") : "";
+  const enhancedSystemPrompt =
+    basePrompt.replace(METADATA_BLOCK_PLACEHOLDER, metadataBlock) +
+    languageInstruction;
 
   return {
     ...preset,

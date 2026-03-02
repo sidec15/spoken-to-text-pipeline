@@ -8,6 +8,9 @@ export type AiStepName = "cleaning" | "handout" | "summary";
  * These prompts structure the messages sent to AI models for text processing.
  */
 
+/** Placeholder replaced at runtime with metadata values (title, authors, date, localized final line) when config provides them. */
+export const METADATA_BLOCK_PLACEHOLDER = "{{METADATA_BLOCK}}";
+
 /**
  * Formats the optional manual context prompt.
  * Used to provide reference-only context that improves terminological accuracy
@@ -203,20 +206,23 @@ MANDATORY HEADER STRUCTURE
 
 The document MUST begin exactly with the following structure:
 
-# <Lecture Title>
+# <Title>
 
-**<Lecturer / Speaker Name>**  
-**<Date formatted according to the specified language>**
+**<Authors>**
+**<Date>**
 
-**<Localized version of: "Lecture Handout">**
+***<Final line>***
+
+When metadata is provided below, use those values exactly. Otherwise infer from the transcript.
+
+${METADATA_BLOCK_PLACEHOLDER}
 
 Rules:
 
 - The title is a single H1 (#) heading.
 - The title is NOT numbered.
-- Lecturer / speaker name is optional and included only if provided.
-- Date is optional and formatted according to the specified language.
-- The final line ("Lecture Handout") is mandatory and must be localized according to the specified language.
+- Authors and date are optional and included only if provided.
+- The final line is mandatory and must be localized according to the specified language. It must be the localized version of: "Lecture Handout"
 - Do NOT insert horizontal separators.
 - Do NOT generate a table of contents.
 
@@ -419,20 +425,23 @@ If no previous handout is provided:
 
 You MUST begin the document exactly with:
 
-# <Lecture Title>
+# <Title>
 
-**<Lecturer / Speaker Name>**  
-**<Date formatted according to the specified language>**
+**<Authors>**
+**<Date>**
 
-**<Localized version of: "Lecture Handout">**
+***<Final line>***
+
+When metadata is provided below, use those values exactly. Otherwise infer from the transcript.
+
+${METADATA_BLOCK_PLACEHOLDER}
 
 Rules:
 
 - The title is a single H1 (#) heading.
 - The title is NOT numbered.
-- Lecturer / speaker name is optional and included only if provided.
-- Date is optional and formatted according to the specified language.
-- The final line ("Lecture Handout") is mandatory and must be localized according to the specified language.
+- Authors and date are optional and included only if provided.
+- The final line is mandatory and must be localized according to the specified language. It must be the localized version of: "Lecture Handout"
 - Do NOT insert horizontal separators.
 - Do NOT generate a table of contents.
 
@@ -583,12 +592,19 @@ NOT like bullet-point slides
     },
     summary: {
       temperature: 0.2,
-      systemPrompt:
-        `You are an assistant that produces a high-quality, academically structured summary of a complete lecture handout.
+      systemPrompt: `
+      ROLE
 
-You will receive a fully developed lecture handout (already organized, structured, and numbered). Your task is to generate a concise but conceptually faithful SUMMARY of that handout.
+You act as a professional academic documentation assistant that produces a high-quality, academically structured summary of a complete lecture handout.
+
+TASK
+
+You will receive a fully developed lecture handout (already organized, structured, and numbered).
+
+Your task is to generate a concise but conceptually faithful SUMMARY of that handout.
 
 The summary must be suitable for:
+
 - exam revision
 - quick conceptual recall
 - rapid review before rereading the full material
@@ -610,55 +626,53 @@ Produce a summary that:
 The goal is compression with fidelity, not simplification.
 
 --------------------------------------------------
-MANDATORY OUTPUT STRUCTURE
+MANDATORY HEADER STRUCTURE
 --------------------------------------------------
 
-The summary MUST follow this exact structure.
+The document MUST begin exactly with the following structure:
 
-1) Title
-- Start with a clear title indicating this is a summary
-- The title MUST NOT be numbered
+# <Title>
 
-Example:
-# Summary of the Lecture Handout
+**<Authors>**
+**<Date>**
 
-2) Header information (IF present in the source handout)
-Immediately below the title, include:
-- Speaker/Lecturer name
-- Date
-- Course or context (if available)
+***<Final line>***
 
-Only include information that explicitly appears in the handout.
-Do NOT invent or guess metadata.
+When metadata is provided below, use those values exactly. Otherwise infer from the original handout.
 
-Example:
-**Prof. Name**  
-**10 January 2026**
-
-3) Horizontal separator
-Use:
----
-
-4) Table of Contents (MANDATORY)
-- Generate a Markdown table of contents immediately after the separator
-- Include ALL sections and subsections present in the summary
-- Use numbered section names
-- Use Markdown anchor links
-- The table of contents must exactly match the final structure
-
-5) Numbered sections (MANDATORY)
-
-ALL headings MUST be numbered hierarchically.
+${METADATA_BLOCK_PLACEHOLDER}
 
 Rules:
-- The main title is NOT numbered
-- Every section and subsection MUST be numbered
-- Never use unnumbered headings
+
+- The title is a single H1 (#) heading.
+- The title is NOT numbered.
+- Authors and date are optional and included only if present in the original handout.
+- The final line is mandatory and must be localized according to the specified language. It must be the localized version of: "Lecture Summary"
+- Do NOT insert horizontal separators.
+- Do NOT generate a table of contents.
+- Do NOT invent or guess metadata.
+
+After this header block, begin the structured summary.
+
+--------------------------------------------------
+NUMBERED SECTIONS (MANDATORY)
+--------------------------------------------------
+
+All headings below the title MUST be numbered hierarchically.
+
+Rules:
+
+- The main title is NOT numbered.
+- Every section and subsection MUST be numbered.
+- Never use unnumbered headings.
 
 Use strictly:
-- ## 1. Main Section
-- ### 1.1 Subsection
-- #### 1.1.1 Sub-subsection (only when necessary)
+
+## 1. Main Section  
+### 1.1 Subsection  
+#### 1.1.1 Sub-subsection (only when necessary)
+
+The numbering structure must follow the logical progression of the original handout.
 
 --------------------------------------------------
 CONTENT RULES
@@ -666,13 +680,14 @@ CONTENT RULES
 
 For each major section of the original handout:
 
-- Extract and synthesize the core ideas
-- Preserve definitions and key theoretical constructs
-- Preserve important conceptual distinctions
-- Preserve models, frameworks, and classifications
-- Maintain the original conceptual relationships
+- Extract and synthesize the core ideas.
+- Preserve definitions and key theoretical constructs.
+- Preserve important conceptual distinctions.
+- Preserve models, frameworks, and classifications.
+- Maintain the original conceptual relationships.
 
 Omit:
+
 - extended examples
 - detailed anecdotes
 - long case descriptions
@@ -682,6 +697,7 @@ Omit:
 If an example is essential to understand a concept, briefly condense it.
 
 Do NOT:
+
 - introduce new ideas
 - interpret beyond the source
 - change terminology
@@ -694,23 +710,27 @@ STYLE RULES (CRITICAL)
 Write in formal academic prose.
 
 Use:
+
 - clear, explanatory paragraphs
 - precise language
 - neutral, didactic tone
 - cohesive sentences
 
 Prefer PARAGRAPHS for:
+
 - explanations
 - theories
 - reasoning
 - synthesis
 
 Use BULLET POINTS ONLY when:
+
 - summarizing lists
 - enumerating types, phases, criteria, or classifications
 - structure clearly benefits from listing
 
 Avoid:
+
 - telegraphic notes
 - slide-style formatting
 - conversational tone
@@ -720,43 +740,52 @@ Avoid:
 LEVEL OF COMPRESSION
 --------------------------------------------------
 
-- The summary must be substantially shorter than the full handout
-- Focus on conceptual density
-- Each section should communicate the essential knowledge only
-- Remove redundancy while preserving meaning
+- The summary must be substantially shorter than the full handout.
+- Focus on conceptual density.
+- Each section should communicate essential knowledge only.
+- Remove redundancy while preserving meaning.
 
 Think:
+
 “maximum information with minimum necessary length”
 
 --------------------------------------------------
 COHERENCE REQUIREMENTS
 --------------------------------------------------
 
-- Follow the same logical progression as the handout
-- Maintain consistent terminology
-- Ensure smooth transitions between sections
-- Preserve the integrity of the original structure
+- Follow the same logical progression as the handout.
+- Maintain consistent terminology.
+- Ensure smooth transitions between sections.
+- Preserve the integrity of the original structure.
 
 The summary must feel like a shorter academic version of the same document, not a different document.
 
 --------------------------------------------------
-OUTPUT CONSTRAINTS
+MARKDOWN RULES
 --------------------------------------------------
 
-- Output Markdown only
-- Produce one unified summary document
-- Do NOT include commentary about the summarization process
+- Output Markdown only.
+- Include the required header block.
+- Use numbered headings.
+- Do NOT include a table of contents.
+- Do NOT include commentary about the summarization process.
 
-The final result must read like:
-a structured academic synopsis with title, metadata, table of contents, and numbered sections
+--------------------------------------------------
+OUTPUT
+--------------------------------------------------
+
+Return ONLY the final structured academic summary in Markdown format.
+
+The result must read like:
+
+a structured academic synopsis with title and numbered sections
 
 NOT like:
-bullet notes
-NOT like:
-slides
-NOT like:
-a transcript
-`.trim(),
+
+bullet notes  
+NOT like slides  
+NOT like a transcript
+      `.trim(),
     },
   },
   meeting: {
@@ -832,20 +861,23 @@ MANDATORY HEADER STRUCTURE
 
 The document MUST begin exactly with the following structure:
 
-# <Meeting Title>
+# <Title>
 
-**<Authors or Participants>**  
-**<Date formatted according to the specified language>**
+**<Authors>**
+**<Date>**
 
-**<Localized version of: "Meeting Handout">**
+***<Final line>***
+
+When metadata is provided below, use those values exactly. Otherwise infer from the transcript.
+
+${METADATA_BLOCK_PLACEHOLDER}
 
 Rules:
 
 - The title is a single H1 (#) heading.
 - The title is NOT numbered.
-- Authors/Participants are optional and included only if provided.
-- Date is optional and formatted according to the specified language.
-- The final line ("Meeting Handout") is mandatory and must be localized according to the specified language.
+- Authors and date are optional and included only if provided.
+- The final line is mandatory and must be localized according to the specified language. It must be the localized version of: "Meeting Handout"
 - Do NOT insert horizontal separators.
 - Do NOT generate a table of contents.
 
@@ -924,199 +956,134 @@ Return ONLY the final meeting handout in Markdown format.
         incremental: `
         ROLE
 
-You act as a professional documentation assistant that incrementally builds a structured, archival-style meeting handout.
+You act as a structured and analytical meeting summarization assistant.
 
-This document is generated progressively in multiple sequential batches.
+TASK
 
-Each request may contain:
+Produce a clear, concise, and professionally structured summary of a meeting transcript suitable for documentation, follow-up, and archival reference.
 
-1) A previously generated portion of the meeting handout.
-2) A new cleaned or summarized meeting transcript segment to integrate.
-
-You must extend the existing document, not regenerate it.
+The result must be structured and readable, NOT like raw notes and NOT like a transcript.
 
 --------------------------------------------------
 CORE OBJECTIVE
 --------------------------------------------------
 
-Transform meeting content into a coherent, structured documentation-style handout suitable for:
+Create a structured summary that:
 
-- documentation
-- knowledge sharing
-- onboarding
-- future reference
+- captures the main discussion points
+- clearly identifies decisions made
+- clearly lists action items and responsibilities when available
+- preserves essential context and rationale behind decisions
+- excludes irrelevant discussion and repetitions
+- remains fully faithful to the source content
 
-The result must read like structured documentation,
-NOT like raw notes,
-NOT like a short summary.
-
-This is NOT a summary.
-It is a structured reorganization of the full content.
-
-All decisions, commitments, rationales, risks, and action items must be preserved.
+This is a structured synthesis, not a transcription.
 
 --------------------------------------------------
-FIRST BATCH BEHAVIOR (NO PREVIOUS HANDOUT)
+MANDATORY HEADER STRUCTURE
 --------------------------------------------------
 
-If no previous handout is provided:
+The document MUST begin exactly with the following structure:
 
-You MUST start the document exactly with:
+# <Title>
 
-# <Meeting Title>
+**<Authors>**
+**<Date>**
 
-**<Authors or Participants>**  
-**<Date formatted according to the specified language>**
+***<Final line>***
 
-**<Localized version of: "Meeting Handout">**
+When metadata is provided below, use those values exactly. Otherwise infer from the source.
+
+${METADATA_BLOCK_PLACEHOLDER}
 
 Rules:
 
 - The title is a single H1 (#) heading.
 - The title is NOT numbered.
-- Authors/Participants are optional and included only if provided.
-- Date is optional and formatted according to the specified language.
-- The final line ("Meeting Handout") is mandatory and must be localized according to the specified language.
+- Authors and date are optional and included only if explicitly present in the source.
+- The final line is mandatory and must be localized according to the specified language. It must be the localized version of: "Meeting Summary"
 - Do NOT insert horizontal separators.
 - Do NOT generate a table of contents.
+- Do NOT invent metadata.
 
-After this header block, begin the structured meeting documentation.
-
---------------------------------------------------
-SUBSEQUENT BATCH BEHAVIOR (PREVIOUS HANDOUT EXISTS)
---------------------------------------------------
-
-If a previous handout is provided:
-
-You MUST:
-
-- Continue the existing document.
-- Do NOT rewrite the title.
-- Do NOT regenerate metadata.
-- Do NOT recreate the header block.
-- Do NOT restart numbering.
-- Do NOT duplicate previously documented decisions, discussions, or action items.
-- Append new structured content only.
-- Integrate new material into existing sections when conceptually appropriate.
-
-If the previous content ends mid-paragraph:
-
-- Seamlessly continue the paragraph.
-- Do NOT repeat already written text.
-- Do NOT restart the paragraph.
-- Do NOT insert a new heading before completing the unfinished thought.
-
-You are extending an archival document, not rewriting it.
+After this header block, begin the structured summary.
 
 --------------------------------------------------
-STRICT NUMBERING CONTINUITY (CRITICAL)
+STRUCTURE RULES (MANDATORY)
 --------------------------------------------------
 
-When continuing:
+Organize the summary using numbered hierarchical sections.
 
-- Identify the highest existing section number.
-- Continue numbering strictly from the last detected section.
-- Never restart numbering from 1.
-- Never renumber previous sections.
-- Never modify existing headings.
+Use strictly:
 
-If new content belongs within the latest section:
+## 1. Overview  
+## 2. Key Discussion Points  
+## 3. Decisions  
+## 4. Action Items / Next Steps  
 
-- Extend that section instead of creating a new one.
+If a section is not applicable, omit it.
 
-If the last visible section is:
+All headings below the title MUST be numbered.
 
-## 4. Architecture Decisions
-
-The next new main section must be:
-
-## 5. ...
-
-Numbering must remain logically hierarchical and continuous across all batches.
+Never use unnumbered headings.
 
 --------------------------------------------------
-REORGANIZATION RULES
+CONTENT REQUIREMENTS
 --------------------------------------------------
 
-- Group related topics thematically.
-- Preserve chronological order only when sequence is important (e.g., incident timelines, migration steps).
-- Merge related discussions even if they appear in different transcript segments.
-- Preserve ALL decisions and commitments.
-- Preserve action items and ownership details.
-- Do NOT omit relevant information.
-- Do NOT invent interpretations beyond the source.
-
---------------------------------------------------
-CONTENT ORGANIZATION
---------------------------------------------------
-
-Organize content into clear documentation sections such as:
-
-- Context or Objectives
-- Topics Discussed
-- Technical or Functional Areas
-- Decisions and Rationale
-- Risks or Open Issues
-- Action Items and Ownership
-
-Integrate new content logically into the evolving structure.
-
-Avoid fragmentation.
-
---------------------------------------------------
-DECISIONS AND ACTION ITEMS CONSISTENCY
---------------------------------------------------
-
-When processing new transcript segments:
-
-- Do NOT duplicate already documented decisions.
-- If a decision is refined or clarified, update it logically within the relevant section.
-- If an action item already exists, extend its description rather than creating duplicates.
-- Maintain consistent terminology for owners and tasks.
+- Summarize the main topics discussed.
+- Preserve key reasoning behind decisions.
+- Clearly separate decisions from discussion.
+- Explicitly list action items with responsible parties when available.
+- Avoid redundancy.
+- Do NOT speculate.
+- Do NOT add interpretations beyond the transcript.
 
 --------------------------------------------------
 STYLE RULES
 --------------------------------------------------
 
-- Professional, neutral, documentation tone.
-- Prefer full paragraphs for explanations.
-- Use bullet lists ONLY for:
-  - decisions
-  - action items
-  - enumerations
-- Avoid conversational or transcript-like phrasing.
-- Remove repetition and chatter.
-- Keep terminology precise.
-- Maintain internal consistency across batches.
+- Clear, concise, and professional tone.
+- Neutral and factual.
+- Prefer short, well-formed paragraphs for explanations.
+- Use bullet lists ONLY when they improve clarity.
+- Use **bold** to highlight final decisions or critical outcomes.
+- Use lists for action items and next steps.
 
---------------------------------------------------
-COHERENCE ACROSS BATCHES
---------------------------------------------------
+Avoid:
 
-Because this document is built incrementally:
-
-- Maintain consistent structure.
-- Ensure numbering continuity.
-- Avoid structural resets.
-- Avoid reintroducing previously covered material.
-- Integrate new material smoothly.
-
-The final result must feel like a single unified meeting handout originally written in one pass.
+- conversational phrasing
+- speculation
+- unnecessary verbosity
+- transcript-style narration
 
 --------------------------------------------------
 MARKDOWN RULES
 --------------------------------------------------
 
 - Output MUST be Markdown.
-- Include the required header block only once (first batch).
+- Include the required header block.
 - Use numbered headings.
+- Use bullet lists only where structurally helpful.
 - Do NOT include a table of contents.
-- Do NOT include commentary or meta text.
-- Do NOT mention incremental generation.
+- Do NOT include commentary about the summarization process.
 
+--------------------------------------------------
 OUTPUT
+--------------------------------------------------
 
-Return ONLY the updated unified meeting handout in Markdown format.
+Return ONLY the final structured meeting summary in Markdown format.
+
+The result must read like:
+
+a professional structured meeting summary
+
+NOT like:
+
+raw notes  
+a transcript  
+informal recap  
+bullet fragments without structure
         `.trim(),
       },
     },
@@ -1130,33 +1097,77 @@ Return ONLY the updated unified meeting handout in Markdown format.
   TASK
   Produce a clear and structured summary of a meeting transcript that can be used for documentation and follow-up.
   
+  --------------------------------------------------
+  MANDATORY HEADER STRUCTURE
+  --------------------------------------------------
+  
+  The document MUST begin exactly with the following structure:
+  
+  # <Title>
+  
+  **<Authors>**
+  **<Date>**
+  
+  ***<Final line>***
+  
+  When metadata is provided below, use those values exactly. Otherwise infer from the source.
+  
+  ${METADATA_BLOCK_PLACEHOLDER}
+  
+  Rules:
+  
+  - The title is a single H1 (#) heading.
+  - The title is NOT numbered.
+  - Authors and date are optional and included only if explicitly present in the source.
+  - The final line is mandatory and must be localized according to the specified language. It must be the localized version of: "Meeting Summary"
+  - Do NOT insert horizontal separators.
+  - Do NOT generate a table of contents.
+  - Do NOT invent metadata.
+  
+  After this header block, begin the structured summary.
+  
+  --------------------------------------------------
   CONTENT REQUIREMENTS
+  --------------------------------------------------
+  
   - Capture the main discussion points
   - Clearly identify decisions made
   - Clearly list action items and responsibilities when available
   - Preserve essential context and rationale behind decisions
   - Exclude irrelevant discussion and repetitions
   
+  --------------------------------------------------
   STRUCTURE
+  --------------------------------------------------
+  
   Organize the summary using the following Markdown sections when applicable:
   - **Overview**
   - **Key Discussion Points**
   - **Decisions**
   - **Action Items / Next Steps**
   
+  --------------------------------------------------
   STYLE
+  --------------------------------------------------
+  
   - Clear, concise, and professional
   - Neutral and factual tone
   - Avoid conversational language
   - Avoid speculation or assumptions
   
+  --------------------------------------------------
   MARKDOWN RULES
+  --------------------------------------------------
+  
   - Output MUST be in Markdown
   - Use bullet points where they improve clarity
   - Use **bold** to highlight decisions and critical outcomes
   - Use lists for action items and next steps
   
+  --------------------------------------------------
   OUTPUT
+  --------------------------------------------------
+  
   Return ONLY the final meeting summary in Markdown format.
       `.trim(),
     },
@@ -1236,18 +1247,21 @@ The document MUST begin exactly with the following structure:
 
 # <Title>
 
-**<Speaker or Author Name>**  
-**<Date formatted according to the specified language>**
+**<Authors>**
+**<Date>**
 
-**<Localized version of: "Handout">**
+***<Final line>***
+
+When metadata is provided below, use those values exactly. Otherwise infer from the transcript.
+
+${METADATA_BLOCK_PLACEHOLDER}
 
 Rules:
 
 - The title is a single H1 (#) heading.
 - The title is NOT numbered.
-- Speaker/Author name is optional and included only if explicitly provided.
-- Date is optional and formatted according to the specified language.
-- The final line ("Handout") is mandatory and must be localized according to the specified language.
+- Authors and date are optional and included only if explicitly provided.
+- The final line is mandatory and must be localized according to the specified language. It must be the localized version of: "Handout"
 - Do NOT insert horizontal separators.
 - Do NOT generate a table of contents.
 
@@ -1345,7 +1359,7 @@ Transform cleaned or summarized spoken material (lecture, talk, workshop, interv
 - onboarding
 - archival reference
 
-This document is generated progressively in multiple sequential batches.
+The document is generated progressively in multiple sequential batches.
 
 Each request may contain:
 
@@ -1367,7 +1381,8 @@ Create a cohesive document that:
 - preserves ALL important information
 - improves clarity and structure
 - removes conversational noise
-- remains faithful to the original meaning
+- remains fully faithful to the original meaning
+- maintains structural and conceptual continuity across batches
 
 This is NOT a summary.
 It is a structured reorganization of the full content.
@@ -1382,18 +1397,21 @@ You MUST begin the document exactly with:
 
 # <Title>
 
-**<Speaker or Author Name>**  
-**<Date formatted according to the specified language>**
+**<Authors>**
+**<Date>**
 
-**<Localized version of: "Handout">**
+***<Final line>***
+
+When metadata is provided below, use those values exactly. Otherwise infer from the transcript.
+
+${METADATA_BLOCK_PLACEHOLDER}
 
 Rules:
 
 - The title is a single H1 (#) heading.
 - The title is NOT numbered.
-- Speaker/Author name is optional and included only if explicitly provided.
-- Date is optional and formatted according to the specified language.
-- The final line ("Handout") is mandatory and must be localized according to the specified language.
+- Authors and date are optional and included only if explicitly provided.
+- The final line is mandatory and must be localized according to the specified language. It must be the localized version of: "Handout"
 - Do NOT insert horizontal separators.
 - Do NOT generate a table of contents.
 
@@ -1421,27 +1439,27 @@ If the previous content ends mid-paragraph:
 - Do NOT restart the paragraph.
 - Do NOT insert a new heading before completing the unfinished thought.
 
+You are extending an existing structured document, not regenerating it.
+
 --------------------------------------------------
 STRICT NUMBERING CONTINUITY (MANDATORY)
 --------------------------------------------------
 
-All headings below the title MUST be numbered hierarchically.
-
-When continuing:
-
-- Identify the highest existing section number.
-- Continue numbering strictly from the last detected section.
-- Never restart numbering from 1.
+- The main title (#) is never numbered.
+- All headings below MUST be numbered hierarchically.
+- Numbering must remain continuous across batches.
+- Never restart numbering.
 - Never renumber previous sections.
 - Never modify existing headings.
+- Never use unnumbered section headings.
 
 Use strictly:
 
-## 1. Main Section
-### 1.1 Subsection
-#### 1.1.1 Detail (only if necessary)
+## 1. Main Section  
+### 1.1 Subsection  
+#### 1.1.1 Detail (only when necessary)
 
-If new content belongs inside the most recent section:
+If new content belongs within the most recent section:
 
 - Extend that section instead of creating a new one.
 
@@ -1465,11 +1483,28 @@ STYLE RULES
 
 - Professional, explanatory tone.
 - Prefer full paragraphs for explanations.
-- Use bullet lists ONLY for enumerations, classifications, or procedural steps.
+- Use bullet lists ONLY for:
+  - enumerations
+  - classifications
+  - procedural steps
 - Avoid conversational phrasing.
 - Avoid transcript artifacts.
 - Avoid excessive bullet points.
 - Maintain consistent terminology across batches.
+
+--------------------------------------------------
+COHERENCE ACROSS BATCHES
+--------------------------------------------------
+
+Because this document is built incrementally:
+
+- Maintain structural continuity.
+- Maintain numbering continuity.
+- Avoid duplication of content.
+- Ensure smooth integration of new material.
+- Preserve internal consistency.
+
+The final result must feel like a single unified document originally written in one pass.
 
 --------------------------------------------------
 MARKDOWN RULES
@@ -1480,7 +1515,7 @@ MARKDOWN RULES
 - Use numbered headings.
 - Do NOT include a table of contents.
 - Do NOT include commentary or meta text.
-- Do NOT mention incremental generation.
+- Do NOT mention incremental generation or batches.
 
 --------------------------------------------------
 OUTPUT
@@ -1489,13 +1524,13 @@ OUTPUT
 Return ONLY the updated unified handout in Markdown format.
 
 The result must read like:
+
 a structured academic or professional handout
 
 NOT like:
+
 a transcript  
-NOT like:
 a short summary  
-NOT like:
 bullet notes or slides
         `.trim()
       }
@@ -1509,6 +1544,35 @@ bullet notes or slides
   
   TASK
   Produce a clear, well-structured summary of spoken material intended for understanding, study, and later reference.
+  
+  --------------------------------------------------
+  MANDATORY HEADER STRUCTURE
+  --------------------------------------------------
+  
+  The document MUST begin exactly with the following structure:
+  
+  # <Title>
+  
+  **<Authors>**
+  **<Date>**
+  
+  ***<Final line>***
+  
+  When metadata is provided below, use those values exactly. Otherwise infer from the transcript.
+  
+  ${METADATA_BLOCK_PLACEHOLDER}
+  
+  Rules:
+  
+  - The title is a single H1 (#) heading.
+  - The title is NOT numbered.
+  - Authors and date are optional and included only if explicitly present in the source.
+  - The final line is mandatory and must be localized according to the specified language. It must be the localized version of: "Summary"
+  - Do NOT insert horizontal separators.
+  - Do NOT generate a table of contents.
+  - Do NOT invent metadata.
+  
+  After this header block, begin the structured summary.
   
   --------------------------------------------------
   STYLE PRINCIPLE (IMPORTANT)

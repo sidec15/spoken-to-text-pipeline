@@ -18,7 +18,8 @@ The pipeline is configured via a JSON file (default: `pipeline.config.json`). Th
   - [Supported Models and Parameter Compatibility](#supported-models-and-parameter-compatibility)
   - [Temperature Defaults](#temperature-defaults)
   - [MaxTokens Calculation](#maxtokens-calculation)
-- [Step Configuration](#step-configuration-steps)
+- [Step Configuration](#step-configuration)
+  - [Handout Strategy](#handout-strategy)
 - [Output Configuration](#output-configuration)
 - [ASR Configuration](#asr-configuration)
   - [Whisper Configuration](#whisper-configuration)
@@ -489,10 +490,10 @@ ollama pull qwen2.5:7b
 The optional `steps` object allows you to configure specific pipeline steps at the top level of the configuration.
 
 - **`cleaning`** (optional): Configuration for cleaning step
-- **`handout`** (optional): Configuration for handout step (all profiles)
+- **`handout`** (optional): Configuration for handout step (all profiles). The handout step has a different structure — it requires a `strategy` and uses strategy-specific prompt overrides. See [Handout Strategy](#handout-strategy).
 - **`summary`** (optional): Configuration for summary step
 
-Each step configuration can specify:
+Each step configuration (except handout) can specify:
 - `enabled` (optional): Enable or disable the step. If `false`, the step will be skipped. Default: `true` (step is enabled)
 - `prompt` (optional): Inline system prompt override for this step. Takes precedence over `promptFile`. If set, replaces the profile default prompt for this step.
 - `promptFile` (optional): Path to a text or markdown file (e.g. `.txt`, `.md`) containing the system prompt. Resolved relative to the config file directory. Used only when `prompt` is not set. Useful for long or structured prompts that are awkward to embed in JSON.
@@ -502,6 +503,60 @@ Each step configuration can specify:
   - `overrides` (optional): Override temperature and/or maxTokens. Default: uses `ai.default.overrides` or profile-specific presets
 
 **Prompt override precedence:** If both `prompt` and `promptFile` are set for a step, `prompt` is used. If neither is set, the pipeline uses the built-in default prompt for the selected profile and step.
+
+### Handout Strategy
+
+The handout step supports two strategies for generating the handout from cleaned transcripts. You **must** set `steps.handout.strategy` when configuring the handout step.
+
+| Strategy | Description |
+|----------|-------------|
+| **`incremental`** | Processes one cleaned transcript file at a time. Each file is sent to the AI along with the last portion of the previously generated handout. The handout is built progressively. Best when you have many transcript parts or want to avoid large context windows. |
+| **`single-pass`** | Merges all cleaned transcripts into one input and sends it to the AI in a single call. When content exceeds the token limit (~90K tokens), the pipeline automatically falls back to chunking: processes content in chunks, then merges the results. Best when you have few files and content fits in context. |
+
+**Strategy-specific prompt overrides:** Unlike cleaning and summary, the handout step uses separate prompt overrides per strategy:
+
+- **`singlePass`** (optional): Override the system prompt for single-pass strategy
+  - `prompt` (optional): Inline prompt. Takes precedence over `promptFile`.
+  - `promptFile` (optional): Path to prompt file (relative to config file directory).
+- **`incremental`** (optional): Override the system prompt for incremental strategy
+  - `prompt` (optional): Inline prompt. Takes precedence over `promptFile`.
+  - `promptFile` (optional): Path to prompt file (relative to config file directory).
+
+If neither override is set for a strategy, the pipeline uses the built-in profile default for that strategy.
+
+**Example:**
+
+```json
+{
+  "steps": {
+    "handout": {
+      "strategy": "incremental",
+      "incremental": {
+        "prompt": "Custom incremental handout instructions..."
+      },
+      "aiConfig": {
+        "provider": "openai",
+        "model": "gpt-4o-mini"
+      }
+    }
+  }
+}
+```
+
+**Single-pass with custom prompt:**
+
+```json
+{
+  "steps": {
+    "handout": {
+      "strategy": "single-pass",
+      "singlePass": {
+        "promptFile": "./prompts/handout-single-pass.md"
+      }
+    }
+  }
+}
+```
 
 **Example:**
 
@@ -770,9 +825,14 @@ The following table provides a quick reference for all configuration parameters:
 | `steps.cleaning.aiConfig.overrides.temperature` | `number` | No | Profile-specific presets | 0-2 | Temperature override |
 | `steps.cleaning.aiConfig.overrides.maxTokens` | `number` | No | Not set (model default) | Positive integer | Max tokens override (not recommended for reasoning models) |
 | `steps.handout` | `object` | No | `undefined` | - | Handout step configuration |
+| `steps.handout.strategy` | `string` | Yes (when handout configured) | - | `"incremental"`, `"single-pass"` | Strategy for generating handout (see [Handout Strategy](#handout-strategy)) |
 | `steps.handout.enabled` | `boolean` | No | `true` | `true`, `false` | Enable or disable handout step |
-| `steps.handout.prompt` | `string` | No | Profile default | Any string | Inline system prompt override (takes precedence over promptFile) |
-| `steps.handout.promptFile` | `string` | No | - | Path to .txt or .md file | Path to prompt file (relative to config file directory) |
+| `steps.handout.singlePass` | `object` | No | `undefined` | - | Prompt override for single-pass strategy |
+| `steps.handout.singlePass.prompt` | `string` | No | Profile default | Any string | Inline prompt (takes precedence over promptFile) |
+| `steps.handout.singlePass.promptFile` | `string` | No | - | Path to .txt or .md file | Path to prompt file (relative to config file directory) |
+| `steps.handout.incremental` | `object` | No | `undefined` | - | Prompt override for incremental strategy |
+| `steps.handout.incremental.prompt` | `string` | No | Profile default | Any string | Inline prompt (takes precedence over promptFile) |
+| `steps.handout.incremental.promptFile` | `string` | No | - | Path to .txt or .md file | Path to prompt file (relative to config file directory) |
 | `steps.handout.aiConfig` | `object` | No | Uses `ai.default` | - | AI configuration for handout step |
 | `steps.handout.aiConfig.provider` | `string` | No | Uses `ai.default.provider` | `"openai"`, `"deepseek"`, `"ollama"` | Override provider |
 | `steps.handout.aiConfig.model` | `string` | No | Uses `ai.default.model` | Valid model identifier | Override model |

@@ -4,7 +4,6 @@ import type { Step, StepContext } from "../step.js";
 import type { AiService, AiGenerateOptions, HandoutAiGenerateOptions } from "../../services/ai/ai.types.js";
 import { createAiService, resolveAiConfig } from "../../services/ai/aiServiceFactory.js";
 import { loadContextText } from "../../utils/loadContextText.js";
-import type { PipelineConfig } from "../../config/config.types.js";
 import type { Logger } from "../../services/logger.js";
 import type { ProgressReporter } from "../../services/progress.js";
 
@@ -15,7 +14,7 @@ export class HandoutStep implements Step {
     const { config, baseDir, outputDir, logger, progress } = ctx;
     const handoutPath = path.join(outputDir, "handout.md");
 
-    if (!this.checkProfileAndIdempotency(config, handoutPath, logger)) {
+    if (!this.checkIdempotency(handoutPath, logger)) {
       return;
     }
 
@@ -71,11 +70,7 @@ export class HandoutStep implements Step {
     logger.info(`Handout saved to '${handoutPath}'`);
   }
 
-  private checkProfileAndIdempotency(
-    _config: PipelineConfig,
-    handoutPath: string,
-    logger: Logger,
-  ): boolean {
+  private checkIdempotency(handoutPath: string, logger: Logger): boolean {
     logger.info("Starting Handout step");
 
     if (fs.existsSync(handoutPath)) {

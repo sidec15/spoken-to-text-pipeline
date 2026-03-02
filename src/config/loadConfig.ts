@@ -363,12 +363,38 @@ function validateUserConfig(config: Record<string, unknown>, configPath: string)
             continue;
           }
 
-          // Validate prompt and promptFile (cleaning, handout, summary)
-          if ("prompt" in stepConfig && stepConfig.prompt !== undefined && typeof stepConfig.prompt !== "string") {
-            errors.push(`Invalid 'steps.${stepName}.prompt' field (must be a string)`);
+          // Handout step has strategy and strategy-specific prompt overrides (singlePass, incremental)
+          if (stepName === "handout") {
+            if ("strategy" in stepConfig && stepConfig.strategy !== undefined) {
+              if (typeof stepConfig.strategy !== "string" || !["incremental", "single-pass"].includes(stepConfig.strategy)) {
+                errors.push(`Invalid 'steps.handout.strategy' field (must be: incremental or single-pass)`);
+              }
+            }
+            for (const strategyKey of ["singlePass", "incremental"]) {
+              const override = stepConfig[strategyKey];
+              if (override !== undefined) {
+                if (typeof override !== "object" || override === null) {
+                  errors.push(`Invalid 'steps.handout.${strategyKey}' field (must be an object)`);
+                } else {
+                  const over = override as Record<string, unknown>;
+                  if ("prompt" in over && over.prompt !== undefined && typeof over.prompt !== "string") {
+                    errors.push(`Invalid 'steps.handout.${strategyKey}.prompt' field (must be a string)`);
+                  }
+                  if ("promptFile" in over && over.promptFile !== undefined && typeof over.promptFile !== "string") {
+                    errors.push(`Invalid 'steps.handout.${strategyKey}.promptFile' field (must be a string)`);
+                  }
+                }
+              }
+            }
           }
-          if ("promptFile" in stepConfig && stepConfig.promptFile !== undefined && typeof stepConfig.promptFile !== "string") {
-            errors.push(`Invalid 'steps.${stepName}.promptFile' field (must be a string)`);
+          // Validate prompt and promptFile (cleaning, summary only - handout uses singlePass/incremental)
+          if (stepName !== "handout") {
+            if ("prompt" in stepConfig && stepConfig.prompt !== undefined && typeof stepConfig.prompt !== "string") {
+              errors.push(`Invalid 'steps.${stepName}.prompt' field (must be a string)`);
+            }
+            if ("promptFile" in stepConfig && stepConfig.promptFile !== undefined && typeof stepConfig.promptFile !== "string") {
+              errors.push(`Invalid 'steps.${stepName}.promptFile' field (must be a string)`);
+            }
           }
 
           // Validate aiConfig field (cleaning, handout, summary)

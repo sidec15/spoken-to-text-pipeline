@@ -462,6 +462,65 @@ describe('loadConfig', () => {
       expect(result.steps?.cleaning?.promptFile).toBe('./prompts/cleaning.md');
     });
 
+    it('should accept steps.handout.strategy', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.steps = configObj.steps || {};
+      configObj.steps.handout = { strategy: 'incremental' };
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act
+      const result = loadConfig(validConfigPath);
+
+      // Assert
+      expect(result.steps?.handout?.strategy).toBe('incremental');
+    });
+
+    it('should accept steps.handout.strategy single-pass', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.steps = configObj.steps || {};
+      configObj.steps.handout = { strategy: 'single-pass' };
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act
+      const result = loadConfig(validConfigPath);
+
+      // Assert
+      expect(result.steps?.handout?.strategy).toBe('single-pass');
+    });
+
+    it('should accept steps.handout.singlePass and incremental prompt overrides', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.steps = configObj.steps || {};
+      configObj.steps.handout = {
+        strategy: 'incremental',
+        singlePass: { prompt: 'Custom single-pass prompt' },
+        incremental: { prompt: 'Custom incremental prompt' },
+      };
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act
+      const result = loadConfig(validConfigPath);
+
+      // Assert
+      expect(result.steps?.handout?.strategy).toBe('incremental');
+      expect(result.steps?.handout?.singlePass?.prompt).toBe('Custom single-pass prompt');
+      expect(result.steps?.handout?.incremental?.prompt).toBe('Custom incremental prompt');
+    });
+
+    it('should throw error for invalid steps.handout.strategy', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.steps = configObj.steps || {};
+      configObj.steps.handout = { strategy: 'invalid' };
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'steps.handout.strategy' field/);
+    });
+
     it('should throw error for invalid steps.cleaning.prompt', () => {
       // Arrange
       const configObj = JSON.parse(validConfigContent);

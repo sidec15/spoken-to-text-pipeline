@@ -250,6 +250,33 @@ describe('HandoutStep', () => {
     expect(part1Index).toBeLessThan(part10Index);
   });
 
+  it('should use single-pass strategy with single AI call when content fits', async () => {
+    // Arrange - single-pass with small content (under token limit)
+    mockConfig.steps = { handout: { strategy: 'single-pass' as const } };
+    mockReaddirSync.mockReturnValue(['part-1.md', 'part-2.md'] as any);
+    mockExistsSync.mockImplementation((path: string) => {
+      return path.includes('handout.md') ? false : true;
+    });
+    mockReadFileSync.mockReturnValue('small content');
+    mockResolveAiConfig.mockReturnValue({
+      systemPrompt: { singlePass: 'Create handout', incremental: 'Create handout' },
+      temperature: 0,
+    });
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert - single AI call, no chunking
+    expect(mockContext.logger.info).toHaveBeenCalledWith(
+      'Using single-pass handout strategy'
+    );
+    expect(mockContext.logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('single pass')
+    );
+    expect(mockGenerateTextAsync).toHaveBeenCalledTimes(1);
+    expect(mockWriteFile).toHaveBeenCalled();
+  });
+
   it('should use chunking strategy for large content', async () => {
     // Arrange - chunking only applies to single-pass strategy
     mockConfig.steps = { handout: { strategy: 'single-pass' as const } };

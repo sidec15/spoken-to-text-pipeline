@@ -120,6 +120,48 @@ describe('resolveDeepSeekConfig', () => {
     );
   });
 
+  it('should use steps.handout.singlePass.prompt when set', () => {
+    // Arrange
+    const config = createMockConfig();
+    config.steps = {
+      handout: {
+        strategy: 'single-pass',
+        singlePass: { prompt: 'Custom single-pass handout prompt' },
+      },
+    };
+    const stepConfig = createStepConfig();
+
+    // Act
+    const result = resolveDeepSeekConfig(config, 'handout', stepConfig);
+    const systemPrompt = result.systemPrompt as { singlePass: string; incremental: string };
+
+    // Assert
+    expect(systemPrompt.singlePass).toContain('Custom single-pass handout prompt');
+    expect(systemPrompt.singlePass).toContain('it');
+    expect(systemPrompt.incremental).not.toContain('Custom single-pass handout prompt');
+  });
+
+  it('should use steps.handout.incremental.prompt when set', () => {
+    // Arrange
+    const config = createMockConfig();
+    config.steps = {
+      handout: {
+        strategy: 'incremental',
+        incremental: { prompt: 'Custom incremental handout prompt' },
+      },
+    };
+    const stepConfig = createStepConfig();
+
+    // Act
+    const result = resolveDeepSeekConfig(config, 'handout', stepConfig);
+    const systemPrompt = result.systemPrompt as { singlePass: string; incremental: string };
+
+    // Assert
+    expect(systemPrompt.incremental).toContain('Custom incremental handout prompt');
+    expect(systemPrompt.incremental).toContain('it');
+    expect(systemPrompt.singlePass).not.toContain('Custom incremental handout prompt');
+  });
+
   it('should use steps.cleaning.prompt when set', () => {
     // Arrange
     const config = createMockConfig();

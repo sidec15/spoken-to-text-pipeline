@@ -57,7 +57,7 @@ When fields are not provided in the configuration file, the following defaults a
 - **`asr.whisper.serverUrl`**: `"http://localhost:9000/asr"`
 - **`asr.whisper.task`**, **`asr.whisper.outputFormat`**, **`asr.whisper.temperature`**, **`asr.whisper.beamSize`**, **`asr.whisper.bestOf`**, and **`asr.whisper.vad`**: Profile-specific defaults (see [Profiles](#profiles) section)
 - **`ai.providers`**: `{}` (empty by default, but **at least one provider must be configured** - this is required for the pipeline to work)
-- **`ai.default`**: `{ provider: "openai", model: "gpt-5-mini" }`
+- **`ai.default`**: `{ provider: "openai", model: "gpt-5.2" }`
 - **`context`**: `undefined` (no context files)
 
 **Note:** Profile-specific ASR defaults are automatically applied based on the selected `profile`:
@@ -329,7 +329,7 @@ The `providers` object contains configuration for all providers that may be used
 The `default` object specifies the provider, model, and optional overrides to use for all steps when a step doesn't have a specific override.
 
 - **`provider`** (optional): AI provider to use (`"openai"`, `"deepseek"`, or `"ollama"`). Default: `"openai"`
-- **`model`** (optional): Model identifier (e.g., `"gpt-4o-mini"`, `"gpt-4o"`, `"deepseek-chat"`). Default: `"gpt-5-mini"`
+- **`model`** (optional): Model identifier (e.g., `"gpt-4o-mini"`, `"gpt-4o"`, `"deepseek-chat"`). Default: `"gpt-5.2"`
 - **`overrides`** (optional): Parameter overrides. Default: `undefined`
   - `temperature` (optional): Temperature for text generation (0-2). Default: profile-specific preset values (cleaning: 0, handout: 0, summary: 0.2-0.3 depending on profile)
   - `maxTokens` (optional): Maximum tokens in generated output. Default: not set (the model uses its full budget and stops naturally). **Caution:** For reasoning models (gpt-5 series, o-series), `max_output_tokens` includes internal reasoning tokens — setting it too low can cause empty responses.
@@ -395,7 +395,7 @@ Ollama runs models locally. Any model pulled via `ollama pull` can be used. All 
 
 #### Choosing a Model
 
-- **For deterministic tasks** (cleaning, handout): Reasoning models like `gpt-5-mini` work well and don't need temperature control
+- **For deterministic tasks** (cleaning, handout): Reasoning models like `gpt-5.2` work well and don't need temperature control
 - **For creative tasks** (summary) where you want to tune randomness: Use a standard model like `gpt-4o-mini` with a custom `temperature` override
 - **For cost optimization**: `gpt-5-mini` or `deepseek-chat` are cost-effective choices
 - **For fully local / offline usage**: Use Ollama with a model like `llama3.1:8b` or `qwen2.5:7b` — no API key or internet required

@@ -12,6 +12,13 @@ export interface AiGenerateOptions {
   maxTokens?: number;
 }
 
+export interface HandoutAiGenerateOptions extends AiGenerateOptions {
+  systemPrompt: {
+    singlePass: string;
+    incremental: string;
+  };
+}
+
 export interface AiService {
   generateTextAsync(options: AiGenerateOptions): Promise<string>;
 }

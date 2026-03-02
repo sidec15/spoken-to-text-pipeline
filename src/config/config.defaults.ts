@@ -107,7 +107,7 @@ export const CONFIG_DEFAULTS: Omit<PipelineConfig, "profile"> = {
     },
     default: {
       provider: "openai",
-      model: "gpt-5-mini",
+      model: "gpt-5.2",
     },
   },
   context: undefined,

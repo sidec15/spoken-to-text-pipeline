@@ -115,6 +115,15 @@ export interface StepConfig {
   aiConfig?: Partial<StepAiConfig>;
 }
 
+export interface HandoutStepConfig extends StepConfig {
+  /**
+   * Strategy to use for the handout step (required).
+   * - "incremental": Split the handout into chunks, one for each input cleaned file, and process them incrementally.
+   * - "single-pass": Generate the handout in a single pass.
+   */
+  strategy: "incremental" | "single-pass";
+};
+
 /**
  * AI configuration for text processing steps.
  */
@@ -139,6 +148,24 @@ export interface AiConfig {
  * Only `profile` is required; all other fields are optional and will be filled with defaults.
  */
 export interface PipelineConfig {
+  /**
+   * Title of the pipeline (optional).
+   * Default: undefined
+   */
+  title?: string;
+
+  /**
+   * Author(s) of the lecture, meeting or other content (optional).
+   * Default: undefined
+   */
+  authors?: string[];
+
+  /**
+   * Date of the lecture, meeting or other content (optional).
+   * Default: undefined
+   */
+  date?: Date;
+
   /**
    * Profile that determines default prompts and ASR defaults (required).
    * All profiles use the same steps (cleaning, handout, summary).
@@ -346,14 +373,14 @@ export interface PipelineConfig {
   /**
    * AI provider configuration for text processing steps (optional).
    * Supports provider pool and default configuration.
-   * Default: { providers: {}, default: { provider: "openai", model: "gpt-5-mini" } }
+   * Default: { providers: {}, default: { provider: "openai", model: "gpt-5.2" } }
    */
   ai?: AiConfig;
 
   /**
    * Step configuration for pipeline steps (optional).
    * Allows enabling/disabling steps and configuring AI settings per step.
-   * Default: undefined (all steps enabled, using ai.default or OpenAI gpt-5-mini)
+   * Default: undefined (all steps enabled, using ai.default or OpenAI gpt-5.2)
    */
   steps?: {
     /**
@@ -368,7 +395,7 @@ export interface PipelineConfig {
     /**
      * Configuration for handout step (optional).
      */
-    handout?: StepConfig;
+    handout?: HandoutStepConfig;
     /**
      * Configuration for summary step (optional).
      */

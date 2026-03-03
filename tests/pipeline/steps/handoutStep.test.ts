@@ -107,17 +107,21 @@ describe('HandoutStep', () => {
     };
   });
 
-  it('should throw when strategy is missing', async () => {
+  it('should default to incremental strategy when strategy is missing', async () => {
     mockConfig.steps = {};
     mockReaddirSync.mockReturnValue(['cleaned1.md'] as any);
     mockExistsSync.mockImplementation((path: string) => {
       return path.includes('handout.md') ? false : true;
     });
+    mockReadFileSync.mockReturnValue('cleaned text');
 
-    await expect(step.runAsync(mockContext)).rejects.toThrow(
-      /Handout step requires strategy/
+    await step.runAsync(mockContext);
+
+    expect(mockContext.logger.info).toHaveBeenCalledWith(
+      'Using incremental handout strategy'
     );
-    expect(mockCreateAiService).not.toHaveBeenCalled();
+    expect(mockCreateAiService).toHaveBeenCalledWith(mockConfig, 'handout');
+    expect(mockWriteFile).toHaveBeenCalled();
   });
 
   it('should call AI service with handout prompt', async () => {

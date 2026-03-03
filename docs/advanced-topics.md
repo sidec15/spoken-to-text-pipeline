@@ -53,6 +53,8 @@ To force reprocessing of a specific file:
 
 You can customize the AI prompts used in each step by setting **`prompt`** (inline string) or **`promptFile`** (path to a text or markdown file) under `steps.cleaning`, `steps.handout`, or `steps.summary`. The inline `prompt` takes precedence over `promptFile`. If neither is set, the pipeline uses the built-in default for the selected profile and step.
 
+**Handout step:** Unlike cleaning and summary, the handout step uses **strategy-specific prompts** (`singlePass` and `incremental`). Default prompts come from `profilePresets` (`src/config/profilePresets.ts` — lecture, meeting, other). Each profile has distinct prompts per strategy. All handout prompts instruct the AI to output numbered hierarchical sections only — **no table of contents**. See [Handout Strategy](configuration.md#handout-strategy).
+
 ### Default Prompts
 
 By default, the pipeline uses optimized prompts based on your selected profile. These prompts are designed to work well for their respective use cases.
@@ -70,7 +72,10 @@ Override the system prompt for a step in your configuration. For short prompts y
       "prompt": "Clean and normalize the lecture transcript, preserving all educational content."
     },
     "handout": {
-      "prompt": "Transform cleaned transcripts into a structured handout with table of contents."
+      "strategy": "incremental",
+      "incremental": {
+        "prompt": "Transform cleaned transcripts into a structured handout with numbered sections."
+      }
     },
     "summary": {
       "prompt": "Create a concise summary of the handout, approximately 1000 words."
@@ -125,13 +130,17 @@ You can configure different AI providers and models for each step.
     "default": {
       "provider": "openai",
       "model": "gpt-4o-mini"
-    },
-    "steps": {
-      "cleaning": {
+    }
+  },
+  "steps": {
+    "cleaning": {
+      "aiConfig": {
         "provider": "openai",
         "model": "gpt-4o-mini"
-      },
-      "summary": {
+      }
+    },
+    "summary": {
+      "aiConfig": {
         "provider": "deepseek",
         "model": "deepseek-chat",
         "overrides": {

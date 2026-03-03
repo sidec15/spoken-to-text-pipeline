@@ -96,7 +96,7 @@ The pipeline generates several types of output files:
 
 - **Raw transcripts** (`.txt` files) - Direct output from Whisper ASR
 - **Cleaned transcripts** (`.md` files) - AI-cleaned versions with proper formatting
-- **Handout** (`handout.md`) - Structured document with table of contents
+- **Handout** (`handout.md`) - Structured document with numbered sections (no table of contents)
 - **Summary** (`summary.md`) - Summary of the content
 
 See [Pipeline Steps](pipeline-steps.md) for detailed information about each step.

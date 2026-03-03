@@ -25,7 +25,7 @@ Cleaning (AI-powered)
    ↓
 Cleaned Transcripts (.md files)
    ↓
-Handout Generation (lecture profile only)
+Handout Generation (all profiles when enabled)
    ↓
 Summary Generation
    ↓

@@ -76,7 +76,7 @@ When you run the CLI:
 3. Otherwise, the pipeline executes all steps sequentially:
    - **ASR Step**: Transcribes audio files from `inputDir` using Whisper
    - **Cleaning Step**: Cleans raw transcripts with AI
-   - **Handout Step**: Generates handout (lecture profile only)
+   - **Handout Step**: Generates handout (all profiles when enabled)
    - **Summary Step**: Generates summary
 4. Progress is displayed in the terminal with a progress bar (not shown in dry-run mode)
 5. Logs are written to the console based on the configured log level

@@ -15,7 +15,7 @@ This document describes common use cases and workflows for the spoken-to-text-pi
 
 **Pipeline usage:** Configure the pipeline with the `lecture` profile, pointing to the directory containing audio files. The pipeline transcribes each part, cleans the raw transcripts, merges them into a structured handout, and generates a summary.
 
-**Expected output:** Cleaned markdown files for each part (`part-1.md`, `part-2.md`, etc.), a unified `handout.md` with table of contents and organized sections, and a `summary.md` with key points.
+**Expected output:** Cleaned markdown files for each part (`part-1.md`, `part-2.md`, etc.), a unified `handout.md` with numbered hierarchical sections (no table of contents), and a `summary.md` with key points.
 
 ## Generating Study Handouts from Audio
 

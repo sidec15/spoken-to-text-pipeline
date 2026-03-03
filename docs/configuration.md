@@ -80,7 +80,7 @@ The `profile` field determines which processing profile to use. All profiles use
   - **Expected outputs:**
     - Raw transcripts (`.txt` files) from ASR step
     - Cleaned transcripts (`.md` files) from cleaning step
-    - Structured handout (`handout.md`) with table of contents and organized sections
+    - Structured handout (`handout.md`) with numbered hierarchical sections (no table of contents)
     - Summary (`summary.md`) with key concepts and theoretical frameworks
 
 - **`"meeting"`** - Optimized for meeting transcripts
@@ -90,7 +90,7 @@ The `profile` field determines which processing profile to use. All profiles use
   - **Expected outputs:**
     - Raw transcripts (`.txt` files) from ASR step
     - Cleaned transcripts (`.md` files) from cleaning step
-    - Meeting handout (`handout.md`) with structured meeting documentation
+    - Meeting handout (`handout.md`) with numbered sections and structured meeting documentation (no table of contents)
     - Summary (`summary.md`) with decisions, action items, and key discussion points
 
 - **`"other"`** - General-purpose transcription
@@ -100,7 +100,7 @@ The `profile` field determines which processing profile to use. All profiles use
   - **Expected outputs:**
     - Raw transcripts (`.txt` files) from ASR step
     - Cleaned transcripts (`.md` files) from cleaning step
-    - Handout (`handout.md`) with structured content
+    - Handout (`handout.md`) with numbered sections and structured content (no table of contents)
     - Summary (`summary.md`) with main ideas and key information
 
 **Example:**
@@ -527,7 +527,7 @@ ollama pull qwen2.5:7b
 The optional `steps` object allows you to configure specific pipeline steps at the top level of the configuration.
 
 - **`cleaning`** (optional): Configuration for cleaning step
-- **`handout`** (optional): Configuration for handout step (all profiles). The handout step has a different structure — it requires a `strategy` and uses strategy-specific prompt overrides. See [Handout Strategy](#handout-strategy).
+- **`handout`** (optional): Configuration for handout step (all profiles). The handout step has a different structure — it supports `strategy` (default: `incremental`) and uses strategy-specific prompt overrides. See [Handout Strategy](#handout-strategy).
 - **`summary`** (optional): Configuration for summary step
 
 Each step configuration (except handout) can specify:
@@ -543,12 +543,14 @@ Each step configuration (except handout) can specify:
 
 ### Handout Strategy
 
-The handout step supports two strategies for generating the handout from cleaned transcripts. You **must** set `steps.handout.strategy` when configuring the handout step.
+The handout step supports two strategies for generating the handout from cleaned transcripts. Default: `incremental` (when `steps.handout.strategy` is omitted).
 
 | Strategy | Description |
 |----------|-------------|
-| **`incremental`** | Processes one cleaned transcript file at a time. Each file is sent to the AI along with the last portion of the previously generated handout. The handout is built progressively. Best when you have many transcript parts or want to avoid large context windows. |
+| **`incremental`** (default) | Processes one cleaned transcript file at a time. Each file is sent to the AI along with the last portion of the previously generated handout. The handout is built progressively. Best when you have many transcript parts or want to avoid large context windows. |
 | **`single-pass`** | Merges all cleaned transcripts into one input and sends it to the AI in a single call. When content exceeds the token limit (~90K tokens), the pipeline automatically falls back to chunking: processes content in chunks, then merges the results. Best when you have few files and content fits in context. |
+
+**Profile presets:** Default prompts come from `profilePresets` (`src/config/profilePresets.ts` — lecture, meeting, other). Each profile has distinct prompts for `singlePass` and `incremental` strategies. All handout prompts instruct the AI to output numbered hierarchical sections only — **no table of contents**, no meta header (header is added post-processing).
 
 **Strategy-specific prompt overrides:** Unlike cleaning and summary, the handout step uses separate prompt overrides per strategy:
 
@@ -865,7 +867,7 @@ The following table provides a quick reference for all configuration parameters:
 | `steps.cleaning.aiConfig.overrides.temperature` | `number` | No | Profile-specific presets | 0-2 | Temperature override |
 | `steps.cleaning.aiConfig.overrides.maxTokens` | `number` | No | Not set (model default) | Positive integer | Max tokens override (not recommended for reasoning models) |
 | `steps.handout` | `object` | No | `undefined` | - | Handout step configuration |
-| `steps.handout.strategy` | `string` | Yes (when handout configured) | - | `"incremental"`, `"single-pass"` | Strategy for generating handout (see [Handout Strategy](#handout-strategy)) |
+| `steps.handout.strategy` | `string` | No | `"incremental"` | `"incremental"`, `"single-pass"` | Strategy for generating handout (see [Handout Strategy](#handout-strategy)) |
 | `steps.handout.enabled` | `boolean` | No | `true` | `true`, `false` | Enable or disable handout step |
 | `steps.handout.singlePass` | `object` | No | `undefined` | - | Prompt override for single-pass strategy |
 | `steps.handout.singlePass.prompt` | `string` | No | Profile default | Any string | Inline prompt (takes precedence over promptFile) |

@@ -80,17 +80,25 @@ The handout step generates a structured handout document from cleaned transcript
 
 **What it does:**
 - Merges all cleaned transcripts into a single document
-- Generates a table of contents
-- Organizes content into structured sections
+- Organizes content into numbered hierarchical sections
+- Uses profile-specific prompts from `profilePresets` (lecture, meeting, other)
 - Creates a polished handout suitable for study or distribution
+- **No table of contents** — output uses numbered headings only (e.g. `## 1. Main Section`, `### 1.1 Subsection`)
+
+**Strategy:** The handout step supports two strategies (configurable via `steps.handout.strategy`):
+
+| Strategy | Description |
+|----------|-------------|
+| **`incremental`** (default) | Processes one cleaned transcript file at a time. Each file is sent to the AI along with the last portion of the previously generated handout. The handout is built progressively. Best when you have many transcript parts or want to avoid large context windows. |
+| **`single-pass`** | Merges all cleaned transcripts into one input and sends it to the AI in a single call. When content exceeds the token limit (~90K tokens), the pipeline automatically falls back to chunking. Best when you have few files and content fits in context. |
 
 **Behavior:**
 - Runs for all profiles (lecture, meeting, other) when enabled
-- Reads all cleaned transcript files (excluding `handout.md` and `summary.md`)
-- Processes them in alphabetical order
-- Generates a unified handout with proper structure
+- Reads all cleaned transcript files from the `cleaned` subdirectory (sorted by numeric part index)
+- Uses strategy-specific prompts from profile presets (`singlePass` or `incremental` per strategy)
+- Generates a unified handout with numbered sections, no TOC, no meta header (header is added post-processing)
 
-**Configuration:** See [AI Provider Configuration](configuration.md#ai-provider-configuration) and [Step Configuration](configuration.md#step-configuration-steps) (including optional `prompt` / `promptFile` overrides).
+**Configuration:** See [AI Provider Configuration](configuration.md#ai-provider-configuration) and [Handout Strategy](configuration.md#handout-strategy) (step configuration).
 
 **Idempotency:** If `handout.md` already exists, the step is skipped.
 

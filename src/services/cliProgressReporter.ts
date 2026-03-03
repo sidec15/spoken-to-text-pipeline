@@ -9,12 +9,13 @@ export class CliProgressReporter implements ProgressReporter {
     this.currentMessage = label ?? "Progress";
     this.bar = new cliProgress.SingleBar(
       {
-        format: (options, params) => {
+        format: (_options, params) => {
           const percentage = Math.round((params.value / params.total) * 100);
           const bar = "█".repeat(Math.floor((params.value / params.total) * 20)).padEnd(20, "░");
-          return `${this.currentMessage} |${bar}| ${params.value}/${params.total} - ${percentage}%`;
+          return `|${bar}| ${params.value}/${params.total} ${percentage}% · ${this.currentMessage}`;
         },
         clearOnComplete: true,
+        linewrap: false,
       },
       cliProgress.Presets.shades_classic,
     );

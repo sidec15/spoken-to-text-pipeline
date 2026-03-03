@@ -21,8 +21,8 @@ export function resolveOpenAiConfig(
   }
 
   const overrides = stepConfig.overrides ?? {};
-  const outputLanguage = config.language?.output ?? "English";
-  const languageInstruction = `\n\nIMPORTANT: All output must be in ${outputLanguage}. Write all content, including headings, annotations, and any text, exclusively in ${outputLanguage}.`;
+  const langCode = (config.language?.output ?? "en").trim().toLowerCase();
+  const languageInstruction = `\n\nIMPORTANT: Output language is specified by ISO 639-1 two-letter code "${langCode}". All output must be written in that language. Write all content, including headings, annotations, and any text, exclusively in the language identified by code "${langCode}".`;
 
   if (step === "handout") {
     const handoutPreset = preset as unknown as {

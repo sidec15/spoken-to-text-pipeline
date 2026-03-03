@@ -28,12 +28,7 @@ export class HandoutStep implements Step {
       return;
     }
 
-    const strategy = config.steps?.handout?.strategy;
-    if (!strategy) {
-      throw new Error(
-        "Handout step requires strategy. Set steps.handout.strategy to 'incremental' or 'single-pass' in your pipeline config.",
-      );
-    }
+    const strategy = config.steps?.handout?.strategy ?? "incremental";
 
     const aiOptions = resolveAiConfig(config, "handout") as Omit<HandoutAiGenerateOptions, "userPrompt">;
     const aiService = createAiService(config, "handout");
@@ -140,6 +135,14 @@ export class HandoutStep implements Step {
   /** Last N characters of previous handout to pass as context (keeps token usage bounded). */
   private static readonly PREVIOUS_HANDOUT_EXCERPT_CHARS = 4000;
 
+  /** Extracts the last main section number (e.g. 5 from "## 5. Title" or "### 5.2 Subtitle"). */
+  private extractLastSectionNumber(handout: string): number | null {
+    const regex = /(?:^|\n)#{2,6}\s+(\d+)(?:\.\d+)*\s*\./g;
+    const matches = [...handout.matchAll(regex)];
+    const last = matches.pop();
+    return last ? parseInt(last[1], 10) : null;
+  }
+
   private async generateHandoutIncremental(
     aiService: AiService,
     aiOptions: Omit<AiGenerateOptions, "userPrompt">,
@@ -152,20 +155,25 @@ export class HandoutStep implements Step {
     const cleanedDir = path.join(outputDir, "cleaned");
     let accumulatedHandout = "";
 
-    progress?.start(cleanedFiles.length, "Generating handout (incremental)");
+    progress?.start(cleanedFiles.length, "Handout (incremental)");
 
     for (let i = 0; i < cleanedFiles.length; i++) {
       const file = cleanedFiles[i];
       const content = fs.readFileSync(path.join(cleanedDir, file), "utf-8");
 
-      progress?.updateMessage(
-        `Generating handout (incremental) - File ${i + 1}/${cleanedFiles.length}: ${file}`,
-      );
+      progress?.updateMessage(`Handout [${i + 1}/${cleanedFiles.length}] ${file}`);
+
+      const previousExcerpt = accumulatedHandout.slice(-HandoutStep.PREVIOUS_HANDOUT_EXCERPT_CHARS).trim();
+      const lastSection = this.extractLastSectionNumber(accumulatedHandout);
+      const numberingHint =
+        lastSection !== null
+          ? `CONTINUATION: The previous handout ends at section ${lastSection}. Your new content MUST continue numbering from section ${lastSection + 1} (or extend section ${lastSection} if the new material belongs there). Never restart from 1.\n\n`
+          : "";
 
       const userPrompt =
         accumulatedHandout === ""
           ? content
-          : `PREVIOUS HANDOUT (last portion only):\n\n${accumulatedHandout.slice(-HandoutStep.PREVIOUS_HANDOUT_EXCERPT_CHARS).trim()}\n\n---\n\nNEW TRANSCRIPT TO INTEGRATE:\n\n${content}`;
+          : `${numberingHint}PREVIOUS HANDOUT (last portion only):\n\n${previousExcerpt}\n\n---\n\nNEW TRANSCRIPT TO INTEGRATE:\n\n${content}`;
 
       const result = await aiService.generateTextAsync({
         systemPrompt: aiOptions.systemPrompt,

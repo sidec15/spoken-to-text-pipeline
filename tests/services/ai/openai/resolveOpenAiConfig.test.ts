@@ -49,16 +49,11 @@ describe('resolveOpenAiConfig', () => {
 
     // Act
     const result = resolveOpenAiConfig(config, 'handout', stepConfig);
-    const systemPrompt = result.systemPrompt as { singlePass: string; incremental: string };
 
-    // Assert - handout returns HandoutAiGenerateOptions with dual prompts
-    expect(systemPrompt).toBeDefined();
-    expect(systemPrompt).toHaveProperty('singlePass');
-    expect(systemPrompt).toHaveProperty('incremental');
-    expect(typeof systemPrompt.singlePass).toBe('string');
-    expect(typeof systemPrompt.incremental).toBe('string');
-    expect(systemPrompt.singlePass).toContain('it'); // Language instruction
-    expect(systemPrompt.incremental).toContain('it'); // Language instruction
+    // Assert - handout returns HandoutAiGenerateOptions with string systemPrompt
+    expect(result.systemPrompt).toBeDefined();
+    expect(typeof result.systemPrompt).toBe('string');
+    expect(result.systemPrompt).toContain('it'); // Language instruction
   });
 
   it('should resolve config for summary step', () => {
@@ -136,46 +131,20 @@ describe('resolveOpenAiConfig', () => {
     expect(result.systemPrompt).toContain('it'); // Language instruction
   });
 
-  it('should use steps.handout.singlePass.prompt when set', () => {
+  it('should use steps.handout.prompt when set', () => {
     // Arrange
     const config = createMockConfig();
     config.steps = {
-      handout: {
-        strategy: 'single-pass',
-        singlePass: { prompt: 'Custom single-pass handout prompt' },
-      },
+      handout: { prompt: 'Custom handout prompt' },
     };
     const stepConfig = createStepConfig();
 
     // Act
     const result = resolveOpenAiConfig(config, 'handout', stepConfig);
-    const systemPrompt = result.systemPrompt as { singlePass: string; incremental: string };
 
     // Assert
-    expect(systemPrompt.singlePass).toContain('Custom single-pass handout prompt');
-    expect(systemPrompt.singlePass).toContain('it'); // Language instruction
-    expect(systemPrompt.incremental).not.toContain('Custom single-pass handout prompt');
-  });
-
-  it('should use steps.handout.incremental.prompt when set', () => {
-    // Arrange
-    const config = createMockConfig();
-    config.steps = {
-      handout: {
-        strategy: 'incremental',
-        incremental: { prompt: 'Custom incremental handout prompt' },
-      },
-    };
-    const stepConfig = createStepConfig();
-
-    // Act
-    const result = resolveOpenAiConfig(config, 'handout', stepConfig);
-    const systemPrompt = result.systemPrompt as { singlePass: string; incremental: string };
-
-    // Assert
-    expect(systemPrompt.incremental).toContain('Custom incremental handout prompt');
-    expect(systemPrompt.incremental).toContain('it'); // Language instruction
-    expect(systemPrompt.singlePass).not.toContain('Custom incremental handout prompt');
+    expect(result.systemPrompt).toContain('Custom handout prompt');
+    expect(result.systemPrompt).toContain('it'); // Language instruction
   });
 
   it('should not inject metadata into prompts (metadata is added post-processing)', () => {
@@ -186,11 +155,9 @@ describe('resolveOpenAiConfig', () => {
     // Act
     const handoutResult = resolveOpenAiConfig(config, 'handout', stepConfig);
     const summaryResult = resolveOpenAiConfig(config, 'summary', stepConfig);
-    const systemPrompt = handoutResult.systemPrompt as { singlePass: string; incremental: string };
 
     // Assert - prompts do not contain metadata block (metadata is added post-processing)
-    expect(systemPrompt.singlePass).not.toContain('METADATA (use these values exactly)');
-    expect(systemPrompt.incremental).not.toContain('METADATA (use these values exactly)');
+    expect(handoutResult.systemPrompt).not.toContain('METADATA (use these values exactly)');
     expect(summaryResult.systemPrompt).not.toContain('METADATA (use these values exactly)');
   });
 

@@ -25,22 +25,14 @@ export function resolveOllamaConfig(
   const languageInstruction = `\n\nIMPORTANT: Output language is specified by ISO 639-1 two-letter code "${langCode}". All output must be written in that language. Write all content, including headings, annotations, and any text, exclusively in the language identified by code "${langCode}".`;
 
   if (step === "handout") {
-    const handoutPreset = preset as unknown as {
-      systemPrompt: { singlePass: string; incremental: string };
-      temperature?: number;
-    };
-    const singlePassOverride = getStepPromptOverride(config, "handout", "single-pass");
-    const incrementalOverride = getStepPromptOverride(config, "handout", "incremental");
-    const singlePassBase =
-      singlePassOverride ?? handoutPreset.systemPrompt?.singlePass ?? "";
-    const incrementalBase =
-      incrementalOverride ?? handoutPreset.systemPrompt?.incremental ?? "";
-    const singlePass = singlePassBase + languageInstruction;
-    const incremental = incrementalBase + languageInstruction;
+    const handoutPreset = preset as unknown as { systemPrompt: string; temperature?: number };
+    const promptOverride = getStepPromptOverride(config, "handout");
+    const basePrompt = promptOverride ?? handoutPreset.systemPrompt ?? "";
+    const enhancedSystemPrompt = basePrompt + languageInstruction;
 
     return {
       ...preset,
-      systemPrompt: { singlePass, incremental },
+      systemPrompt: enhancedSystemPrompt,
       ...overrides,
     } as Omit<HandoutAiGenerateOptions, "userPrompt">;
   }

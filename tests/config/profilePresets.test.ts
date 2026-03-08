@@ -48,11 +48,7 @@ describe('profilePresets', () => {
       expect(lecturePreset.handout).toHaveProperty('temperature');
       expect(lecturePreset.handout).toHaveProperty('systemPrompt');
       expect(typeof lecturePreset.handout?.temperature).toBe('number');
-      // handout has dual prompts: singlePass and incremental
-      expect(lecturePreset.handout?.systemPrompt).toHaveProperty('singlePass');
-      expect(lecturePreset.handout?.systemPrompt).toHaveProperty('incremental');
-      expect(typeof lecturePreset.handout?.systemPrompt?.singlePass).toBe('string');
-      expect(typeof lecturePreset.handout?.systemPrompt?.incremental).toBe('string');
+      expect(typeof lecturePreset.handout?.systemPrompt).toBe('string');
       
       expect(lecturePreset.summary).toHaveProperty('temperature');
       expect(lecturePreset.summary).toHaveProperty('systemPrompt');
@@ -65,10 +61,7 @@ describe('profilePresets', () => {
       expect(meetingPreset.cleaning).toHaveProperty('systemPrompt');
       expect(meetingPreset.handout).toHaveProperty('temperature');
       expect(meetingPreset.handout).toHaveProperty('systemPrompt');
-      expect(meetingPreset.handout?.systemPrompt).toHaveProperty('singlePass');
-      expect(meetingPreset.handout?.systemPrompt).toHaveProperty('incremental');
-      expect(typeof meetingPreset.handout?.systemPrompt?.singlePass).toBe('string');
-      expect(typeof meetingPreset.handout?.systemPrompt?.incremental).toBe('string');
+      expect(typeof meetingPreset.handout?.systemPrompt).toBe('string');
       expect(meetingPreset.summary).toHaveProperty('temperature');
       expect(meetingPreset.summary).toHaveProperty('systemPrompt');
 
@@ -78,10 +71,7 @@ describe('profilePresets', () => {
       expect(otherPreset.cleaning).toHaveProperty('systemPrompt');
       expect(otherPreset.handout).toHaveProperty('temperature');
       expect(otherPreset.handout).toHaveProperty('systemPrompt');
-      expect(otherPreset.handout?.systemPrompt).toHaveProperty('singlePass');
-      expect(otherPreset.handout?.systemPrompt).toHaveProperty('incremental');
-      expect(typeof otherPreset.handout?.systemPrompt?.singlePass).toBe('string');
-      expect(typeof otherPreset.handout?.systemPrompt?.incremental).toBe('string');
+      expect(typeof otherPreset.handout?.systemPrompt).toBe('string');
       expect(otherPreset.summary).toHaveProperty('temperature');
       expect(otherPreset.summary).toHaveProperty('systemPrompt');
     });
@@ -101,9 +91,7 @@ describe('profilePresets', () => {
       for (const profile of ['lecture', 'meeting', 'other'] as const) {
         const preset = AI_PROFILE_PRESETS[profile];
         if (preset?.handout?.systemPrompt) {
-          const sp = preset.handout.systemPrompt as { singlePass?: string; incremental?: string };
-          expect(sp.singlePass).toContain(noHeaderPhrase);
-          expect(sp.incremental).toContain(noHeaderPhrase);
+          expect(preset.handout.systemPrompt).toContain(noHeaderPhrase);
         }
         if (preset?.summary?.systemPrompt) {
           expect(preset.summary.systemPrompt).toContain(noHeaderPhrase);

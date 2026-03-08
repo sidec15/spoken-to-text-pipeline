@@ -14,10 +14,7 @@ export interface AiGenerateOptions {
 
 export interface HandoutAiGenerateOptions
   extends Omit<AiGenerateOptions, "systemPrompt"> {
-  systemPrompt: {
-    singlePass: string;
-    incremental: string;
-  };
+  systemPrompt: string;
 }
 
 export interface AiService {

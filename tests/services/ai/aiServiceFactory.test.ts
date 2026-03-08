@@ -302,23 +302,17 @@ describe('aiServiceFactory', () => {
       expect(() => resolveAiConfig(config, 'cleaning')).toThrow(/Unsupported AI provider/);
     });
 
-    it('should resolve AI config for handout step with dual prompts', () => {
+    it('should resolve AI config for handout step with single system prompt', () => {
       // Arrange
       const config = createMockConfig();
 
       // Act
       const result = resolveAiConfig(config, 'handout');
 
-      // Assert - handout returns HandoutAiGenerateOptions with singlePass and incremental
+      // Assert - handout returns HandoutAiGenerateOptions with string systemPrompt
       expect(result.systemPrompt).toBeDefined();
-      expect(typeof result.systemPrompt).toBe('object');
-      const systemPrompt = result.systemPrompt as { singlePass: string; incremental: string };
-      expect(systemPrompt).toHaveProperty('singlePass');
-      expect(systemPrompt).toHaveProperty('incremental');
-      expect(typeof systemPrompt.singlePass).toBe('string');
-      expect(typeof systemPrompt.incremental).toBe('string');
-      expect(systemPrompt.singlePass).toContain('it'); // Language instruction
-      expect(systemPrompt.incremental).toContain('it');
+      expect(typeof result.systemPrompt).toBe('string');
+      expect(result.systemPrompt).toContain('it'); // Language instruction
     });
   });
 

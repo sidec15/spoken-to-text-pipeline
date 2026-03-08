@@ -28,43 +28,19 @@ export class HandoutStep implements Step {
       return;
     }
 
-    const strategy = config.steps?.handout?.strategy ?? "incremental";
-
     const aiOptions = resolveAiConfig(config, "handout") as Omit<HandoutAiGenerateOptions, "userPrompt">;
     const aiService = createAiService(config, "handout");
     const contextText = loadContextText(config.context?.textSources, baseDir);
 
-    const systemPrompt =
-      strategy === "incremental" ? aiOptions.systemPrompt.incremental : aiOptions.systemPrompt.singlePass;
-
-    let handout: string;
-    if (strategy === "incremental") {
-      logger.info("Using incremental handout strategy");
-      handout = await this.generateHandoutIncremental(
-        aiService,
-        { ...aiOptions, systemPrompt },
-        cleanedFiles,
-        outputDir,
-        contextText,
-        logger,
-        progress,
-      );
-    } else {
-      logger.info("Using single-pass handout strategy");
-      const mergedContent = this.mergeCleanedFiles(cleanedFiles, outputDir);
-      const estimatedInputTokens = this.estimateTokens(mergedContent, logger);
-      handout = await this.generateHandoutSinglePass(
-        aiService,
-        { ...aiOptions, systemPrompt },
-        cleanedFiles,
-        outputDir,
-        mergedContent,
-        estimatedInputTokens,
-        contextText,
-        logger,
-        progress,
-      );
-    }
+    const handout = await this.generateHandoutIncremental(
+      aiService,
+      aiOptions,
+      cleanedFiles,
+      outputDir,
+      contextText,
+      logger,
+      progress,
+    );
 
     const stepLabel = await getLocalizedStepLabel(config, "handout", aiService);
     const header = buildMetadataHeader(config, stepLabel);
@@ -112,24 +88,6 @@ export class HandoutStep implements Step {
 
     logger.info(`Found ${cleanedFiles.length} cleaned transcript parts to merge`);
     return cleanedFiles;
-  }
-
-  private mergeCleanedFiles(cleanedFiles: string[], outputDir: string): string {
-    // Merge all cleaned files with clear separators
-    const cleanedDir = path.join(outputDir, "cleaned");
-    return cleanedFiles
-      .map((file, index) => {
-        const content = fs.readFileSync(path.join(cleanedDir, file), "utf-8");
-        return `---\n## Part ${index + 1}\n\n${content}\n`;
-      })
-      .join("\n\n");
-  }
-
-  private estimateTokens(content: string, logger: Logger): number {
-    // Check token limits (rough estimate: 1 token ≈ 4 characters)
-    const estimatedInputTokens = Math.ceil(content.length / 4);
-    logger.info(`Estimated input tokens: ${estimatedInputTokens}`);
-    return estimatedInputTokens;
   }
 
   /** Last N characters of previous handout to pass as context (keeps token usage bounded). */
@@ -191,219 +149,5 @@ export class HandoutStep implements Step {
 
     progress?.stop();
     return accumulatedHandout;
-  }
-
-  private async generateHandoutSinglePass(
-    aiService: AiService,
-    aiOptions: Omit<AiGenerateOptions, "userPrompt">,
-    cleanedFiles: string[],
-    outputDir: string,
-    mergedContent: string,
-    estimatedInputTokens: number,
-    contextText: string | undefined,
-    logger: Logger,
-    progress: ProgressReporter | undefined,
-  ): Promise<string> {
-    const MAX_SAFE_INPUT_TOKENS = 90000;
-
-    if (estimatedInputTokens > MAX_SAFE_INPUT_TOKENS) {
-      logger.warn(
-        `Input content (${estimatedInputTokens} tokens) exceeds safe limit (${MAX_SAFE_INPUT_TOKENS} tokens). Using chunking fallback.`,
-      );
-      return await this.generateHandoutWithChunking(
-        aiService,
-        aiOptions,
-        cleanedFiles,
-        outputDir,
-        logger,
-        progress,
-        contextText,
-      );
-    }
-
-    logger.info("Processing input content in a single pass");
-    return await aiService.generateTextAsync({
-      systemPrompt: aiOptions.systemPrompt,
-      manualContextText: contextText || undefined,
-      userPrompt: mergedContent,
-      temperature: aiOptions.temperature,
-    });
-  }
-
-  /**
-   * Generates handout using chunking strategy when content exceeds token limits.
-   * Uses a two-pass approach:
-   * 1. Process chunks to identify themes and structure
-   * 2. Reorganize and merge into final handout
-   */
-  private async generateHandoutWithChunking(
-    aiService: AiService,
-    aiOptions: { systemPrompt: string; temperature?: number; maxTokens?: number },
-    cleanedFiles: string[],
-    outputDir: string,
-    logger: StepContext["logger"],
-    progress?: StepContext["progress"],
-    contextText?: string,
-  ): Promise<string> {
-    logger.info(`Processing ${cleanedFiles.length} files in chunks`);
-
-    // Read all file contents from the cleaned directory
-    const cleanedDir = path.join(outputDir, "cleaned");
-    const fileContents = cleanedFiles.map((file) => ({
-      name: file,
-      content: fs.readFileSync(path.join(cleanedDir, file), "utf-8"),
-    }));
-
-    const chunks = this.groupFilesIntoChunks(fileContents, logger, progress);
-    const chunkResults = await this.processChunks(
-      aiService,
-      aiOptions,
-      chunks,
-      logger,
-      progress,
-      contextText,
-    );
-
-    if (chunkResults.length === 1) {
-      return chunkResults[0];
-    }
-
-    return this.mergeChunkResults(aiService, aiOptions, chunkResults, contextText);
-  }
-
-  /**
-   * Groups files into chunks based on token limits.
-   */
-  private groupFilesIntoChunks(
-    fileContents: Array<{ name: string; content: string }>,
-    logger: StepContext["logger"],
-    progress?: StepContext["progress"],
-  ): Array<Array<{ name: string; content: string }>> {
-    const CHUNK_SIZE_TOKENS = 80000; // Safe chunk size
-    const CHUNK_SIZE_CHARS = CHUNK_SIZE_TOKENS * 4; // Rough conversion
-
-    const chunks: Array<Array<(typeof fileContents)[0]>> = [];
-    let currentChunk: typeof fileContents = [];
-    let currentChunkSize = 0;
-    const totalFiles = fileContents.length;
-
-    // Start progress bar for grouping files
-    progress?.start(totalFiles, "Grouping files into chunks");
-
-    for (let i = 0; i < fileContents.length; i++) {
-      const file = fileContents[i];
-      const fileSize = file.content.length;
-      const separatorSize = 50; // Size of separator text
-
-      if (
-        currentChunkSize + fileSize + separatorSize > CHUNK_SIZE_CHARS &&
-        currentChunk.length > 0
-      ) {
-        chunks.push([...currentChunk]);
-        currentChunk = [file];
-        currentChunkSize = fileSize;
-        progress?.updateMessage(`Grouping files into chunks - Created ${chunks.length} chunk(s)`);
-      } else {
-        currentChunk.push(file);
-        currentChunkSize += fileSize + separatorSize;
-      }
-
-      progress?.increment();
-    }
-
-    if (currentChunk.length > 0) {
-      chunks.push(currentChunk);
-    }
-
-    progress?.stop();
-    logger.info(`Split into ${chunks.length} chunks`);
-
-    return chunks;
-  }
-
-  /**
-   * Processes each chunk independently to generate handout sections.
-   */
-  private async processChunks(
-    aiService: AiService,
-    aiOptions: { systemPrompt: string; temperature?: number; maxTokens?: number },
-    chunks: Array<Array<{ name: string; content: string }>>,
-    logger: StepContext["logger"],
-    progress?: StepContext["progress"],
-    contextText?: string,
-  ): Promise<string[]> {
-    // Total steps: chunks + final merge (if multiple chunks)
-    const totalSteps = chunks.length + (chunks.length > 1 ? 1 : 0);
-    progress?.start(totalSteps, "Generating handout (chunking)");
-
-    const chunkResults: string[] = [];
-
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
-      const chunkContent = chunk
-        .map((file, index) => {
-          const globalIndex = chunks.slice(0, i).reduce((sum, c) => sum + c.length, 0) + index;
-          return `---\n## Part ${globalIndex + 1}\n\n${file.content}\n`;
-        })
-        .join("\n\n");
-
-      progress?.updateMessage(
-        `Generating handout (chunking) - Chunk ${i + 1}/${chunks.length} (${chunk.length} files)`,
-      );
-
-      const chunkHandout = await aiService.generateTextAsync({
-        systemPrompt: aiOptions.systemPrompt,
-        manualContextText: contextText || undefined,
-        userPrompt: chunkContent,
-        temperature: aiOptions.temperature,
-        // maxTokens is intentionally not set for handout to allow full-length output
-      });
-
-      chunkResults.push(chunkHandout);
-      progress?.increment();
-    }
-
-    // Stop progress bar if single chunk (no merge needed)
-    if (chunkResults.length === 1) {
-      progress?.stop();
-    }
-
-    return chunkResults;
-  }
-
-  /**
-   * Merges multiple chunk results into a single cohesive handout.
-   */
-  private async mergeChunkResults(
-    aiService: AiService,
-    aiOptions: { systemPrompt: string; temperature?: number; maxTokens?: number },
-    chunkResults: string[],
-    contextText?: string,
-  ): Promise<string> {
-    const mergedChunks = chunkResults
-      .map((content, index) => `---\n## Chunk ${index + 1}\n\n${content}\n`)
-      .join("\n\n");
-
-    const mergeSystemPrompt = `You are merging multiple handout sections into a single, cohesive handout.
-
-The following sections were generated from different parts of a lecture.
-Your task is to:
-1. Merge them into a single, well-structured handout
-2. Remove duplicate content
-3. Ensure smooth transitions between sections
-4. Maintain the table of contents structure
-5. Preserve all important content
-
-Output a complete, unified handout with table of contents.`;
-
-    const finalHandout = await aiService.generateTextAsync({
-      systemPrompt: mergeSystemPrompt,
-      manualContextText: contextText || undefined,
-      userPrompt: mergedChunks,
-      temperature: aiOptions.temperature,
-      // maxTokens is intentionally not set for handout to allow full-length output
-    });
-
-    return finalHandout;
   }
 }

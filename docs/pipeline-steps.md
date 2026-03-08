@@ -79,26 +79,21 @@ The handout step generates a structured handout document from cleaned transcript
 **Output:** `handout.md` file written to `paths.outputDir`
 
 **What it does:**
-- Merges all cleaned transcripts into a single document
-- Organizes content into numbered hierarchical sections
+- Processes one cleaned transcript file at a time (incremental generation)
+- Each file is sent to the AI along with the last portion of the previously generated handout
+- The handout is built progressively, file by file
+- Organizes content into hierarchical sections
 - Uses profile-specific prompts from `profilePresets` (lecture, meeting, other)
 - Creates a polished handout suitable for study or distribution
-- **No table of contents** — output uses numbered headings only (e.g. `## 1. Main Section`, `### 1.1 Subsection`)
-
-**Strategy:** The handout step supports two strategies (configurable via `steps.handout.strategy`):
-
-| Strategy | Description |
-|----------|-------------|
-| **`incremental`** (default) | Processes one cleaned transcript file at a time. Each file is sent to the AI along with the last portion of the previously generated handout. The handout is built progressively. Best when you have many transcript parts or want to avoid large context windows. |
-| **`single-pass`** | Merges all cleaned transcripts into one input and sends it to the AI in a single call. When content exceeds the token limit (~90K tokens), the pipeline automatically falls back to chunking. Best when you have few files and content fits in context. |
+- **No table of contents** — output uses hierarchical headings, no meta header (header is added post-processing)
 
 **Behavior:**
 - Runs for all profiles (lecture, meeting, other) when enabled
 - Reads all cleaned transcript files from the `cleaned` subdirectory (sorted by numeric part index)
-- Uses strategy-specific prompts from profile presets (`singlePass` or `incremental` per strategy)
-- Generates a unified handout with numbered sections, no TOC, no meta header (header is added post-processing)
+- Uses profile-specific prompts (override via `steps.handout.prompt` or `steps.handout.promptFile`)
+- Generates a unified handout with numbered sections
 
-**Configuration:** See [AI Provider Configuration](configuration.md#ai-provider-configuration) and [Handout Strategy](configuration.md#handout-strategy) (step configuration).
+**Configuration:** See [AI Provider Configuration](configuration.md#ai-provider-configuration) and [Step Configuration](configuration.md#step-configuration).
 
 **Idempotency:** If `handout.md` already exists, the step is skipped.
 

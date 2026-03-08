@@ -36,10 +36,7 @@ const mockCreateAiService = jest.fn().mockReturnValue({
   generateTextAsync: mockGenerateTextAsync,
 });
 const mockResolveAiConfig = jest.fn().mockReturnValue({
-  systemPrompt: {
-    singlePass: 'Create handout (single-pass)',
-    incremental: 'Create handout (incremental)',
-  },
+  systemPrompt: 'Create handout',
   temperature: 0,
 });
 
@@ -96,7 +93,7 @@ describe('HandoutStep', () => {
         },
       },
       steps: {
-        handout: { strategy: 'incremental' as const },
+        handout: {},
       },
     };
     mockContext = {
@@ -107,7 +104,7 @@ describe('HandoutStep', () => {
     };
   });
 
-  it('should default to incremental strategy when strategy is missing', async () => {
+  it('should process handout incrementally when cleaned files exist', async () => {
     mockConfig.steps = {};
     mockReaddirSync.mockReturnValue(['cleaned1.md'] as any);
     mockExistsSync.mockImplementation((path: string) => {
@@ -117,9 +114,6 @@ describe('HandoutStep', () => {
 
     await step.runAsync(mockContext);
 
-    expect(mockContext.logger.info).toHaveBeenCalledWith(
-      'Using incremental handout strategy'
-    );
     expect(mockCreateAiService).toHaveBeenCalledWith(mockConfig, 'handout');
     expect(mockWriteFile).toHaveBeenCalled();
   });
@@ -259,59 +253,6 @@ describe('HandoutStep', () => {
     expect(part1Index).toBeLessThan(part10Index);
   });
 
-  it('should use single-pass strategy with single AI call when content fits', async () => {
-    // Arrange - single-pass with small content (under token limit)
-    mockConfig.steps = { handout: { strategy: 'single-pass' as const } };
-    mockReaddirSync.mockReturnValue(['part-1.md', 'part-2.md'] as any);
-    mockExistsSync.mockImplementation((path: string) => {
-      return path.includes('handout.md') ? false : true;
-    });
-    mockReadFileSync.mockReturnValue('small content');
-    mockResolveAiConfig.mockReturnValue({
-      systemPrompt: { singlePass: 'Create handout', incremental: 'Create handout' },
-      temperature: 0,
-    });
-
-    // Act
-    await step.runAsync(mockContext);
-
-    // Assert - single AI call, no chunking
-    expect(mockContext.logger.info).toHaveBeenCalledWith(
-      'Using single-pass handout strategy'
-    );
-    expect(mockContext.logger.info).toHaveBeenCalledWith(
-      expect.stringContaining('single pass')
-    );
-    expect(mockGenerateTextAsync).toHaveBeenCalledTimes(1);
-    expect(mockWriteFile).toHaveBeenCalled();
-  });
-
-  it('should use chunking strategy for large content', async () => {
-    // Arrange - chunking only applies to single-pass strategy
-    mockConfig.steps = { handout: { strategy: 'single-pass' as const } };
-    const largeContent = 'x'.repeat(400000); // ~100K tokens (exceeds MAX_SAFE_INPUT_TOKENS)
-    mockReaddirSync.mockReturnValue(['part-1.md', 'part-2.md'] as any);
-    mockExistsSync.mockImplementation((path: string) => {
-      return path.includes('handout.md') ? false : true;
-    });
-    mockReadFileSync.mockReturnValue(largeContent);
-    mockResolveAiConfig.mockReturnValue({
-      systemPrompt: { singlePass: 'Create handout', incremental: 'Create handout' },
-      temperature: 0,
-    });
-
-    // Act
-    await step.runAsync(mockContext);
-
-    // Assert
-    expect(mockContext.logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('exceeds safe limit')
-    );
-    expect(mockContext.logger.info).toHaveBeenCalledWith(
-      expect.stringContaining('chunks')
-    );
-  });
-
   it('should handle files without numeric parts', async () => {
     // Arrange
     mockReaddirSync.mockReturnValue(['cleaned.md', 'other.md'] as any);
@@ -348,57 +289,6 @@ describe('HandoutStep', () => {
       call[0].includes('part-')
     );
     expect(readCalls.length).toBe(2);
-  });
-
-  it('should handle chunking when content exceeds token limits', async () => {
-    // Arrange - chunking only applies to single-pass strategy
-    mockConfig.steps = { handout: { strategy: 'single-pass' as const } };
-    const largeContent = 'x'.repeat(400000);
-    mockReaddirSync.mockReturnValue(['part-1.md', 'part-2.md'] as any);
-    mockExistsSync.mockImplementation((path: string) => {
-      return path.includes('handout.md') ? false : true;
-    });
-    mockReadFileSync.mockReturnValue(largeContent);
-    mockResolveAiConfig.mockReturnValue({
-      systemPrompt: { singlePass: 'Create handout', incremental: 'Create handout' },
-      temperature: 0,
-    });
-    mockGenerateTextAsync.mockResolvedValue('chunk handout');
-
-    // Act
-    await step.runAsync(mockContext);
-
-    // Assert
-    expect(mockContext.logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('exceeds safe limit')
-    );
-    expect(mockWriteFile).toHaveBeenCalled();
-  });
-
-  it('should handle multiple chunks and merge', async () => {
-    // Arrange - chunking only applies to single-pass strategy
-    mockConfig.steps = { handout: { strategy: 'single-pass' as const } };
-    const largeContent = 'x'.repeat(700000);
-    mockReaddirSync.mockReturnValue(['part-1.md', 'part-2.md', 'part-3.md'] as any);
-    mockExistsSync.mockImplementation((path: string) => {
-      return path.includes('handout.md') ? false : true;
-    });
-    mockReadFileSync.mockReturnValue(largeContent);
-    mockResolveAiConfig.mockReturnValue({
-      systemPrompt: { singlePass: 'Create handout', incremental: 'Create handout' },
-      temperature: 0,
-    });
-    mockGenerateTextAsync
-      .mockResolvedValueOnce('chunk 1 handout')
-      .mockResolvedValueOnce('chunk 2 handout')
-      .mockResolvedValueOnce('merged final handout');
-
-    // Act
-    await step.runAsync(mockContext);
-
-    // Assert
-    expect(mockGenerateTextAsync.mock.calls.length).toBeGreaterThanOrEqual(2);
-    expect(mockWriteFile).toHaveBeenCalled();
   });
 
   it('should pass context to AI service when context is configured', async () => {
@@ -445,33 +335,4 @@ describe('HandoutStep', () => {
     expect(generateCall.manualContextText).toBeUndefined();
   });
 
-  it('should pass context to AI service during chunking', async () => {
-    // Arrange - chunking only applies to single-pass strategy
-    mockConfig.steps = { handout: { strategy: 'single-pass' as const } };
-    const contextText = 'reference material content';
-    (mockLoadContextText as jest.Mock).mockReturnValue(contextText);
-    mockConfig.context = { textSources: ['ref.txt'] };
-    const largeContent = 'x'.repeat(400000);
-    mockReaddirSync.mockReturnValue(['part-1.md', 'part-2.md'] as any);
-    mockExistsSync.mockImplementation((path: string) => {
-      return path.includes('handout.md') ? false : true;
-    });
-    mockReadFileSync.mockReturnValue(largeContent);
-    mockResolveAiConfig.mockReturnValue({
-      systemPrompt: { singlePass: 'Create handout', incremental: 'Create handout' },
-      temperature: 0,
-    });
-    mockGenerateTextAsync.mockResolvedValue('chunk handout');
-
-    // Act
-    await step.runAsync(mockContext);
-
-    // Assert
-    expect(mockGenerateTextAsync.mock.calls.length).toBeGreaterThan(0);
-    mockGenerateTextAsync.mock.calls.forEach((call: any[]) => {
-      expect(call[0]).toMatchObject({
-        manualContextText: contextText,
-      });
-    });
-  });
 });

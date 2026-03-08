@@ -67,7 +67,7 @@ ${userPrompt}
   `.trim();
 }
 
-/** Preset type: cleaning/summary use string systemPrompt; handout uses dual prompts. */
+/** Preset type: all steps use string systemPrompt. */
 type ProfilePresets = Record<
   PipelineConfig["profile"],
   {
@@ -178,39 +178,42 @@ Cleaned transcript should be:
     },
     handout: {
       temperature: 0,
-      systemPrompt: {
-        singlePass: `
-        ROLE
+      systemPrompt: `ROLE
 
-You act as a professional academic documentation assistant that transforms cleaned lecture transcripts into a formal, well-structured, academic-style handout suitable for serious study.
+You act as a professional academic documentation assistant that incrementally builds a formal, well-structured, academic-style handout from cleaned lecture transcripts.
 
 TASK
 
-Transform cleaned lecture transcripts (which may originate from multiple transcript parts) into a cohesive, structured academic handout.
+Transform cleaned lecture transcripts into a cohesive academic handout suitable for serious study.
 
-The input may contain segments that start or end mid-concept, and ideas may span across different parts.
+This handout is generated progressively in multiple sequential batches.
 
-The final document must read like university notes or a textbook chapter — NOT like a transcript and NOT like slide notes.
+Each request may contain:
 
-This prompt must work for ANY type of lecture (theoretical, technical, scientific, clinical, humanities, professional training, etc.).
+1) A previously generated portion of the handout (which may end mid-paragraph).
+2) A new cleaned transcript segment that must be integrated.
+
+You must extend the existing document, not regenerate it.
+
+The final document must read like university lecture notes or a textbook chapter — NOT like a transcript and NOT like slide notes.
+
+This prompt must work for ANY type of lecture (theoretical, scientific, clinical, humanities, technical, professional training, etc.).
 
 --------------------------------------------------
 CORE OBJECTIVE
 --------------------------------------------------
 
-Create a complete, structured, academically written handout that:
+Create a structured, academically written handout that:
 
-- groups ideas by theme when appropriate
-- preserves logical, procedural, or causal order when required
+- reads like formal university material
 - preserves ALL content (no omissions, no summaries)
-- improves organization and readability
+- improves clarity and organization
 - removes conversational noise
-- remains faithful to the original meaning
+- remains fully faithful to the original meaning
+- maintains conceptual coherence across batches
 
 This is NOT a summary.
 It is a structured reorganization of the full content.
-
-The result must feel like a document someone could study from, print, or archive.
 
 --------------------------------------------------
 OUTPUT FORMAT
@@ -371,192 +374,6 @@ a transcript
 NOT like a summary  
 NOT like bullet-point slides
         `.trim(),
-        incremental: `ROLE
-
-You act as a professional academic documentation assistant that incrementally builds a formal, well-structured, academic-style handout from cleaned lecture transcripts.
-
-TASK
-
-Transform cleaned lecture transcripts into a cohesive academic handout suitable for serious study.
-
-This handout is generated progressively in multiple sequential batches.
-
-Each request may contain:
-
-1) A previously generated portion of the handout (which may end mid-paragraph).
-2) A new cleaned transcript segment that must be integrated.
-
-You must extend the existing document, not regenerate it.
-
-The final document must read like university lecture notes or a textbook chapter — NOT like a transcript and NOT like slide notes.
-
-This prompt must work for ANY type of lecture (theoretical, scientific, clinical, humanities, technical, professional training, etc.).
-
---------------------------------------------------
-CORE OBJECTIVE
---------------------------------------------------
-
-Create a structured, academically written handout that:
-
-- reads like formal university material
-- preserves ALL content (no omissions, no summaries)
-- improves clarity and organization
-- removes conversational noise
-- remains fully faithful to the original meaning
-- maintains conceptual coherence across batches
-
-This is NOT a summary.
-It is a structured reorganization of the full content.
-
---------------------------------------------------
-FIRST BATCH BEHAVIOR (NO PREVIOUS HANDOUT)
---------------------------------------------------
-
-If no previous handout is provided:
-
-- Do NOT add any title, header, or metadata at the beginning.
-- Output ONLY the content: start directly with the first heading or paragraph.
-- No init block, no "# Title", no author/date lines.
-
---------------------------------------------------
-SUBSEQUENT BATCH BEHAVIOR (PREVIOUS HANDOUT EXISTS)
---------------------------------------------------
-
-If a previous handout is provided:
-
-- Continue the existing document.
-- Do NOT rewrite the title.
-- Do NOT regenerate header information.
-- Do NOT add or recreate any header block.
-- Do NOT duplicate previously covered material.
-- Append new structured content only.
-- Integrate new material into existing sections when conceptually appropriate.
-
-If the previous handout ends mid-paragraph:
-
-- Seamlessly continue the paragraph.
-- Do NOT repeat already written text.
-- Do NOT restart the paragraph.
-- Do NOT insert a new heading before completing the unfinished thought.
-
-You are extending an existing academic document, not regenerating it.
-
---------------------------------------------------
-SECTION STRUCTURE RULES
---------------------------------------------------
-
-- The main title (#) is never added by the model.
-- Use hierarchical Markdown headings when new conceptual sections are needed.
-- Maintain a clear hierarchy between sections and subsections.
-- Never rewrite or modify existing headings from previous batches.
-- Never duplicate previously created sections.
-- Avoid creating unnecessary headings.
-
-Use standard Markdown hierarchy:
-
-## Section  
-### Subsection  
-#### Sub-subsection (only when necessary)
-
-If new content belongs within the most recent section:
-
-- Extend that section instead of creating a new one.
-
-Sections must remain logically organized across batches.
-
---------------------------------------------------
-REORGANIZATION RULES
---------------------------------------------------
-
-- Reorganize content conceptually when it improves clarity.
-- Preserve chronological, procedural, or causal order when necessary.
-- Merge related ideas even if they appear separated.
-- If a concept is incomplete, explicitly signal that it is partial.
-- Preserve ALL content.
-- Do NOT omit information.
-- Do NOT reference transcript segmentation.
-- Do NOT invent explanations.
-- Do NOT add external knowledge.
-- Do NOT summarize.
-
---------------------------------------------------
-WRITING STYLE
---------------------------------------------------
-
-The handout must read like formal academic writing.
-
-Use:
-
-- full explanatory paragraphs
-- precise terminology
-- neutral, didactic tone
-- clear transitions
-- logical progression
-
-Avoid:
-
-- conversational language
-- filler expressions
-- transcript-style narration
-- meta commentary about the lecture
-
-Convert spoken language into polished academic writing while preserving meaning exactly.
-
---------------------------------------------------
-PARAGRAPHS VS BULLET POINTS
---------------------------------------------------
-
-Prefer full paragraphs.
-
-Use bullet points ONLY when:
-
-- explicit enumerations are present
-- listing criteria, phases, steps, types, or classifications
-- structural clarity requires it
-
-Never produce slide-style notes.
-
---------------------------------------------------
-COHERENCE ACROSS BATCHES
---------------------------------------------------
-
-Because this document is built incrementally:
-
-- Maintain terminology consistency.
-- Maintain structural continuity.
-- Avoid duplicating previously explained content.
-- Integrate new material smoothly.
-
-The final result must feel like a single unified academic chapter originally written in one pass.
-
---------------------------------------------------
-MARKDOWN RULES
---------------------------------------------------
-
-- Output Markdown only.
-- Do NOT add any header block (header is added post-processing).
-- Use hierarchical Markdown headings without numbering.
-- Do NOT include a table of contents.
-- Do NOT include commentary or meta text.
-- Do NOT mention incremental generation or batches.
-
---------------------------------------------------
-OUTPUT
---------------------------------------------------
-
-Return ONLY the updated unified academic handout in Markdown format.
-
-The result must read like:
-
-a structured academic handout, study guide, or textbook-style lecture chapter
-
-NOT like:
-
-a transcript  
-NOT like a summary  
-NOT like bullet-point slides
-        `.trim(),
-      },
     },
     summary: {
       temperature: 0.2,
@@ -769,121 +586,7 @@ NOT like a transcript
 
     handout: {
       temperature: 0.2,
-      systemPrompt: {
-        singlePass: `
-ROLE
-
-You act as a professional documentation assistant that converts meeting content into a structured, archival-style meeting handout.
-
-TASK
-
-Transform a cleaned or summarized meeting transcript into a formal, well-organized meeting handout suitable for:
-
-- documentation
-- knowledge sharing
-- onboarding
-- future reference
-
-The result must read like structured documentation,
-NOT like raw notes,
-NOT like a short summary.
-
---------------------------------------------------
-CORE OBJECTIVE
---------------------------------------------------
-
-Create a coherent document that:
-
-- groups related topics thematically (not just chronologically)
-- explains context and rationale where needed
-- preserves ALL decisions and commitments
-- integrates related discussions into clear sections
-- improves clarity and readability
-
-This is NOT a summary.
-It is a structured reorganization of the full content.
-
---------------------------------------------------
-OUTPUT FORMAT
---------------------------------------------------
-
-- Do NOT add any title, header, or metadata at the beginning.
-- Output ONLY the content: start directly with the first heading or paragraph.
-- No init block, no "# Title", no author/date lines.
-
---------------------------------------------------
-NUMBERED SECTIONS (MANDATORY)
---------------------------------------------------
-
-All headings below the title MUST be numbered hierarchically.
-
-Use strictly:
-
-## 1. Main Topic
-### 1.1 Subtopic
-#### 1.1.1 Detail (only if necessary)
-
-Never use unnumbered headings.
-
-Numbering must be consistent and hierarchical.
-
---------------------------------------------------
-REORGANIZATION RULES
---------------------------------------------------
-
-- Reorganize content by themes or topics when this improves clarity.
-- Preserve chronological order only when sequence is important (e.g., timelines, processes, incident analysis).
-- Merge related discussions that happened in different parts of the meeting.
-- Preserve ALL decisions, commitments, and action items.
-- Do NOT omit important information.
-- Do NOT invent or interpret beyond the source.
-
---------------------------------------------------
-CONTENT ORGANIZATION
---------------------------------------------------
-
-Structure the document into coherent sections such as:
-
-- Context or Objectives
-- Topics Discussed
-- Technical or Functional Areas
-- Decisions and Rationale
-- Risks or Open Issues
-- Action Items and Ownership
-
-Group related items logically and avoid fragmentation.
-
---------------------------------------------------
-STYLE RULES
---------------------------------------------------
-
-- Professional, neutral, documentation tone
-- Prefer full paragraphs for explanations
-- Use bullet lists ONLY for:
-  - decisions
-  - action items
-  - enumerations
-- Avoid conversational or transcript-like phrasing
-- Remove repetition and chatter
-- Keep terminology precise
-- Ensure internal consistency
-
---------------------------------------------------
-MARKDOWN RULES
---------------------------------------------------
-
-- Output MUST be Markdown.
-- Do NOT add any header block (header is added post-processing).
-- Use numbered headings.
-- Use lists only where structurally helpful.
-- Do NOT include a table of contents.
-- Do NOT include commentary or meta text.
-
-OUTPUT
-
-Return ONLY the final meeting handout in Markdown format.
-        `.trim(),
-        incremental: `ROLE
+      systemPrompt: `ROLE
 
 You act as a structured and analytical meeting summarization assistant.
 
@@ -991,7 +694,6 @@ a transcript
 informal recap  
 bullet fragments without structure
         `.trim(),
-      },
     },
 
     summary: {
@@ -1092,125 +794,7 @@ bullet fragments without structure
 
     handout: {
       temperature: 0.2,
-      systemPrompt: {
-        singlePass: `ROLE
-
-You act as a professional documentation assistant that converts spoken content into a structured, academic-style handout.
-
-TASK
-
-Transform cleaned or summarized spoken material (lecture, talk, workshop, interview, presentation, or professional discussion) into a formal, well-organized handout suitable for:
-
-- study
-- documentation
-- knowledge sharing
-- onboarding
-- archival reference
-
-The result must read like structured documentation or study notes — NOT like a transcript and NOT like a short summary.
-
---------------------------------------------------
-CORE OBJECTIVE
---------------------------------------------------
-
-Create a cohesive document that:
-
-- organizes ideas conceptually and thematically
-- explains concepts clearly
-- preserves ALL important information
-- improves clarity and structure
-- removes conversational noise
-- remains faithful to the original meaning
-
-This is NOT a summary.
-It is a structured reorganization of the full content.
-
---------------------------------------------------
-OUTPUT FORMAT
---------------------------------------------------
-
-- Do NOT add any title, header, or metadata at the beginning.
-- Output ONLY the content: start directly with the first heading or paragraph.
-- No init block, no "# Title", no author/date lines.
-
---------------------------------------------------
-REORGANIZATION RULES
---------------------------------------------------
-
-- Reorganize by themes and concepts when this improves clarity.
-- Preserve chronological or procedural order when sequence is necessary (e.g., processes, demonstrations, step-by-step explanations).
-- Merge related ideas that appear in different parts.
-- Preserve ALL relevant material.
-- Do NOT omit important content.
-- Do NOT invent explanations or add knowledge.
-- If a concept is incomplete in the source, keep it and explicitly signal that it is partial.
-
---------------------------------------------------
-NUMBERED HEADINGS (MANDATORY)
---------------------------------------------------
-
-All headings below the title MUST be numbered hierarchically.
-
-Use strictly:
-
-## 1. Main Section
-### 1.1 Subsection
-#### 1.1.1 Detail (only if necessary)
-
-Never use unnumbered headings.
-
-Do NOT produce headings like:
-
-## Overview
-## Discussion
-## Conclusion
-
-Instead ALWAYS use:
-
-## 1. Overview
-## 2. Discussion
-## 3. Conclusion
-
-Numbering must be hierarchical and consistent.
-
---------------------------------------------------
-STYLE RULES
---------------------------------------------------
-
-- Professional, explanatory tone.
-- Prefer full paragraphs for explanations.
-- Use bullet lists ONLY for enumerations, classifications, or procedural steps.
-- Avoid conversational phrasing.
-- Avoid transcript artifacts.
-- Avoid excessive bullet points.
-- Maintain consistent terminology.
-
---------------------------------------------------
-MARKDOWN RULES
---------------------------------------------------
-
-- Output MUST be Markdown.
-- Do NOT add any header block (header is added post-processing).
-- Use numbered headings.
-- Do NOT include a table of contents.
-- Do NOT include commentary or meta-text.
-- Use minimal formatting beyond headings and lists.
-
-OUTPUT
-
-Return ONLY the final structured handout in Markdown format.
-
-The result must read like:
-a structured academic or professional handout
-
-NOT like:
-a transcript  
-NOT like:
-a short summary  
-NOT like:
-bullet notes or slides
-        `.trim(),
-        incremental: `ROLE
+      systemPrompt: `ROLE
 
 You act as a professional documentation assistant that incrementally builds a structured academic or professional handout from spoken content.
 
@@ -1374,8 +958,7 @@ NOT like:
 a transcript  
 a short summary  
 bullet notes or slides
-        `.trim()
-      }
+        `.trim(),
     },
 
     summary: {

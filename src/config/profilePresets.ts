@@ -238,30 +238,33 @@ REORGANIZATION RULES
 - If a concept is incomplete in the source, explicitly signal that it is partial rather than filling gaps.
 
 --------------------------------------------------
-HEADINGS (MANDATORY)
+HEADINGS (MANDATORY – NUMBERED STRUCTURE)
 --------------------------------------------------
 
-All headings MUST be clear, descriptive, and unnumbered.
+All headings MUST be clearly numbered and follow a logical hierarchical numbering system.
 
 Use strictly:
 
-## Main Section
-### Subsection
-#### Detail (only when necessary)
+## 1. Main Section
+### 1.1 Subsection
+#### 1.1.1 Detail (only when necessary)
 
-Never use numbered headings.
+Rules for numbering:
 
-Do NOT produce headings like:
+- Headings MUST follow a coherent hierarchical numbering structure.
+- Subsections must inherit the numbering of their parent section.
+- Example:
 
-## 1. Introduction
-## 2. Methods
-## 3. Conclusion
+## 1. Cognitive Development
+### 1.1 Early Childhood
+### 1.2 Adolescence
 
-Instead ALWAYS use:
+## 2. Emotional Regulation
+### 2.1 Neural Mechanisms
 
-## Introduction
-## Methods
-## Conclusion
+- When extending an existing handout, CONTINUE the numbering from the previous sections.
+- Never restart numbering unless a completely new document begins.
+- Ensure numbering remains logically consistent across the entire document.
 
 --------------------------------------------------
 WRITING STYLE (CRITICAL)
@@ -352,7 +355,7 @@ MARKDOWN RULES
 
 - Output Markdown only.
 - Do NOT add any header block (header is added post-processing).
-- Use unnumbered headings.
+- Use numbered hierarchical headings.
 - Do NOT include a table of contents.
 - Do NOT include commentary or meta text.
 
@@ -371,7 +374,7 @@ NOT like:
 a transcript  
 NOT like a summary  
 NOT like bullet-point slides
-        `.trim(),
+      `.trim(),
     },
     summary: {
       temperature: 0.2,
@@ -623,14 +626,27 @@ STRUCTURE RULES (MANDATORY)
 
 Organize the summary using the following hierarchical sections.
 
-Use strictly:
+Use strictly the following numbered structure:
 
-## Overview  
-## Key Discussion Points  
-## Decisions  
-## Action Items / Next Steps  
+## 1. Overview  
+## 2. Key Discussion Points  
+## 3. Decisions  
+## 4. Action Items / Next Steps  
 
 If a section is not applicable, omit it.
+
+Rules for numbering:
+
+- Headings MUST be numbered using a logical hierarchical structure.
+- The numbering must remain consistent across the document.
+- When extending an existing summary, CONTINUE numbering coherently with the previous structure.
+- Subsections must inherit the numbering of their parent section when used.
+
+Example:
+
+## 2. Key Discussion Points
+### 2.1 Topic A
+### 2.2 Topic B
 
 Do not introduce additional top-level sections beyond those listed above.
 
@@ -670,7 +686,7 @@ MARKDOWN RULES
 
 - Output MUST be Markdown.
 - Do NOT add any header block (header is added post-processing).
-- Use hierarchical Markdown headings without numbering.
+- Use numbered hierarchical Markdown headings.
 - Use bullet lists only where structurally helpful.
 - Do NOT include a table of contents.
 - Do NOT include commentary about the summarization process.
@@ -872,17 +888,31 @@ SECTION STRUCTURE RULES
 --------------------------------------------------
 
 - The main title (#) is never added by the model.
-- Use hierarchical Markdown headings when introducing new conceptual sections.
+- Use hierarchical numbered Markdown headings when introducing new conceptual sections.
 - Maintain a clear hierarchy between sections and subsections.
 - Never rewrite or modify existing headings from previous batches.
 - Never duplicate previously created sections.
 - Avoid creating unnecessary headings.
 
-Use standard Markdown hierarchy:
+Use the following numbered hierarchy:
 
-## Section  
-### Subsection  
-#### Detail (only when necessary)
+## 1. Section  
+### 1.1 Subsection  
+#### 1.1.1 Detail (only when necessary)
+
+Numbering rules:
+
+- Headings MUST follow a logical hierarchical numbering structure.
+- Subsections must inherit the numbering of their parent section.
+- When extending an existing handout, CONTINUE numbering from the previous sections.
+- Never restart numbering unless a completely new document begins.
+- Ensure numbering remains coherent and consistent across all batches.
+
+Example:
+
+## 2. Cognitive Development  
+### 2.1 Early Development  
+### 2.2 Adolescence  
 
 If new content belongs within the most recent section:
 
@@ -936,7 +966,7 @@ MARKDOWN RULES
 
 - Output MUST be Markdown.
 - Do NOT add any header block (header is added post-processing).
-- Use hierarchical Markdown headings without numbering.
+- Use numbered hierarchical Markdown headings.
 - Do NOT include a table of contents.
 - Do NOT include commentary or meta text.
 - Do NOT mention incremental generation or batches.

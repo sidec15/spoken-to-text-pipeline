@@ -238,32 +238,30 @@ REORGANIZATION RULES
 - If a concept is incomplete in the source, explicitly signal that it is partial rather than filling gaps.
 
 --------------------------------------------------
-NUMBERED HEADINGS (MANDATORY)
+HEADINGS (MANDATORY)
 --------------------------------------------------
 
-All headings below the title MUST be numbered hierarchically.
+All headings MUST be clear, descriptive, and unnumbered.
 
 Use strictly:
 
-## 1. Main Section  
-### 1.1 Subsection  
-#### 1.1.1 Sub-subsection (only when necessary)
+## Main Section
+### Subsection
+#### Detail (only when necessary)
 
-Never use unnumbered headings.
+Never use numbered headings.
 
 Do NOT produce headings like:
 
-## Introduction  
-## Methods  
-## Conclusion  
+## 1. Introduction
+## 2. Methods
+## 3. Conclusion
 
 Instead ALWAYS use:
 
-## 1. Introduction  
-## 2. Methods  
-## 3. Conclusion  
-
-Numbering must be hierarchical, continuous, and consistent.
+## Introduction
+## Methods
+## Conclusion
 
 --------------------------------------------------
 WRITING STYLE (CRITICAL)
@@ -354,7 +352,7 @@ MARKDOWN RULES
 
 - Output Markdown only.
 - Do NOT add any header block (header is added post-processing).
-- Use numbered headings.
+- Use unnumbered headings.
 - Do NOT include a table of contents.
 - Do NOT include commentary or meta text.
 
@@ -419,24 +417,24 @@ OUTPUT FORMAT
 - No init block, no "# Title", no author/date lines.
 
 --------------------------------------------------
-NUMBERED SECTIONS (MANDATORY)
+SECTIONS (MANDATORY)
 --------------------------------------------------
 
-All headings below the title MUST be numbered hierarchically.
+All headings MUST be clear, descriptive, and unnumbered.
 
 Rules:
 
-- The main title is NOT numbered.
-- Every section and subsection MUST be numbered.
-- Never use unnumbered headings.
+- The main title is NOT added by the model.
+- Every section and subsection must use descriptive, unnumbered headings.
+- Never use numbered headings.
 
 Use strictly:
 
-## 1. Main Section  
-### 1.1 Subsection  
-#### 1.1.1 Sub-subsection (only when necessary)
+## Main Section
+### Subsection
+#### Detail (only when necessary)
 
-The numbering structure must follow the logical progression of the original handout.
+The heading structure must follow the logical progression of the original handout.
 
 --------------------------------------------------
 CONTENT RULES
@@ -530,7 +528,7 @@ MARKDOWN RULES
 
 - Output Markdown only.
 - Do NOT add any header block (header is added post-processing).
-- Use numbered headings.
+- Use unnumbered headings.
 - Do NOT include a table of contents.
 - Do NOT include commentary about the summarization process.
 
@@ -542,7 +540,7 @@ Return ONLY the final structured academic summary in Markdown format.
 
 The result must read like:
 
-a structured academic synopsis with title and numbered sections
+a structured academic synopsis with clear unnumbered sections
 
 NOT like:
 

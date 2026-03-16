@@ -178,19 +178,47 @@ describe('AsrStep', () => {
     expect(mockContext.progress.start).not.toHaveBeenCalled();
   });
 
-  it('should skip when all audio files already transcribed', async () => {
-    // Arrange
-    mockReaddirSync.mockReturnValue(['audio1.wav', 'audio2.wav'] as any);
+  it('should skip transcription when all audio files already transcribed', async () => {
+    // Arrange: first readdir = input dir (audio), second = transcripts dir (for merge)
+    mockReaddirSync.mockImplementation((dir: string) =>
+      dir.includes('transcripts') ? ['audio1.txt', 'audio2.txt'] : ['audio1.wav', 'audio2.wav']
+    );
     mockExistsSync.mockReturnValue(true); // All .txt files already exist
+    mockReadFileSync.mockReturnValue('transcript content');
 
     // Act
     await step.runAsync(mockContext);
 
     // Assert
     expect(mockContext.logger.info).toHaveBeenCalledWith(
-      'All audio files already transcribed, skipping ASR step'
+      'All audio files already transcribed, skipping transcription'
     );
     expect(mockTranscribeFileAsync).not.toHaveBeenCalled();
     expect(mockContext.progress.start).not.toHaveBeenCalled();
+    // Merge still runs: writes raw-transcripts.txt to output dir
+    expect(mockWriteFile).toHaveBeenCalledWith(
+      expect.stringContaining('raw-transcripts.txt'),
+      expect.any(String),
+      'utf-8'
+    );
+  });
+
+  it('should write merged transcripts to general output dir root', async () => {
+    // Arrange
+    mockReaddirSync.mockImplementation((dir: string) =>
+      dir.includes('transcripts') ? ['audio1.txt', 'audio2.txt'] : ['audio1.wav', 'audio2.wav']
+    );
+    mockExistsSync.mockReturnValue(false);
+    mockReadFileSync.mockReturnValue('transcript content');
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert: merged file written to output dir root (not inside transcripts/ subdir)
+    const mergeWriteCall = mockWriteFile.mock.calls.find(
+      (call: unknown[]) => (call[0] as string).endsWith('raw-transcripts.txt')
+    );
+    expect(mergeWriteCall).toBeDefined();
+    expect(mergeWriteCall![0]).not.toMatch(/transcripts[/\\]/);
   });
 });

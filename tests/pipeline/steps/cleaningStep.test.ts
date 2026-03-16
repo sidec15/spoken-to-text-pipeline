@@ -198,10 +198,13 @@ describe('CleaningStep', () => {
     expect(mockCreateAiService).not.toHaveBeenCalled();
   });
 
-  it('should skip if all transcripts already cleaned', async () => {
-    // Arrange
-    mockReaddirSync.mockReturnValue(['transcript1.txt'] as any);
+  it('should skip processing when all transcripts already cleaned but still merge', async () => {
+    // Arrange: first readdir = transcripts dir (.txt), second = cleaned dir (.md) for merge
+    mockReaddirSync.mockImplementation((dir: string) =>
+      dir.includes('cleaned') ? ['transcript1.md'] : ['transcript1.txt']
+    );
     mockExistsSync.mockReturnValue(true); // transcripts dir + .md files already exist
+    mockReadFileSync.mockReturnValue('cleaned content');
 
     // Act
     await step.runAsync(mockContext);
@@ -210,7 +213,14 @@ describe('CleaningStep', () => {
     expect(mockContext.logger.info).toHaveBeenCalledWith(
       'All transcripts already cleaned, skipping'
     );
-    expect(mockCreateAiService).not.toHaveBeenCalled();
+    // AI service is called for merge (getLocalizedStepLabel)
+    expect(mockCreateAiService).toHaveBeenCalledWith(mockConfig, 'cleaning');
+    // Merge writes clean-transcripts.md to output dir root
+    expect(mockWriteFile).toHaveBeenCalledWith(
+      expect.stringContaining('clean-transcripts.md'),
+      expect.any(String),
+      'utf-8'
+    );
   });
 
   it('should use previous output excerpt from last cleaned file', async () => {
@@ -326,6 +336,28 @@ describe('CleaningStep', () => {
     // Assert
     const call = mockGenerateTextAsync.mock.calls[0][0];
     expect(call.maxTokens).toBe(2048);
+  });
+
+  it('should write merged cleaned file to general output dir root', async () => {
+    // Arrange
+    mockReaddirSync.mockImplementation((dir: string) =>
+      dir.includes('cleaned') ? ['transcript1.md'] : ['transcript1.txt']
+    );
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p.includes('transcripts')) return true;
+      return false;
+    });
+    mockReadFileSync.mockReturnValue('raw transcript text');
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert: merged file written to output dir root (not inside cleaned/ subdir)
+    const mergeWriteCall = mockWriteFile.mock.calls.find(
+      (call: unknown[]) => (call[0] as string).endsWith('clean-transcripts.md')
+    );
+    expect(mergeWriteCall).toBeDefined();
+    expect(mergeWriteCall![0]).not.toMatch(/cleaned[/\\]/);
   });
 
   it('should handle empty previous cleaned excerpt after trim', async () => {

@@ -206,6 +206,9 @@ export class CleaningStep implements Step {
     config: StepContext["config"],
     logger: Logger,
   ): Promise<void> {
+    
+    logger.debug(`Merging cleaned files from '${cleanedDir}' to '${generalOutputDir}'`);
+
     const cleanedFiles = this.getSortedCleanedFiles(cleanedDir);
     if (cleanedFiles.length === 0) {
       return;

@@ -53,6 +53,29 @@ Get the pipeline running in three steps:
 
 ### Step 1: Install
 
+#### Option A: Download a standalone executable (recommended, no Node.js required)
+
+Grab the binary for your platform from [Releases](../../releases):
+
+| Platform              | Download                         |
+| --------------------- | -------------------------------- |
+| Windows (x64)         | `spoken-to-text-win-x64.exe`     |
+| Linux (x64)           | `spoken-to-text-linux-x64`       |
+| macOS (Intel)         | `spoken-to-text-macos-x64`       |
+| macOS (Apple Silicon) | `spoken-to-text-macos-arm64`     |
+
+After downloading:
+
+- **Windows:** run `spoken-to-text-win-x64.exe` (rename or add its folder to your `PATH` if you want to invoke `spoken-to-text` from anywhere).
+- **Linux / macOS:** make the file executable, then run it (optionally move it to a directory on your `PATH` and name it `spoken-to-text`):
+
+```bash
+chmod +x spoken-to-text-macos-arm64
+./spoken-to-text-macos-arm64 --help
+```
+
+#### Option B: Install via npm
+
 ```bash
 npm install -g spoken-to-text-pipeline
 ```

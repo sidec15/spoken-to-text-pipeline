@@ -1,14 +1,40 @@
 # Installation
 
-The pipeline requires **Node.js** (version 18 or higher) and can be installed as either a library dependency or a global CLI tool.
+The pipeline can be installed as a **standalone executable** (no Node.js required) or, if you already have **Node.js** (version 18 or higher), as a library dependency or global CLI tool.
 
 ## Table of Contents
 
+- [Install as a Standalone Executable](#install-as-a-standalone-executable)
 - [Install as a Library](#install-as-a-library)
 - [Install as a CLI Tool](#install-as-a-cli-tool)
 - [Installing from Source](#installing-from-source)
+- [Building Standalone Binaries Locally](#building-standalone-binaries-locally)
+- [Publishing a Release](#publishing-a-release)
 - [Prerequisites](#prerequisites)
 - [Next Steps](#next-steps)
+
+## Install as a Standalone Executable
+
+This is the simplest way to use the tool: download a standalone executable from [Releases](../../releases) — no Node.js installation required.
+
+Each release includes binaries built for:
+
+| Platform              | Download                         |
+| --------------------- | -------------------------------- |
+| Windows (x64)         | `spoken-to-text-win-x64.exe`     |
+| Linux (x64)           | `spoken-to-text-linux-x64`       |
+| macOS (Intel)         | `spoken-to-text-macos-x64`       |
+| macOS (Apple Silicon) | `spoken-to-text-macos-arm64`     |
+
+After downloading:
+
+- **Windows:** run `spoken-to-text-win-x64.exe` (rename or add its folder to your `PATH` if you want to invoke `spoken-to-text` from anywhere).
+- **Linux / macOS:** make the file executable, then run it (optionally move it to a directory on your `PATH` and name it `spoken-to-text`):
+
+```bash
+chmod +x spoken-to-text-macos-arm64
+./spoken-to-text-macos-arm64 --help
+```
 
 ## Install as a Library
 
@@ -55,6 +81,31 @@ If installing from source, build the project first:
 ```bash
 npm install
 npm run build
+```
+
+## Building Standalone Binaries Locally
+
+To produce the same kind of executables as in [Releases](../../releases) on your machine:
+
+```bash
+npm run package
+```
+
+Artifacts are written to `bin/` for Windows, Linux, and macOS (x64 + ARM64).
+
+If you only need a Windows build (faster):
+
+```bash
+npm run package:win
+```
+
+## Publishing a Release
+
+Pre-built executables are published automatically via GitHub Actions when you push a version tag. **Do not create releases manually** — the workflow creates the release and uploads the binaries.
+
+```bash
+git tag v1.0.1
+git push --tags
 ```
 
 ## Prerequisites

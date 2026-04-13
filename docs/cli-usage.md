@@ -2,6 +2,8 @@
 
 The CLI tool `spoken-to-text` runs the pipeline using a JSON configuration file.
 
+The same command and flags apply whether you installed it globally via npm (`npm install -g spoken-to-text-pipeline`) or downloaded a standalone executable from [Releases](../../releases). See [Installation](installation.md) for details.
+
 ## Table of Contents
 
 - [Basic Usage](#basic-usage)

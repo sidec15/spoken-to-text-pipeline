@@ -1,5 +1,9 @@
 import { describe, it, expect } from '@jest/globals';
-import { AI_PROFILE_PRESETS } from '../../src/config/profilePresets.js';
+import {
+  AI_PROFILE_PRESETS,
+  formatPrecedingContextPrompt,
+  formatFollowingContextPrompt,
+} from '../../src/config/profilePresets.js';
 import type { PipelineConfig } from '../../src/config/config.types.js';
 
 describe('profilePresets', () => {
@@ -98,5 +102,21 @@ describe('profilePresets', () => {
         }
       }
     });
+  });
+});
+
+describe('neighbor context formatters', () => {
+  it('wraps preceding context as reference-only and includes the text', () => {
+    const out = formatPrecedingContextPrompt('tail of previous part');
+    expect(out).toContain('tail of previous part');
+    expect(out).toMatch(/PRECEDING/i);
+    expect(out).toMatch(/do NOT include/i);
+  });
+
+  it('wraps following context as reference-only and includes the text', () => {
+    const out = formatFollowingContextPrompt('head of next part');
+    expect(out).toContain('head of next part');
+    expect(out).toMatch(/FOLLOWING/i);
+    expect(out).toMatch(/do NOT include/i);
   });
 });

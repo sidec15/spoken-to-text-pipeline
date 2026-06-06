@@ -54,6 +54,35 @@ ${excerpt}
 }
 
 /**
+ * Formats the preceding-part excerpt (tail of the previous part) as reference-only
+ * context for batch mode. Used so a part cleaned/drafted in parallel can stay
+ * terminology- and boundary-consistent with what came before it.
+ */
+export function formatPrecedingContextPrompt(text: string): string {
+  return `
+END of the PRECEDING part (REFERENCE ONLY — for continuity, do NOT include it in your output)
+
+---
+${text}
+---
+  `.trim();
+}
+
+/**
+ * Formats the following-part excerpt (head of the next part) as reference-only
+ * context for batch mode.
+ */
+export function formatFollowingContextPrompt(text: string): string {
+  return `
+START of the FOLLOWING part (REFERENCE ONLY — for continuity, do NOT include it in your output)
+
+---
+${text}
+---
+  `.trim();
+}
+
+/**
  * Formats the main input content prompt.
  * This is the mandatory prompt containing the actual content to be processed.
  */

@@ -5,6 +5,12 @@ export interface AiGenerateOptions {
   manualContextText?: string;
   previousOutputExcerpt?: string;
 
+  // Optional reference-only neighbor excerpts (batch mode cross-part continuity).
+  // Presence/absence encodes position: no previousChunkExcerpt => first part;
+  // no nextChunkExcerpt => last part.
+  previousChunkExcerpt?: string;
+  nextChunkExcerpt?: string;
+
   // Mandatory
   userPrompt: string;
 

@@ -28,6 +28,7 @@ export function readBatchState(outputDir: string): BatchState {
     return { version: 1, jobs: {} };
   }
   const raw = fs.readFileSync(file, "utf-8");
+  // A corrupt state.json intentionally throws here — resume treats it as a hard error rather than silently discarding progress.
   const parsed = JSON.parse(raw) as BatchState;
   return { version: 1, jobs: parsed.jobs ?? {} };
 }

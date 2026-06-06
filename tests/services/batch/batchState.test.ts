@@ -61,4 +61,34 @@ describe("batchState", () => {
     const written = JSON.parse(mockWriteFileSync.mock.calls[0][1] as string);
     expect(written.jobs.cleaning).toBeUndefined();
   });
+
+  it("writeBatchJob preserves an existing sibling step", () => {
+    mockExistsSync.mockReturnValue(true);
+    mockReadFileSync.mockReturnValue(
+      JSON.stringify({ version: 1, jobs: { handout: { batchId: "batch_h", submittedAt: "t", customIds: [] } } }),
+    );
+    writeBatchJob("/out", "cleaning", { batchId: "batch_c", submittedAt: "t2", customIds: ["cleaning::part-01"] });
+    const written = JSON.parse(mockWriteFileSync.mock.calls[0][1] as string);
+    expect(written.jobs.cleaning.batchId).toBe("batch_c");
+    expect(written.jobs.handout).toBeDefined();
+    expect(written.jobs.handout.batchId).toBe("batch_h");
+  });
+
+  it("clearBatchJob preserves other steps", () => {
+    mockExistsSync.mockReturnValue(true);
+    mockReadFileSync.mockReturnValue(
+      JSON.stringify({
+        version: 1,
+        jobs: {
+          cleaning: { batchId: "batch_c", submittedAt: "t", customIds: [] },
+          handout: { batchId: "batch_h", submittedAt: "t", customIds: [] },
+        },
+      }),
+    );
+    clearBatchJob("/out", "cleaning");
+    const written = JSON.parse(mockWriteFileSync.mock.calls[0][1] as string);
+    expect(written.jobs.cleaning).toBeUndefined();
+    expect(written.jobs.handout).toBeDefined();
+    expect(written.jobs.handout.batchId).toBe("batch_h");
+  });
 });

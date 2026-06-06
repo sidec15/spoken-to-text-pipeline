@@ -107,4 +107,58 @@ describe("OpenAiBatchService", () => {
       error: expect.stringContaining("rate limited"),
     });
   });
+
+  it("collect marks an incomplete response body as an error", async () => {
+    mockBatchesRetrieve.mockResolvedValue({
+      status: "completed",
+      output_file_id: "out_2",
+      error_file_id: null,
+    });
+    const outJsonl =
+      JSON.stringify({
+        custom_id: "cleaning::part-03",
+        response: { status_code: 200, body: { status: "incomplete", output_text: "" } },
+      }) + "\n";
+    mockFilesContent.mockResolvedValue({ text: async () => outJsonl });
+
+    const results = await service.collect("batch_abc");
+    expect(results).toHaveLength(1);
+    expect(results[0].customId).toBe("cleaning::part-03");
+    expect(results[0].error).toEqual(expect.stringContaining("incomplete"));
+    expect((results[0] as any).text).toBeUndefined();
+  });
+
+  it("collect returns [] and does not call files.content when there are no file IDs", async () => {
+    mockBatchesRetrieve.mockResolvedValue({
+      status: "failed",
+      output_file_id: null,
+      error_file_id: null,
+    });
+
+    const results = await service.collect("batch_abc");
+    expect(results).toEqual([]);
+    expect(mockFilesContent).not.toHaveBeenCalled();
+  });
+
+  it("collect skips malformed JSONL lines but still returns valid results", async () => {
+    mockBatchesRetrieve.mockResolvedValue({
+      status: "completed",
+      output_file_id: "out_3",
+      error_file_id: null,
+    });
+    const goodLine = JSON.stringify({
+      custom_id: "cleaning::part-01",
+      response: { status_code: 200, body: { status: "completed", output_text: "GOOD" } },
+    });
+    const outJsonl = `${goodLine}\nNOT_VALID_JSON\n`;
+    mockFilesContent.mockResolvedValue({ text: async () => outJsonl });
+
+    const results = await service.collect("batch_abc");
+    // The good line is preserved
+    expect(results).toContainEqual({ customId: "cleaning::part-01", text: "GOOD" });
+    // The malformed line produces an error result rather than throwing
+    const errorResult = results.find((r) => r.customId === "unknown");
+    expect(errorResult).toBeDefined();
+    expect(errorResult!.error).toEqual(expect.stringContaining("malformed JSONL line"));
+  });
 });

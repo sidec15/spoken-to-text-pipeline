@@ -54,53 +54,91 @@ export class OpenAiBatchService implements BatchAiService {
     };
   }
 
+  /**
+   * Reads the raw text from a file ID returned by the OpenAI Files API.
+   *
+   * The SDK types `files.content` as an API response wrapper object; casting to
+   * `{ text(): Promise<string> }` accesses the standard Web API `.text()` method
+   * that the underlying `Response` exposes for reading the body as a string.
+   */
+  private async readFileText(fileId: string): Promise<string> {
+    const content = (await this.client.files.content(fileId)) as unknown as {
+      text(): Promise<string>;
+    };
+    return content.text();
+  }
+
+  /**
+   * Iterates the lines of a JSONL string, parsing each one and passing it to
+   * `mapLine`. Malformed lines are caught: instead of aborting the whole loop
+   * they produce an error result whose `customId` is "unknown" and whose
+   * `error` contains a snippet of the offending text, so valid results are
+   * still preserved.
+   */
+  private parseJsonlLines<T>(
+    text: string,
+    mapLine: (parsed: unknown) => T,
+  ): (T | BatchResult)[] {
+    const results: (T | BatchResult)[] = [];
+    for (const line of text.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        const parsed = JSON.parse(trimmed) as unknown;
+        results.push(mapLine(parsed));
+      } catch {
+        results.push({
+          customId: "unknown",
+          error: `malformed JSONL line: ${trimmed.slice(0, 80)}`,
+        });
+      }
+    }
+    return results;
+  }
+
   async collect(batchId: string): Promise<BatchResult[]> {
     const batch = await this.client.batches.retrieve(batchId);
+
+    // No output or error file → batch produced no results.
+    if (!batch.output_file_id && !batch.error_file_id) {
+      return [];
+    }
+
     const results: BatchResult[] = [];
 
     if (batch.output_file_id) {
-      const content = (await this.client.files.content(batch.output_file_id)) as unknown as {
-        text(): Promise<string>;
-      };
-      const text = await content.text();
-      for (const line of text.split("\n")) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        const parsed = JSON.parse(trimmed) as {
+      const text = await this.readFileText(batch.output_file_id);
+      const mapped = this.parseJsonlLines(text, (parsed) => {
+        const p = parsed as {
           custom_id: string;
           response?: { status_code?: number; body?: { status?: string; output_text?: string } };
           error?: { message?: string } | null;
         };
-        if (parsed.error) {
-          results.push({ customId: parsed.custom_id, error: parsed.error.message ?? "unknown error" });
-          continue;
+        if (p.error) {
+          return { customId: p.custom_id, error: p.error.message ?? "unknown error" } satisfies BatchResult;
         }
-        const body = parsed.response?.body;
+        const body = p.response?.body;
         if (body?.status === "incomplete") {
-          results.push({ customId: parsed.custom_id, error: "OpenAI response incomplete" });
-          continue;
+          return { customId: p.custom_id, error: "OpenAI response incomplete" } satisfies BatchResult;
         }
-        results.push({ customId: parsed.custom_id, text: body?.output_text ?? "" });
-      }
+        return { customId: p.custom_id, text: body?.output_text ?? "" } satisfies BatchResult;
+      });
+      results.push(...(mapped as BatchResult[]));
     }
 
     if (batch.error_file_id) {
-      const content = (await this.client.files.content(batch.error_file_id)) as unknown as {
-        text(): Promise<string>;
-      };
-      const text = await content.text();
-      for (const line of text.split("\n")) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        const parsed = JSON.parse(trimmed) as {
+      const text = await this.readFileText(batch.error_file_id);
+      const mapped = this.parseJsonlLines(text, (parsed) => {
+        const p = parsed as {
           custom_id: string;
           error?: { message?: string } | null;
           response?: { body?: { error?: { message?: string } } };
         };
         const message =
-          parsed.error?.message ?? parsed.response?.body?.error?.message ?? "batch request failed";
-        results.push({ customId: parsed.custom_id, error: message });
-      }
+          p.error?.message ?? p.response?.body?.error?.message ?? "batch request failed";
+        return { customId: p.custom_id, error: message } satisfies BatchResult;
+      });
+      results.push(...(mapped as BatchResult[]));
     }
 
     return results;

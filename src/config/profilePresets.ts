@@ -60,7 +60,9 @@ ${excerpt}
  */
 export function formatPrecedingContextPrompt(text: string): string {
   return `
-END of the PRECEDING part (REFERENCE ONLY — for continuity, do NOT include it in your output)
+END OF PRECEDING PART (REFERENCE ONLY)
+
+Provided only for continuity. Do NOT include or repeat this content in your output.
 
 ---
 ${text}
@@ -70,11 +72,15 @@ ${text}
 
 /**
  * Formats the following-part excerpt (head of the next part) as reference-only
- * context for batch mode.
+ * context for batch mode. Used so a part cleaned/drafted in parallel can stay
+ * terminology- and boundary-consistent with what comes after it, ensuring
+ * cross-part continuity for parallel batch parts.
  */
 export function formatFollowingContextPrompt(text: string): string {
   return `
-START of the FOLLOWING part (REFERENCE ONLY — for continuity, do NOT include it in your output)
+START OF FOLLOWING PART (REFERENCE ONLY)
+
+Provided only for continuity. Do NOT include or repeat this content in your output.
 
 ---
 ${text}

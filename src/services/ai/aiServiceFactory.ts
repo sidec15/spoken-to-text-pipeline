@@ -8,6 +8,8 @@ import type {
 import type { AiService, AiGenerateOptions, HandoutAiGenerateOptions } from "./ai.types.js";
 import { loadContextText } from "../../utils/loadContextText.js";
 import { OpenAiService } from "./openai/openaiAiService.js";
+import { OpenAiBatchService } from "./openai/openaiBatchService.js";
+import type { BatchAiService } from "./batch/batch.types.js";
 import { DeepSeekAiService } from "./deepseek/deepseekAiService.js";
 import { OllamaAiService } from "./ollama/ollamaAiService.js";
 import { resolveOpenAiConfig } from "./openai/resolveOpenAiConfig.js";
@@ -197,6 +199,7 @@ export function resolveStepConfig(
       ...defaultConfig.overrides,
       ...stepOverride?.overrides,
     },
+    execution: stepOverride?.execution ?? defaultConfig.execution ?? "sync",
   };
 
   return resolved;
@@ -259,6 +262,30 @@ export function createAiService(config: PipelineConfig, step: AiStepName): AiSer
   }
 
   throw new Error(`Unsupported AI provider: ${stepConfig.provider}`);
+}
+
+/**
+ * Creates a batch AI service for a specific step. OpenAI-only in v1.
+ */
+export function createBatchAiService(config: PipelineConfig, step: AiStepName): BatchAiService {
+  const stepConfig = resolveStepConfig(config, step);
+  if (stepConfig.provider !== "openai") {
+    throw new Error(
+      `Batch execution is only supported for the 'openai' provider (step '${step}' uses '${stepConfig.provider}')`,
+    );
+  }
+  const apiKey = getApiKey(config, "openai");
+  return new OpenAiBatchService(apiKey, stepConfig.model);
+}
+
+/**
+ * Returns batch tuning (poll interval and max wait) from config, with defaults.
+ */
+export function getBatchTuning(config: PipelineConfig): { pollIntervalMs: number; maxWaitMs?: number } {
+  return {
+    pollIntervalMs: config.ai?.batch?.pollIntervalMs ?? 30000,
+    maxWaitMs: config.ai?.batch?.maxWaitMs,
+  };
 }
 
 /**

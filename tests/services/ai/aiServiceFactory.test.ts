@@ -1,6 +1,12 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import type { PipelineConfig } from '../../../src/config/config.types.js';
 
+// Mock the openai package (needed by OpenAiBatchService)
+jest.unstable_mockModule("openai", () => ({
+  default: jest.fn().mockImplementation(() => ({})),
+  toFile: jest.fn(),
+}));
+
 // Mock AI services for ESM
 const mockOpenAiService = jest.fn().mockImplementation(() => ({
   generateTextAsync: jest.fn(),
@@ -401,5 +407,59 @@ describe('aiServiceFactory', () => {
       expect(result).toContain('# Test');
       expect(result).toContain('***Handout***');
     });
+  });
+});
+
+describe("aiServiceFactory batch wiring", () => {
+  let resolveStepConfig: any, createBatchAiService: any, getBatchTuning: any;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    const mod = await import("../../../src/services/ai/aiServiceFactory.js");
+    resolveStepConfig = mod.resolveStepConfig;
+    createBatchAiService = mod.createBatchAiService;
+    getBatchTuning = mod.getBatchTuning;
+  });
+
+  it("resolveStepConfig defaults execution to 'sync'", () => {
+    const cfg = { profile: "lecture", ai: { default: { provider: "openai", model: "gpt-5-mini" } } } as any;
+    expect(resolveStepConfig(cfg, "cleaning").execution).toBe("sync");
+  });
+
+  it("resolveStepConfig honors a per-step execution override", () => {
+    const cfg = {
+      profile: "lecture",
+      ai: { default: { provider: "openai", model: "gpt-5-mini" } },
+      steps: { cleaning: { aiConfig: { execution: "batch" } } },
+    } as any;
+    expect(resolveStepConfig(cfg, "cleaning").execution).toBe("batch");
+  });
+
+  it("createBatchAiService returns an OpenAiBatchService for openai", () => {
+    const cfg = {
+      profile: "lecture",
+      ai: { providers: { openai: { apiKey: "sk-x" } }, default: { provider: "openai", model: "gpt-5-mini" } },
+    } as any;
+    const svc = createBatchAiService(cfg, "cleaning");
+    expect(typeof svc.submit).toBe("function");
+    expect(typeof svc.poll).toBe("function");
+    expect(typeof svc.collect).toBe("function");
+  });
+
+  it("createBatchAiService throws for a non-openai provider", () => {
+    const cfg = {
+      profile: "lecture",
+      ai: { providers: { deepseek: { apiKey: "dk" } }, default: { provider: "deepseek", model: "deepseek-chat" } },
+    } as any;
+    expect(() => createBatchAiService(cfg, "cleaning")).toThrow(/openai/i);
+  });
+
+  it("getBatchTuning returns defaults when ai.batch is unset", () => {
+    expect(getBatchTuning({ profile: "lecture" } as any)).toEqual({ pollIntervalMs: 30000, maxWaitMs: undefined });
+  });
+
+  it("getBatchTuning reads configured values", () => {
+    const cfg = { profile: "lecture", ai: { batch: { pollIntervalMs: 5000, maxWaitMs: 60000 } } } as any;
+    expect(getBatchTuning(cfg)).toEqual({ pollIntervalMs: 5000, maxWaitMs: 60000 });
   });
 });

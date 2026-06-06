@@ -24,6 +24,26 @@ function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Submits (or resumes) a batch AI job for `step` and polls until it reaches a
+ * terminal state, then returns the collected results.
+ *
+ * **`now` semantics:** `now` must return epoch-milliseconds (same contract as
+ * `Date.now()`).  It is used both to timestamp `submittedAt` via
+ * `new Date(now())` and to measure elapsed wall-clock time inside the poll
+ * loop.  Tests may inject a deterministic implementation.
+ *
+ * **`maxWaitMs` budget:** the budget is measured from the moment the first poll
+ * fires.  After every poll response — but *before* sleeping — the elapsed time
+ * is compared against `maxWaitMs`.  A caller that sets `maxWaitMs <=
+ * pollIntervalMs` will therefore typically time out on the very first
+ * iteration.  State is NOT cleared on timeout (the job is still running
+ * remotely); a subsequent call will resume via the persisted batchId.
+ *
+ * **`"cancelling"` status:** treated as in-progress and polled until the
+ * remote status transitions to `"cancelled"` (a TERMINAL_FAILURE), at which
+ * point state is cleared and an error is thrown.
+ */
 export async function runBatchStep(args: RunBatchStepArgs): Promise<BatchResult[]> {
   const {
     step, outputDir, batchService, requests, pollIntervalMs, maxWaitMs, logger, progress,
@@ -53,8 +73,7 @@ export async function runBatchStep(args: RunBatchStepArgs): Promise<BatchResult[
   const start = now();
   let lastProgressMsg: string | undefined;
 
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
+  for (;;) {
     const result = await batchService.poll(batchId);
     const counts = result.requestCounts;
 

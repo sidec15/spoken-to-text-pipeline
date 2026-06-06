@@ -100,6 +100,14 @@ export interface StepAiConfig {
      */
     maxTokens?: number;
   };
+  /**
+   * Execution mode for AI generation (optional).
+   * - "sync": synchronous Responses API call (default).
+   * - "batch": OpenAI Batch API (~50% cheaper, async overnight turnaround).
+   *   Requires provider "openai".
+   * Default: "sync"
+   */
+  execution?: "sync" | "batch";
 }
 
 /**
@@ -152,6 +160,16 @@ export interface AiConfig {
    * Default: { provider: "openai", model: "gpt-5-mini", overrides: undefined }
    */
   default?: StepAiConfig;
+  /**
+   * Batch API tuning (optional). Used only by steps whose execution is "batch".
+   * Default: { pollIntervalMs: 30000, maxWaitMs: undefined (wait indefinitely) }
+   */
+  batch?: {
+    /** Poll interval in milliseconds while auto-watching a batch job. Default: 30000. */
+    pollIntervalMs?: number;
+    /** Max wall-clock wait in ms before leaving the job pending. Default: undefined (wait indefinitely). */
+    maxWaitMs?: number;
+  };
 }
 
 /**

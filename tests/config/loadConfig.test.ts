@@ -1147,6 +1147,100 @@ describe('loadConfig', () => {
       expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'steps.cleaning.aiConfig.overrides.maxTokens' field/);
     });
 
+    it('should accept steps.cleaning.aiConfig.execution "batch" with openai provider', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.steps.cleaning.aiConfig.provider = 'openai';
+      configObj.steps.cleaning.aiConfig.execution = 'batch';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act
+      const result = loadConfig(validConfigPath);
+
+      // Assert
+      expect(result.steps?.cleaning?.aiConfig?.execution).toBe('batch');
+    });
+
+    it('should throw error for invalid steps.cleaning.aiConfig.execution value', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.steps.cleaning.aiConfig.execution = 'nope';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/steps\.cleaning\.aiConfig\.execution/);
+    });
+
+    it('should throw error for invalid ai.default.execution value', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.ai.default.execution = 'nope';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/ai\.default\.execution/);
+    });
+
+    it('should throw when execution "batch" resolves to a non-openai provider', () => {
+      // Arrange - clear env so deepseek key is not injected (not relevant here, provider mismatch is the point)
+      const configObj = JSON.parse(validConfigContent);
+      configObj.steps.cleaning.aiConfig.provider = 'deepseek';
+      configObj.steps.cleaning.aiConfig.execution = 'batch';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/requires provider 'openai'/);
+    });
+
+    it('should accept execution "batch" resolved from ai.default with openai provider', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.ai.default.execution = 'batch';
+      // Remove step-level override so default execution resolves for the step
+      delete configObj.steps.cleaning.aiConfig.execution;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act
+      const result = loadConfig(validConfigPath);
+
+      // Assert
+      expect(result.ai.default.execution).toBe('batch');
+    });
+
+    it('should accept ai.batch tuning object', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.ai.batch = { pollIntervalMs: 15000, maxWaitMs: 600000 };
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act
+      const result = loadConfig(validConfigPath);
+
+      // Assert
+      expect(result.ai.batch.pollIntervalMs).toBe(15000);
+      expect(result.ai.batch.maxWaitMs).toBe(600000);
+    });
+
+    it('should throw error for invalid ai.batch.pollIntervalMs', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.ai.batch = { pollIntervalMs: 0 };
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/ai\.batch\.pollIntervalMs/);
+    });
+
+    it('should throw error for invalid ai.batch.maxWaitMs', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.ai.batch = { maxWaitMs: -5 };
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/ai\.batch\.maxWaitMs/);
+    });
+
   });
 
   describe('fallback assignments after merge', () => {

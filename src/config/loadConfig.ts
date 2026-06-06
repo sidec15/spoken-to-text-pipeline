@@ -354,6 +354,28 @@ function validateUserConfig(config: Record<string, unknown>, configPath: string)
               }
             }
           }
+          if ("execution" in defaultConfig && defaultConfig.execution !== undefined) {
+            if (defaultConfig.execution !== "sync" && defaultConfig.execution !== "batch") {
+              errors.push(`Invalid 'ai.default.execution' field (must be "sync" or "batch")`);
+            }
+          }
+        }
+      }
+
+      // Validate batch tuning (if provided)
+      if ("batch" in ai && ai.batch !== undefined) {
+        if (typeof ai.batch !== "object" || ai.batch === null) {
+          errors.push("Invalid 'ai.batch' field (must be an object)");
+        } else {
+          const batch = ai.batch as Record<string, unknown>;
+          if ("pollIntervalMs" in batch &&
+              (typeof batch.pollIntervalMs !== "number" || batch.pollIntervalMs <= 0)) {
+            errors.push("Invalid 'ai.batch.pollIntervalMs' field (must be a positive number)");
+          }
+          if ("maxWaitMs" in batch &&
+              (typeof batch.maxWaitMs !== "number" || batch.maxWaitMs <= 0)) {
+            errors.push("Invalid 'ai.batch.maxWaitMs' field (must be a positive number)");
+          }
         }
       }
 
@@ -418,6 +440,12 @@ function validateUserConfig(config: Record<string, unknown>, configPath: string)
                   if ("maxTokens" in overrides && typeof overrides.maxTokens !== "number") {
                     errors.push(`Invalid 'steps.${stepName}.aiConfig.overrides.maxTokens' field (must be a number)`);
                   }
+                }
+              }
+
+              if ("execution" in aiConfig && aiConfig.execution !== undefined) {
+                if (aiConfig.execution !== "sync" && aiConfig.execution !== "batch") {
+                  errors.push(`Invalid 'steps.${stepName}.aiConfig.execution' field (must be "sync" or "batch")`);
                 }
               }
             }
@@ -581,6 +609,21 @@ function validateFinalConfig(config: any, configPath: string): void {
             } else if (stepProvider === "ollama" && !hasOllama) {
               errors.push(`Step '${stepName}' provider '${stepProvider}' is not configured`);
             }
+          }
+        }
+      }
+
+      // Batch execution requires the openai provider (resolved per step).
+      {
+        const aiSteps = ["cleaning", "handout", "summary"] as const;
+        const defaultProvider = config.ai?.default?.provider;
+        const defaultExecution = config.ai?.default?.execution;
+        for (const stepName of aiSteps) {
+          const stepAi = config.steps?.[stepName]?.aiConfig;
+          const execution = stepAi?.execution ?? defaultExecution ?? "sync";
+          const provider = stepAi?.provider ?? defaultProvider;
+          if (execution === "batch" && provider !== "openai") {
+            errors.push(`Step '${stepName}': execution 'batch' requires provider 'openai'`);
           }
         }
       }

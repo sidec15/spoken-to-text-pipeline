@@ -41,7 +41,7 @@ const mockResolveAiConfig = jest.fn().mockReturnValue({
 });
 const mockResolveStepConfig = jest.fn().mockReturnValue({ execution: 'sync' });
 const mockCreateBatchAiService = jest.fn().mockReturnValue({});
-const mockGetBatchTuning = jest.fn().mockReturnValue({ pollIntervalMs: 5000 });
+const mockGetBatchTuning = jest.fn().mockReturnValue({ pollIntervalMs: 5000, maxWaitMs: undefined });
 
 const mockBuildMetadataHeader = jest.fn().mockReturnValue('');
 const mockGetLocalizedStepLabel = jest.fn().mockResolvedValue('Lecture Handout');
@@ -86,7 +86,7 @@ describe('HandoutStep', () => {
     });
     mockResolveStepConfig.mockReturnValue({ execution: 'sync' });
     mockCreateBatchAiService.mockReturnValue({});
-    mockGetBatchTuning.mockReturnValue({ pollIntervalMs: 5000 });
+    mockGetBatchTuning.mockReturnValue({ pollIntervalMs: 5000, maxWaitMs: undefined });
     mockRunBatchStep.mockResolvedValue([]);
     const module = await import('../../../src/pipeline/steps/handoutStep.js');
     HandoutStep = module.HandoutStep;
@@ -379,7 +379,7 @@ describe('HandoutStep batch mode', () => {
     mockResolveStepConfig.mockReturnValue({ execution: 'batch' });
     mockResolveAiConfig.mockReturnValue({ systemPrompt: 'Create handout', temperature: 0 });
     mockCreateBatchAiService.mockReturnValue({});
-    mockGetBatchTuning.mockReturnValue({ pollIntervalMs: 5000 });
+    mockGetBatchTuning.mockReturnValue({ pollIntervalMs: 5000, maxWaitMs: undefined });
     mockRunBatchStep.mockResolvedValue([]);
 
     // Stage-2 merge service

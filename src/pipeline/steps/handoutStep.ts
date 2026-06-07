@@ -73,7 +73,7 @@ export class HandoutStep implements Step {
     const handout =
       execution === "batch"
         ? await this.generateHandoutMapReduce(
-            config, aiOptions, cleanedFiles, outputDir, contextText, logger, progress,
+            config, aiService, aiOptions, cleanedFiles, outputDir, contextText, logger, progress,
           )
         : await this.generateHandoutIncremental(
             aiService, aiOptions, cleanedFiles, outputDir, contextText, logger, progress,
@@ -190,6 +190,7 @@ export class HandoutStep implements Step {
 
   private async generateHandoutMapReduce(
     config: StepContext["config"],
+    aiService: AiService,
     aiOptions: Omit<HandoutAiGenerateOptions, "userPrompt">,
     cleanedFiles: string[],
     outputDir: string,
@@ -254,10 +255,11 @@ export class HandoutStep implements Step {
       drafts.push(r.text);
     }
 
-    // Stage 2 (sync merge): single call.
-    const mergeService = createAiService(config, "handout");
+    // Stage 2 (sync merge): single call using the shared aiService from runAsync.
+    // v1 assumption: all concatenated drafts fit in one model context window;
+    // a future size guard would mirror summaryStep chunking for very large sessions.
     const langCode = config.language?.output ?? "en";
-    const merged = await mergeService.generateTextAsync({
+    const merged = await aiService.generateTextAsync({
       systemPrompt: buildHandoutMergePrompt(langCode),
       manualContextText: contextText || undefined,
       userPrompt: drafts.map((d, i) => `--- DRAFT PART ${i + 1} ---\n\n${d}`).join("\n\n"),

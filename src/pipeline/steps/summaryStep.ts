@@ -4,9 +4,14 @@ import type { Step, StepContext } from "../step.js";
 import {
   buildMetadataHeader,
   createAiService,
+  createBatchAiService,
+  getBatchTuning,
   getLocalizedStepLabel,
   resolveAiConfig,
+  resolveStepConfig,
 } from "../../services/ai/aiServiceFactory.js";
+import { runBatchStep } from "../batch/batchCoordinator.js";
+import type { BatchRequest } from "../../services/ai/batch/batch.types.js";
 import { loadContextText } from "../../utils/loadContextText.js";
 import type { AiService, AiGenerateOptions } from "../../services/ai/ai.types.js";
 import type { SupportedProfile, PipelineConfig } from "../../config/config.types.js";
@@ -52,21 +57,52 @@ export class SummaryStep implements Step {
     const aiService = createAiService(config, "summary");
     const contextText = loadContextText(config.context?.textSources, baseDir);
 
-    const summary = await this.generateSummary(
-      aiService,
-      { ...aiOptions, systemPrompt: enhancedSystemPrompt },
-      inputContent,
-      estimatedInputTokens,
-      wordCount,
-      contextText,
-      logger,
-      progress,
-    );
+    const execution = resolveStepConfig(config, "summary").execution;
 
+    let summary: string;
+    if (execution === "batch") {
+      summary = await this.generateSummaryBatch(
+        config,
+        { ...aiOptions, systemPrompt: enhancedSystemPrompt },
+        inputContent,
+        estimatedInputTokens,
+        wordCount,
+        contextText,
+        aiService,
+        outputDir,
+        logger,
+        progress,
+      );
+    } else {
+      summary = await this.generateSummary(
+        aiService,
+        { ...aiOptions, systemPrompt: enhancedSystemPrompt },
+        inputContent,
+        estimatedInputTokens,
+        wordCount,
+        contextText,
+        logger,
+        progress,
+      );
+    }
+
+    await this.writeSummary(config, outputDir, summary, aiService, logger);
+  }
+
+  /**
+   * Writes the summary to disk with a localized metadata header.
+   */
+  private async writeSummary(
+    config: PipelineConfig,
+    outputDir: string,
+    summaryText: string,
+    aiService: AiService,
+    logger: Logger,
+  ): Promise<void> {
+    const summaryPath = path.join(outputDir, "summary.md");
     const stepLabel = await getLocalizedStepLabel(config, "summary", aiService);
     const header = buildMetadataHeader(config, stepLabel);
-    const contentToWrite = header + "\n\n" + summary;
-
+    const contentToWrite = header + "\n\n" + summaryText;
     await fs.promises.writeFile(summaryPath, contentToWrite, "utf-8");
     logger.info(`Summary saved to '${summaryPath}'`);
   }
@@ -146,6 +182,120 @@ export class SummaryStep implements Step {
       logger,
       progress,
     );
+  }
+
+  /**
+   * Batch execution path: single-pass or chunked depending on input size.
+   */
+  private async generateSummaryBatch(
+    config: PipelineConfig,
+    aiOptions: Omit<AiGenerateOptions, "userPrompt">,
+    inputContent: string,
+    estimatedInputTokens: number,
+    wordCount: number,
+    contextText: string | undefined,
+    aiService: AiService,
+    outputDir: string,
+    logger: Logger,
+    progress: ProgressReporter | undefined,
+  ): Promise<string> {
+    const MAX_SAFE_INPUT_TOKENS = 90000;
+    const batchService = createBatchAiService(config, "summary");
+    const { pollIntervalMs, maxWaitMs } = getBatchTuning(config);
+
+    if (estimatedInputTokens > MAX_SAFE_INPUT_TOKENS) {
+      // Batch-chunked path
+      logger.warn(
+        `Input content (${estimatedInputTokens} tokens) exceeds safe limit (${MAX_SAFE_INPUT_TOKENS} tokens). Using chunking strategy.`,
+      );
+      const chunks = this.splitContentIntoChunks(inputContent, logger, progress);
+      const chunkWordCountTarget = Math.ceil(wordCount / chunks.length);
+      const baseSystemPrompt = aiOptions.systemPrompt.replace(/\n\nIMPORTANT:.*$/, "");
+
+      const requests: BatchRequest[] = chunks.map((chunk, i) => {
+        const chunkSystemPrompt = this.enhancePromptWithWordCount(baseSystemPrompt, chunkWordCountTarget);
+        const paddedIndex = String(i).padStart(4, "0");
+        return {
+          customId: `summary::chunk-${paddedIndex}`,
+          options: {
+            systemPrompt: chunkSystemPrompt,
+            manualContextText: contextText || undefined,
+            userPrompt: chunk,
+            temperature: aiOptions.temperature,
+            maxTokens: aiOptions.maxTokens,
+          },
+        };
+      });
+
+      logger.info(`Processing input content in chunks (batch mode, ${chunks.length} chunks)`);
+      const results = await runBatchStep({
+        step: "summary",
+        outputDir,
+        batchService,
+        requests,
+        pollIntervalMs,
+        maxWaitMs,
+        logger,
+        progress,
+      });
+
+      const byId = new Map(results.map((r) => [r.customId, r]));
+      const chunkSummaries: string[] = [];
+      for (let i = 0; i < chunks.length; i++) {
+        const paddedIndex = String(i).padStart(4, "0");
+        const customId = `summary::chunk-${paddedIndex}`;
+        const r = byId.get(customId);
+        if (!r || r.error || !r.text) {
+          throw new Error(
+            `Summary batch chunk missing/failed for chunk ${i}` +
+              (r?.error ? `: ${r.error}` : "") + ". Re-run to retry.",
+          );
+        }
+        chunkSummaries.push(r.text);
+      }
+
+      if (chunkSummaries.length === 1) {
+        return chunkSummaries[0];
+      }
+
+      // Merge via existing sync mergeChunkSummaries (single AI call at full price)
+      return this.mergeChunkSummaries(aiService, aiOptions, chunkSummaries, wordCount, contextText);
+    }
+
+    // Batch single-pass path
+    logger.info("Processing input content in a single pass (batch mode)");
+    const requests: BatchRequest[] = [
+      {
+        customId: "summary::main",
+        options: {
+          systemPrompt: aiOptions.systemPrompt,
+          manualContextText: contextText || undefined,
+          userPrompt: inputContent,
+          temperature: aiOptions.temperature,
+          maxTokens: aiOptions.maxTokens,
+        },
+      },
+    ];
+
+    const results = await runBatchStep({
+      step: "summary",
+      outputDir,
+      batchService,
+      requests,
+      pollIntervalMs,
+      maxWaitMs,
+      logger,
+      progress,
+    });
+
+    const main = results.find((r) => r.customId === "summary::main");
+    if (!main || main.error || !main.text) {
+      throw new Error(
+        `Summary batch result missing/failed` +
+          (main?.error ? `: ${main.error}` : "") + ". Re-run to retry.",
+      );
+    }
+    return main.text;
   }
 
   private async generateSinglePassSummary(

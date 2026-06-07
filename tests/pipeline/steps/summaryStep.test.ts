@@ -35,6 +35,9 @@ const mockGenerateTextAsync = jest.fn<() => Promise<string>>().mockResolvedValue
 const mockCreateAiService = jest.fn().mockReturnValue({
   generateTextAsync: mockGenerateTextAsync,
 });
+const mockCreateBatchAiService = jest.fn().mockReturnValue({});
+const mockGetBatchTuning = jest.fn().mockReturnValue({ pollIntervalMs: 1000 });
+const mockResolveStepConfig = jest.fn().mockReturnValue({ execution: 'sync' });
 const mockResolveAiConfig = jest.fn().mockReturnValue({
   systemPrompt: 'Create summary',
   temperature: 0.2,
@@ -45,9 +48,18 @@ const mockGetLocalizedStepLabel = jest.fn().mockResolvedValue('Lecture Summary')
 
 jest.unstable_mockModule('../../../src/services/ai/aiServiceFactory.js', () => ({
   createAiService: mockCreateAiService,
+  createBatchAiService: mockCreateBatchAiService,
+  getBatchTuning: mockGetBatchTuning,
+  resolveStepConfig: mockResolveStepConfig,
   resolveAiConfig: mockResolveAiConfig,
   buildMetadataHeader: mockBuildMetadataHeader,
   getLocalizedStepLabel: mockGetLocalizedStepLabel,
+}));
+
+// Mock runBatchStep
+const mockRunBatchStep = jest.fn<() => Promise<any[]>>().mockResolvedValue([]);
+jest.unstable_mockModule('../../../src/pipeline/batch/batchCoordinator.js', () => ({
+  runBatchStep: mockRunBatchStep,
 }));
 
 // Mock loadContextText
@@ -69,6 +81,10 @@ describe('SummaryStep', () => {
     mockCreateAiService.mockReturnValue({
       generateTextAsync: mockGenerateTextAsync,
     });
+    mockCreateBatchAiService.mockReturnValue({});
+    mockGetBatchTuning.mockReturnValue({ pollIntervalMs: 1000 });
+    mockResolveStepConfig.mockReturnValue({ execution: 'sync' });
+    mockRunBatchStep.mockResolvedValue([]);
     const module = await import('../../../src/pipeline/steps/summaryStep.js');
     SummaryStep = module.SummaryStep;
     step = new SummaryStep();
@@ -514,6 +530,152 @@ describe('SummaryStep', () => {
       expect(call[0]).toMatchObject({
         manualContextText: contextText,
       });
+    });
+  });
+
+  describe('batch execution', () => {
+    it('should submit a single summary::main batch request when input is under threshold (batch single-pass)', async () => {
+      // Arrange
+      mockResolveStepConfig.mockReturnValue({ execution: 'batch' });
+      mockReaddirSync.mockReturnValue(['handout.md'] as any);
+      mockExistsSync.mockImplementation((p: string) => {
+        return p.includes('summary.md') ? false : true;
+      });
+      mockReadFileSync.mockReturnValue('short handout content'); // well under 90K tokens
+      mockRunBatchStep.mockResolvedValue([
+        { customId: 'summary::main', text: 'batch summary result' },
+      ]);
+
+      // Act
+      await step.runAsync(mockContext);
+
+      // Assert: exactly one request with customId summary::main
+      expect(mockRunBatchStep).toHaveBeenCalledTimes(1);
+      const { requests } = mockRunBatchStep.mock.calls[0][0] as any;
+      expect(requests).toHaveLength(1);
+      expect(requests[0].customId).toBe('summary::main');
+      expect(requests[0].options.userPrompt).toBe('short handout content');
+
+      // Assert: summary.md written with the batch result text
+      expect(mockWriteFile).toHaveBeenCalledTimes(1);
+      const written = mockWriteFile.mock.calls[0][1] as string;
+      expect(written).toContain('batch summary result');
+    });
+
+    it('should submit chunk batch requests and sync-merge when input exceeds threshold (batch chunked)', async () => {
+      // Arrange: content large enough to trigger chunking (> 90000 * 4 = 360000 chars)
+      // CHUNK_SIZE_CHARS = 80000 * 4 = 320000; use many short lines to force 2+ chunks
+      // Each line is ~100 chars, we need > 640000 chars total for 2 chunks
+      const line = 'x'.repeat(99) + '\n'; // 100 chars per line
+      const largeContent = line.repeat(7000); // 700000 chars → triggers chunking AND multiple chunks
+      mockResolveStepConfig.mockReturnValue({ execution: 'batch' });
+      mockReaddirSync.mockReturnValue(['handout.md'] as any);
+      mockExistsSync.mockImplementation((p: string) => {
+        return p.includes('summary.md') ? false : true;
+      });
+      mockReadFileSync.mockReturnValue(largeContent);
+      mockResolveAiConfig.mockReturnValue({
+        systemPrompt: 'Create summary',
+        temperature: 0.2,
+      });
+
+      // Build expected chunk customIds based on how many chunks splitContentIntoChunks produces
+      // CHUNK_SIZE_CHARS=320000, 7000 lines of 100 chars each → ceil(700000/320000) ≈ 3 chunks
+      // We'll just return results for however many chunks are produced (test asserts > 1)
+      mockRunBatchStep.mockImplementation(async ({ requests }: any) => {
+        return requests.map((r: any) => ({ customId: r.customId, text: `summary for ${r.customId}` }));
+      });
+      // Sync merge call via aiService.generateTextAsync
+      mockGenerateTextAsync.mockResolvedValue('merged summary from batch chunks');
+
+      // Act
+      await step.runAsync(mockContext);
+
+      // Assert: runBatchStep was called with multiple chunk requests
+      expect(mockRunBatchStep).toHaveBeenCalledTimes(1);
+      const { requests } = mockRunBatchStep.mock.calls[0][0] as any;
+      expect(requests.length).toBeGreaterThan(1);
+      expect(requests[0].customId).toMatch(/^summary::chunk-\d{4}$/);
+
+      // Assert: sync merge ran (generateTextAsync called for merging)
+      expect(mockGenerateTextAsync).toHaveBeenCalledTimes(1);
+
+      // Assert: summary.md written with merged result
+      expect(mockWriteFile).toHaveBeenCalledTimes(1);
+      const written = mockWriteFile.mock.calls[0][1] as string;
+      expect(written).toContain('merged summary from batch chunks');
+    });
+
+    it('should throw and not write summary.md when batch main result has an error', async () => {
+      // Arrange
+      mockResolveStepConfig.mockReturnValue({ execution: 'batch' });
+      mockReaddirSync.mockReturnValue(['handout.md'] as any);
+      mockExistsSync.mockImplementation((p: string) => {
+        return p.includes('summary.md') ? false : true;
+      });
+      mockReadFileSync.mockReturnValue('short content');
+      mockRunBatchStep.mockResolvedValue([
+        { customId: 'summary::main', error: 'model refused' },
+      ]);
+
+      // Act & Assert
+      await expect(step.runAsync(mockContext)).rejects.toThrow('Summary batch result missing/failed');
+      expect(mockWriteFile).not.toHaveBeenCalled();
+    });
+
+    it('should throw and not write summary.md when a batch chunk result has an error', async () => {
+      // Arrange: large multi-line content so chunking path is taken with multiple chunks
+      const line = 'x'.repeat(99) + '\n';
+      const largeContent = line.repeat(7000); // same chunking trigger as batch chunked test
+      mockResolveStepConfig.mockReturnValue({ execution: 'batch' });
+      mockReaddirSync.mockReturnValue(['handout.md'] as any);
+      mockExistsSync.mockImplementation((p: string) => {
+        return p.includes('summary.md') ? false : true;
+      });
+      mockReadFileSync.mockReturnValue(largeContent);
+      mockResolveAiConfig.mockReturnValue({
+        systemPrompt: 'Create summary',
+        temperature: 0.2,
+      });
+      // Return results where chunk-0001 has an error (chunk-0000 succeeds)
+      mockRunBatchStep.mockImplementation(async ({ requests }: any) => {
+        return requests.map((r: any, i: number) =>
+          i === 1
+            ? { customId: r.customId, error: 'token limit exceeded' }
+            : { customId: r.customId, text: `summary for ${r.customId}` }
+        );
+      });
+
+      // Act & Assert
+      await expect(step.runAsync(mockContext)).rejects.toThrow('Summary batch chunk missing/failed');
+      expect(mockWriteFile).not.toHaveBeenCalled();
+    });
+
+    it('should use createBatchAiService and getBatchTuning in batch mode', async () => {
+      // Arrange
+      const fakeBatchService = { submit: jest.fn(), poll: jest.fn(), collect: jest.fn() };
+      mockCreateBatchAiService.mockReturnValue(fakeBatchService);
+      mockGetBatchTuning.mockReturnValue({ pollIntervalMs: 5000, maxWaitMs: 60000 });
+      mockResolveStepConfig.mockReturnValue({ execution: 'batch' });
+      mockReaddirSync.mockReturnValue(['handout.md'] as any);
+      mockExistsSync.mockImplementation((p: string) => {
+        return p.includes('summary.md') ? false : true;
+      });
+      mockReadFileSync.mockReturnValue('short content');
+      mockRunBatchStep.mockResolvedValue([
+        { customId: 'summary::main', text: 'batch text' },
+      ]);
+
+      // Act
+      await step.runAsync(mockContext);
+
+      // Assert
+      expect(mockCreateBatchAiService).toHaveBeenCalledWith(mockConfig, 'summary');
+      expect(mockGetBatchTuning).toHaveBeenCalledWith(mockConfig);
+      const args = mockRunBatchStep.mock.calls[0][0] as any;
+      expect(args.batchService).toBe(fakeBatchService);
+      expect(args.pollIntervalMs).toBe(5000);
+      expect(args.maxWaitMs).toBe(60000);
     });
   });
 });

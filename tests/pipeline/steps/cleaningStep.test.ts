@@ -39,6 +39,9 @@ const mockResolveAiConfig = jest.fn().mockReturnValue({
   systemPrompt: 'Clean the text',
   temperature: 0,
 });
+const mockResolveStepConfig = jest.fn().mockReturnValue({ execution: 'sync' });
+const mockCreateBatchAiService = jest.fn().mockReturnValue({});
+const mockGetBatchTuning = jest.fn().mockReturnValue({ pollIntervalMs: 5000 });
 
 const mockBuildMetadataHeader = jest.fn().mockReturnValue('');
 const mockGetLocalizedStepLabel = jest.fn().mockResolvedValue('Cleaned transcript');
@@ -46,8 +49,18 @@ const mockGetLocalizedStepLabel = jest.fn().mockResolvedValue('Cleaned transcrip
 jest.unstable_mockModule('../../../src/services/ai/aiServiceFactory.js', () => ({
   createAiService: mockCreateAiService,
   resolveAiConfig: mockResolveAiConfig,
+  resolveStepConfig: mockResolveStepConfig,
+  createBatchAiService: mockCreateBatchAiService,
+  getBatchTuning: mockGetBatchTuning,
   buildMetadataHeader: mockBuildMetadataHeader,
   getLocalizedStepLabel: mockGetLocalizedStepLabel,
+}));
+
+// Mock runBatchStep
+const mockRunBatchStep = jest.fn<() => Promise<any[]>>().mockResolvedValue([]);
+
+jest.unstable_mockModule('../../../src/pipeline/batch/batchCoordinator.js', () => ({
+  runBatchStep: mockRunBatchStep,
 }));
 
 // Mock loadContextText
@@ -67,6 +80,10 @@ describe('CleaningStep', () => {
     mockCreateAiService.mockReturnValue({
       generateTextAsync: mockGenerateTextAsync,
     });
+    mockResolveStepConfig.mockReturnValue({ execution: 'sync' });
+    mockCreateBatchAiService.mockReturnValue({});
+    mockGetBatchTuning.mockReturnValue({ pollIntervalMs: 5000 });
+    mockRunBatchStep.mockResolvedValue([]);
     const module = await import('../../../src/pipeline/steps/cleaningStep.js');
     CleaningStep = module.CleaningStep;
     step = new CleaningStep();
@@ -358,6 +375,83 @@ describe('CleaningStep', () => {
     );
     expect(mergeWriteCall).toBeDefined();
     expect(mergeWriteCall![0]).not.toMatch(/cleaned[/\\]/);
+  });
+
+  it('should run batch mode: correct neighbor excerpts, customIds, system prompt, and write outputs', async () => {
+    // Arrange: three raw parts, none cleaned
+    mockResolveStepConfig.mockReturnValue({ execution: 'batch' });
+    mockResolveAiConfig.mockReturnValue({ systemPrompt: 'Clean the text', temperature: 0 });
+
+    const rawFiles = ['part1.txt', 'part2.txt', 'part3.txt'];
+    mockReaddirSync.mockImplementation((dir: string) => {
+      if ((dir as string).includes('cleaned')) return [] as any;
+      return rawFiles as any;
+    });
+    mockExistsSync.mockImplementation((p: string) => {
+      if ((p as string).includes('transcripts')) return true; // transcripts dir exists
+      return false; // cleaned files don't exist
+    });
+    // readFileSync: each raw file returns its own content (for neighbor excerpt reads too)
+    mockReadFileSync.mockImplementation((p: string) => {
+      if ((p as string).includes('part1')) return 'content of part1';
+      if ((p as string).includes('part2')) return 'content of part2';
+      if ((p as string).includes('part3')) return 'content of part3';
+      return '';
+    });
+
+    // Batch results: one per file
+    mockRunBatchStep.mockResolvedValue([
+      { customId: 'cleaning::part1', text: 'cleaned part1' },
+      { customId: 'cleaning::part2', text: 'cleaned part2' },
+      { customId: 'cleaning::part3', text: 'cleaned part3' },
+    ]);
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert: runBatchStep was called
+    expect(mockRunBatchStep).toHaveBeenCalledTimes(1);
+    const batchArgs = mockRunBatchStep.mock.calls[0][0];
+
+    // One request per file
+    expect(batchArgs.requests).toHaveLength(3);
+
+    // customIds in sorted order
+    expect(batchArgs.requests[0].customId).toBe('cleaning::part1');
+    expect(batchArgs.requests[1].customId).toBe('cleaning::part2');
+    expect(batchArgs.requests[2].customId).toBe('cleaning::part3');
+
+    // First part: no previousChunkExcerpt, has nextChunkExcerpt
+    expect(batchArgs.requests[0].options.previousChunkExcerpt).toBeUndefined();
+    expect(batchArgs.requests[0].options.nextChunkExcerpt).toBeDefined();
+
+    // Middle part: both defined
+    expect(batchArgs.requests[1].options.previousChunkExcerpt).toBeDefined();
+    expect(batchArgs.requests[1].options.nextChunkExcerpt).toBeDefined();
+
+    // Last part: has previousChunkExcerpt, no nextChunkExcerpt
+    expect(batchArgs.requests[2].options.previousChunkExcerpt).toBeDefined();
+    expect(batchArgs.requests[2].options.nextChunkExcerpt).toBeUndefined();
+
+    // No previousOutputExcerpt in batch mode
+    for (const req of batchArgs.requests) {
+      expect(req.options.previousOutputExcerpt).toBeUndefined();
+    }
+
+    // System prompt contains "BATCH MODE"
+    for (const req of batchArgs.requests) {
+      expect(req.options.systemPrompt).toContain('BATCH MODE');
+    }
+
+    // Outputs written from results: cleaned/<base>.md per returned BatchResult
+    const writeCalls = mockWriteFile.mock.calls.filter(
+      (call: unknown[]) => (call[0] as string).includes('cleaned') && (call[0] as string).endsWith('.md')
+    );
+    expect(writeCalls.length).toBeGreaterThanOrEqual(3);
+    const writtenPaths = writeCalls.map((call: unknown[]) => call[0] as string);
+    expect(writtenPaths.some((p) => p.includes('part1.md'))).toBe(true);
+    expect(writtenPaths.some((p) => p.includes('part2.md'))).toBe(true);
+    expect(writtenPaths.some((p) => p.includes('part3.md'))).toBe(true);
   });
 
   it('should handle empty previous cleaned excerpt after trim', async () => {

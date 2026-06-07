@@ -4,15 +4,27 @@ import type { Step, StepContext } from "../step.js";
 import {
   buildMetadataHeader,
   createAiService,
+  createBatchAiService,
+  getBatchTuning,
   getLocalizedStepLabel,
   resolveAiConfig,
+  resolveStepConfig,
 } from "../../services/ai/aiServiceFactory.js";
+import { runBatchStep } from "../batch/batchCoordinator.js";
+import type { BatchRequest } from "../../services/ai/batch/batch.types.js";
 import type { AiService, AiGenerateOptions } from "../../services/ai/ai.types.js";
 import type { Logger } from "../../services/logger.js";
 import type { ProgressReporter } from "../../services/progress.js";
 import { loadContextText } from "../../utils/loadContextText.js";
 
 const PREVIOUS_OUTPUT_EXCERPT_CHARS = 2000;
+const NEIGHBOR_EXCERPT_CHARS = 2000;
+
+/** Appended to the cleaning system prompt in batch mode. */
+const CLEANING_BATCH_ADDENDUM = `
+
+BATCH MODE (MULTI-PART)
+This is one part of a multi-part transcript processed in parallel. Keep terminology and formatting consistent with the surrounding excerpts, but output ONLY the cleaned version of THIS part — never reproduce the neighbor excerpts. If no PRECEDING excerpt is provided, treat this as the FIRST part of the document; if no FOLLOWING excerpt is provided, treat this as the LAST part.`;
 
 export class CleaningStep implements Step {
   readonly name = "cleaning";
@@ -39,33 +51,41 @@ export class CleaningStep implements Step {
     const filesToProcess = this.getFilesToProcess(rawFiles, cleanedDir);
 
     if (filesToProcess.length > 0) {
+      const execution = resolveStepConfig(config, "cleaning").execution;
       const aiOptions = resolveAiConfig(config, "cleaning") as Omit<
         AiGenerateOptions,
         "userPrompt"
       >;
-      const aiService = createAiService(config, "cleaning");
       const contextText = loadContextText(config.context?.textSources, baseDir);
 
-      progress?.start(filesToProcess.length, "Cleaning transcripts");
-
-      let lastCleanedPath: string | undefined;
-      for (const file of filesToProcess) {
-        lastCleanedPath = await this.processFile(
-          config,
-          file,
-          transcriptsDir,
-          cleanedDir,
-          rawFiles,
-          lastCleanedPath,
-          aiService,
-          aiOptions,
-          contextText,
-          logger,
-          progress,
+      if (execution === "batch") {
+        await this.processBatch(
+          config, filesToProcess, transcriptsDir, cleanedDir, rawFiles,
+          aiOptions, contextText, outputDir, logger, progress,
         );
-      }
+      } else {
+        const aiService = createAiService(config, "cleaning");
+        progress?.start(filesToProcess.length, "Cleaning transcripts");
 
-      progress?.stop();
+        let lastCleanedPath: string | undefined;
+        for (const file of filesToProcess) {
+          lastCleanedPath = await this.processFile(
+            config,
+            file,
+            transcriptsDir,
+            cleanedDir,
+            rawFiles,
+            lastCleanedPath,
+            aiService,
+            aiOptions,
+            contextText,
+            logger,
+            progress,
+          );
+        }
+
+        progress?.stop();
+      }
     } else {
       logger.info("All transcripts already cleaned, skipping");
     }
@@ -156,6 +176,84 @@ export class CleaningStep implements Step {
     progress?.increment();
 
     return outputPath;
+  }
+
+  private async processBatch(
+    config: StepContext["config"],
+    filesToProcess: string[],
+    transcriptsDir: string,
+    cleanedDir: string,
+    rawFiles: string[],
+    aiOptions: Omit<AiGenerateOptions, "userPrompt">,
+    contextText: string | undefined,
+    outputDir: string,
+    logger: Logger,
+    progress: ProgressReporter | undefined,
+  ): Promise<void> {
+    const systemPrompt = aiOptions.systemPrompt + CLEANING_BATCH_ADDENDUM;
+
+    const requests: BatchRequest[] = filesToProcess.map((file) => {
+      const base = path.parse(file).name;
+      const rawText = fs.readFileSync(path.join(transcriptsDir, file), "utf-8");
+      const idx = rawFiles.indexOf(file);
+
+      const previousChunkExcerpt =
+        idx > 0
+          ? fs.readFileSync(path.join(transcriptsDir, rawFiles[idx - 1]), "utf-8")
+              .slice(-NEIGHBOR_EXCERPT_CHARS).trim() || undefined
+          : undefined;
+      const nextChunkExcerpt =
+        idx < rawFiles.length - 1
+          ? fs.readFileSync(path.join(transcriptsDir, rawFiles[idx + 1]), "utf-8")
+              .slice(0, NEIGHBOR_EXCERPT_CHARS).trim() || undefined
+          : undefined;
+
+      return {
+        customId: `cleaning::${base}`,
+        options: {
+          systemPrompt,
+          manualContextText: contextText || undefined,
+          previousChunkExcerpt,
+          nextChunkExcerpt,
+          userPrompt: rawText,
+          temperature: aiOptions.temperature,
+          maxTokens: aiOptions.maxTokens,
+        },
+      };
+    });
+
+    const batchService = createBatchAiService(config, "cleaning");
+    const { pollIntervalMs, maxWaitMs } = getBatchTuning(config);
+
+    progress?.start(requests.length, "Cleaning transcripts (batch)");
+    const results = await runBatchStep({
+      step: "cleaning",
+      outputDir,
+      batchService,
+      requests,
+      pollIntervalMs,
+      maxWaitMs,
+      logger,
+      progress,
+    });
+    progress?.stop();
+
+    const aiService = createAiService(config, "cleaning");
+    for (const result of results) {
+      const base = result.customId.replace(/^cleaning::/, "");
+      if (result.error) {
+        logger.warn(`Cleaning failed for '${base}': ${result.error} (will reprocess on re-run)`);
+        continue;
+      }
+      const file = `${base}.txt`;
+      const contentToWrite = await this.buildContentWithOptionalHeader(
+        result.text ?? "",
+        rawFiles.indexOf(file) === 0,
+        config,
+        aiService,
+      );
+      await fs.promises.writeFile(path.join(cleanedDir, `${base}.md`), contentToWrite, "utf-8");
+    }
   }
 
   private loadPreviousOutputExcerpt(

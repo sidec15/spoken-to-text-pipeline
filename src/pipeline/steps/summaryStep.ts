@@ -21,6 +21,8 @@ import type { ProgressReporter } from "../../services/progress.js";
 export class SummaryStep implements Step {
   readonly name = "summary";
 
+  private static readonly MAX_SAFE_INPUT_TOKENS = 90000;
+
   async runAsync(ctx: StepContext): Promise<void> {
     const { config, baseDir, outputDir, logger, progress } = ctx;
 
@@ -155,13 +157,9 @@ export class SummaryStep implements Step {
     logger: Logger,
     progress: ProgressReporter | undefined,
   ): Promise<string> {
-    // Conservative context limit: most models support at least 100K tokens
-    // Reserve space for system prompt (~500 tokens) and output buffer
-    const MAX_SAFE_INPUT_TOKENS = 90000; // Leave room for system prompt and output
-
-    if (estimatedInputTokens > MAX_SAFE_INPUT_TOKENS) {
+    if (estimatedInputTokens > SummaryStep.MAX_SAFE_INPUT_TOKENS) {
       logger.warn(
-        `Input content (${estimatedInputTokens} tokens) exceeds safe limit (${MAX_SAFE_INPUT_TOKENS} tokens). Using chunking strategy.`,
+        `Input content (${estimatedInputTokens} tokens) exceeds safe limit (${SummaryStep.MAX_SAFE_INPUT_TOKENS} tokens). Using chunking strategy.`,
       );
       return await this.generateSummaryWithChunking(
         aiService,
@@ -199,35 +197,31 @@ export class SummaryStep implements Step {
     logger: Logger,
     progress: ProgressReporter | undefined,
   ): Promise<string> {
-    const MAX_SAFE_INPUT_TOKENS = 90000;
     const batchService = createBatchAiService(config, "summary");
     const { pollIntervalMs, maxWaitMs } = getBatchTuning(config);
 
-    if (estimatedInputTokens > MAX_SAFE_INPUT_TOKENS) {
+    const pad = (i: number) => String(i).padStart(4, "0");
+
+    if (estimatedInputTokens > SummaryStep.MAX_SAFE_INPUT_TOKENS) {
       // Batch-chunked path
       logger.warn(
-        `Input content (${estimatedInputTokens} tokens) exceeds safe limit (${MAX_SAFE_INPUT_TOKENS} tokens). Using chunking strategy.`,
+        `Input content (${estimatedInputTokens} tokens) exceeds safe limit (${SummaryStep.MAX_SAFE_INPUT_TOKENS} tokens). Using chunking strategy.`,
       );
       const chunks = this.splitContentIntoChunks(inputContent, logger, progress);
-      const chunkWordCountTarget = Math.ceil(wordCount / chunks.length);
-      const baseSystemPrompt = aiOptions.systemPrompt.replace(/\n\nIMPORTANT:.*$/, "");
 
-      const requests: BatchRequest[] = chunks.map((chunk, i) => {
-        const chunkSystemPrompt = this.enhancePromptWithWordCount(baseSystemPrompt, chunkWordCountTarget);
-        const paddedIndex = String(i).padStart(4, "0");
-        return {
-          customId: `summary::chunk-${paddedIndex}`,
-          options: {
-            systemPrompt: chunkSystemPrompt,
-            manualContextText: contextText || undefined,
-            userPrompt: chunk,
-            temperature: aiOptions.temperature,
-            maxTokens: aiOptions.maxTokens,
-          },
-        };
-      });
+      const requests: BatchRequest[] = chunks.map((chunk, i) => ({
+        customId: `summary::chunk-${pad(i)}`,
+        options: {
+          systemPrompt: this.buildChunkSystemPrompt(aiOptions.systemPrompt, wordCount, chunks.length),
+          manualContextText: contextText || undefined,
+          userPrompt: chunk,
+          temperature: aiOptions.temperature,
+          maxTokens: aiOptions.maxTokens,
+        },
+      }));
 
       logger.info(`Processing input content in chunks (batch mode, ${chunks.length} chunks)`);
+      progress?.start(requests.length, "Summary chunks (batch)");
       const results = await runBatchStep({
         step: "summary",
         outputDir,
@@ -238,12 +232,12 @@ export class SummaryStep implements Step {
         logger,
         progress,
       });
+      progress?.stop();
 
       const byId = new Map(results.map((r) => [r.customId, r]));
       const chunkSummaries: string[] = [];
       for (let i = 0; i < chunks.length; i++) {
-        const paddedIndex = String(i).padStart(4, "0");
-        const customId = `summary::chunk-${paddedIndex}`;
+        const customId = `summary::chunk-${pad(i)}`;
         const r = byId.get(customId);
         if (!r || r.error || !r.text) {
           throw new Error(
@@ -277,6 +271,7 @@ export class SummaryStep implements Step {
       },
     ];
 
+    progress?.start(1, "Summary (batch)");
     const results = await runBatchStep({
       step: "summary",
       outputDir,
@@ -287,6 +282,7 @@ export class SummaryStep implements Step {
       logger,
       progress,
     });
+    progress?.stop();
 
     const main = results.find((r) => r.customId === "summary::main");
     if (!main || main.error || !main.text) {
@@ -418,6 +414,16 @@ export class SummaryStep implements Step {
   }
 
   /**
+   * Builds a per-chunk system prompt with a proportional word count target.
+   * Strips any existing word count instruction before re-applying.
+   */
+  private buildChunkSystemPrompt(systemPrompt: string, wordCount: number, chunkCount: number): string {
+    const chunkWordCountTarget = Math.ceil(wordCount / chunkCount);
+    const baseSystemPrompt = systemPrompt.replace(/\n\nIMPORTANT:.*$/, "");
+    return this.enhancePromptWithWordCount(baseSystemPrompt, chunkWordCountTarget);
+  }
+
+  /**
    * Generates summary using chunking strategy when content exceeds token limits.
    * Uses a two-pass approach:
    * 1. Summarize each chunk independently
@@ -526,9 +532,7 @@ export class SummaryStep implements Step {
 
       // For chunk summaries, use a proportional word count target
       // Distribute word count target across chunks
-      const chunkWordCountTarget = Math.ceil(wordCount / chunks.length);
-      const baseSystemPrompt = aiOptions.systemPrompt.replace(/\n\nIMPORTANT:.*$/, ""); // Remove existing word count instruction
-      const chunkSystemPrompt = this.enhancePromptWithWordCount(baseSystemPrompt, chunkWordCountTarget);
+      const chunkSystemPrompt = this.buildChunkSystemPrompt(aiOptions.systemPrompt, wordCount, chunks.length);
 
       const chunkSummary = await aiService.generateTextAsync({
         systemPrompt: chunkSystemPrompt,

@@ -236,7 +236,6 @@ export class CleaningStep implements Step {
       logger,
       progress,
     });
-    progress?.stop();
 
     const aiService = createAiService(config, "cleaning");
     for (const result of results) {
@@ -245,15 +244,16 @@ export class CleaningStep implements Step {
         logger.warn(`Cleaning failed for '${base}': ${result.error} (will reprocess on re-run)`);
         continue;
       }
-      const file = `${base}.txt`;
+      const idx = rawFiles.findIndex((f) => path.parse(f).name === base);
       const contentToWrite = await this.buildContentWithOptionalHeader(
         result.text ?? "",
-        rawFiles.indexOf(file) === 0,
+        idx === 0,
         config,
         aiService,
       );
       await fs.promises.writeFile(path.join(cleanedDir, `${base}.md`), contentToWrite, "utf-8");
     }
+    progress?.stop();
   }
 
   private loadPreviousOutputExcerpt(

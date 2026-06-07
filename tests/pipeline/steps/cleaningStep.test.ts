@@ -454,6 +454,55 @@ describe('CleaningStep', () => {
     expect(writtenPaths.some((p) => p.includes('part3.md'))).toBe(true);
   });
 
+  it('should skip failed batch results, write successful ones, and log a warning', async () => {
+    // Arrange: three raw parts, none cleaned
+    mockResolveStepConfig.mockReturnValue({ execution: 'batch' });
+    mockResolveAiConfig.mockReturnValue({ systemPrompt: 'Clean the text', temperature: 0 });
+
+    const rawFiles = ['part1.txt', 'part2.txt', 'part3.txt'];
+    mockReaddirSync.mockImplementation((dir: string) => {
+      if ((dir as string).includes('cleaned')) return [] as any;
+      return rawFiles as any;
+    });
+    mockExistsSync.mockImplementation((p: string) => {
+      if ((p as string).includes('transcripts')) return true;
+      return false;
+    });
+    mockReadFileSync.mockImplementation((p: string) => {
+      if ((p as string).includes('part1')) return 'content of part1';
+      if ((p as string).includes('part2')) return 'content of part2';
+      if ((p as string).includes('part3')) return 'content of part3';
+      return '';
+    });
+
+    // Batch results: part2 fails, part1 and part3 succeed
+    mockRunBatchStep.mockResolvedValue([
+      { customId: 'cleaning::part1', text: 'cleaned part1' },
+      { customId: 'cleaning::part2', error: 'boom' },
+      { customId: 'cleaning::part3', text: 'cleaned part3' },
+    ]);
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert: only successful parts are written to cleaned/
+    const writeCalls = mockWriteFile.mock.calls.filter(
+      (call: unknown[]) => (call[0] as string).includes('cleaned') && (call[0] as string).endsWith('.md')
+    );
+    const writtenPaths = writeCalls.map((call: unknown[]) => call[0] as string);
+    expect(writtenPaths.some((p) => p.includes('part1.md'))).toBe(true);
+    expect(writtenPaths.some((p) => p.includes('part2.md'))).toBe(false);
+    expect(writtenPaths.some((p) => p.includes('part3.md'))).toBe(true);
+
+    // A warning was logged for the failed part
+    expect(mockContext.logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('part2')
+    );
+    expect(mockContext.logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('boom')
+    );
+  });
+
   it('should handle empty previous cleaned excerpt after trim', async () => {
     // Arrange
     mockReaddirSync.mockReturnValue(['transcript1.txt', 'transcript2.txt'] as any);

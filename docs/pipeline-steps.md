@@ -52,7 +52,9 @@ The cleaning step uses AI to clean and normalize raw transcripts.
 
 **Input:** Raw transcript files (`.txt` format) from ASR step
 
-**Output:** Cleaned transcript files (`.md` format) written to `paths.outputDir`
+**Output:**
+- Per-part cleaned transcripts (`.md` format) in the `cleaned/` subdirectory of `paths.outputDir` — one file per raw part, with the same base name (e.g. `part-1.txt` → `cleaned/part-1.md`).
+- A single merged `clean-transcripts.md` at the root of `paths.outputDir`, concatenating all cleaned parts in order. This is a convenience artifact for reading the full cleaned transcript; it is **not** consumed by later steps (the handout step reads the per-part files in `cleaned/`, and the summary step's fallback re-merges from `cleaned/` in memory).
 
 **What it does:**
 - Removes filler words and hesitations
@@ -62,10 +64,10 @@ The cleaning step uses AI to clean and normalize raw transcripts.
 - Uses context materials if provided (see [Context Materials](configuration.md#context-materials))
 
 **Behavior:**
-- Processes files sequentially, using previous transcripts as context
+- Processes files sequentially, using previous transcripts as context (sync mode)
 - Applies profile-specific cleaning prompts
-- Writes cleaned markdown files with the same base name
-- Example: `part-1.txt` → `part-1.md`
+- Writes each cleaned part to `cleaned/<base>.md` (e.g. `part-1.txt` → `cleaned/part-1.md`)
+- After all parts are cleaned, merges them into `clean-transcripts.md` at the output root: each part's per-part metadata header is stripped, a single document header is prepended, and the parts are joined in numeric order. This merge is a plain concatenation — **no AI call** — so it preserves every part exactly, and it runs identically in both sync and batch modes.
 
 **Configuration:** See [AI Provider Configuration](configuration.md#ai-provider-configuration) and [Step Configuration](configuration.md#step-configuration-steps) (including optional `prompt` / `promptFile` overrides).
 

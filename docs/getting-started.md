@@ -95,7 +95,8 @@ Check the output directory for cleaned `.md` files, handouts, and summaries.
 The pipeline generates several types of output files:
 
 - **Raw transcripts** (`.txt` files) - Direct output from Whisper ASR
-- **Cleaned transcripts** (`.md` files) - AI-cleaned versions with proper formatting
+- **Cleaned transcripts** (`cleaned/*.md` files) - AI-cleaned versions of each part, with proper formatting
+- **Merged cleaned transcript** (`clean-transcripts.md`) - All cleaned parts concatenated into one document
 - **Handout** (`handout.md`) - Structured document with table of contents
 - **Summary** (`summary.md`) - Summary of the content
 

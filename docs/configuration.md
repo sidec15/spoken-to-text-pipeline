@@ -19,6 +19,7 @@ The pipeline is configured via a JSON file (default: `pipeline.config.json`). Th
   - [Supported Models and Parameter Compatibility](#supported-models-and-parameter-compatibility)
   - [Temperature Defaults](#temperature-defaults)
   - [MaxTokens Calculation](#maxtokens-calculation)
+- [Batch Execution Mode](#batch-execution-mode)
 - [Step Configuration](#step-configuration)
 - [Output Configuration](#output-configuration)
 - [ASR Configuration](#asr-configuration)
@@ -521,6 +522,84 @@ ollama pull qwen2.5:7b
 }
 ```
 
+## Batch Execution Mode
+
+By default every AI step (cleaning, handout, summary) calls the AI provider synchronously and waits for the response before continuing. Setting `execution: "batch"` on a step (or globally via `ai.default.execution`) switches that step to use the **OpenAI Batch API**, which is approximately **50% cheaper** but asynchronous — OpenAI's SLA is "within 24 hours", though many jobs finish sooner.
+
+**Requirements:**
+- Batch mode requires provider `"openai"`. Configuring any other provider (`"deepseek"` or `"ollama"`) with `execution: "batch"` is rejected at config load time.
+- No new CLI flags are needed. The pipeline submits the batch job, then polls automatically until it completes (or until `maxWaitMs` is exceeded, if set).
+
+### Enabling batch mode
+
+Set `execution` on `ai.default` to apply it to all steps, or on individual `steps.<step>.aiConfig` to apply it to a specific step:
+
+```json
+{
+  "profile": "lecture",
+  "ai": {
+    "providers": {
+      "openai": { "apiKey": "sk-proj-..." }
+    },
+    "default": {
+      "provider": "openai",
+      "model": "gpt-5-mini",
+      "execution": "batch"
+    },
+    "batch": {
+      "pollIntervalMs": 30000
+    }
+  }
+}
+```
+
+To enable batch mode only for a specific step:
+
+```json
+{
+  "profile": "lecture",
+  "ai": {
+    "providers": {
+      "openai": { "apiKey": "sk-proj-..." }
+    },
+    "default": {
+      "provider": "openai",
+      "model": "gpt-5-mini"
+    }
+  },
+  "steps": {
+    "cleaning": {
+      "aiConfig": {
+        "execution": "batch"
+      }
+    }
+  }
+}
+```
+
+### Batch tuning (`ai.batch`)
+
+The optional `ai.batch` object controls polling behaviour:
+
+- **`pollIntervalMs`** (optional): How often (in milliseconds) the pipeline polls the OpenAI Batch API while waiting for the job to finish. Default: `30000` (30 seconds).
+- **`maxWaitMs`** (optional): Maximum wall-clock time (in milliseconds) the pipeline will wait before giving up. When exceeded the job is **left running remotely** (not cancelled) and the run throws with a "Pending — re-run to resume" message. Default: `undefined` (wait indefinitely until the batch completes or fails).
+
+### Resume / idempotency contract
+
+When a batch job is submitted, its state is persisted to `<outputDir>/.batch/state.json`. If the run is interrupted (Ctrl-C, process kill, `maxWaitMs` timeout), **re-running the same command resumes the existing batch job** — it does not resubmit. This ensures you are never charged twice for the same work.
+
+On terminal failure (OpenAI reports status `failed`, `expired`, or `cancelled`), the state for that step is cleared automatically and the run throws an error including the batch id and counts. A subsequent re-run will resubmit a fresh batch job for that step.
+
+**Note:** `dryRun` mode never submits a batch job.
+
+### Cost and timing trade-offs
+
+A full batch run may involve up to three sequential batch jobs — cleaning, handout (Stage 1 drafts), and summary — each subject to the OpenAI "within 24 hours" SLA. Between stages the pipeline runs a short synchronous merge call (the handout Stage 2 global merge and the chunked-summary merge), which runs at full price but is a single call and negligible in cost compared to the batch savings.
+
+In practice:
+- **Cost**: approximately 50% cheaper than synchronous calls for the batched requests.
+- **Timing**: plan for overnight turnaround, or set `maxWaitMs` to a shorter budget and re-run later.
+
 ## Step Configuration
 
 The optional `steps` object allows you to configure specific pipeline steps at the top level of the configuration.
@@ -798,6 +877,10 @@ The following table provides a quick reference for all configuration parameters:
 | `ai.default.overrides` | `object` | No | `undefined` | - | Default parameter overrides |
 | `ai.default.overrides.temperature` | `number` | No | Profile-specific presets | 0-2 | Temperature override |
 | `ai.default.overrides.maxTokens` | `number` | No | Not set (model default) | Positive integer | Max tokens override (not recommended for reasoning models) |
+| `ai.default.execution` | `string` | No | `"sync"` | `"sync"`, `"batch"` | Default execution mode for all steps; `"batch"` requires provider `"openai"` |
+| `ai.batch` | `object` | No | `undefined` | - | Batch API tuning; only used by steps whose execution is `"batch"` |
+| `ai.batch.pollIntervalMs` | `number` | No | `30000` | Positive integer | Poll interval (ms) while auto-watching a batch job |
+| `ai.batch.maxWaitMs` | `number` | No | `undefined` (wait indefinitely) | Positive integer | Max wall-clock wait (ms) before leaving job pending; re-run to resume |
 | **`steps`** | `object` | No | `undefined` | - | Step configuration |
 | `steps.cleaning` | `object` | No | `undefined` | - | Cleaning step configuration |
 | `steps.cleaning.enabled` | `boolean` | No | `true` | `true`, `false` | Enable or disable cleaning step |
@@ -809,6 +892,7 @@ The following table provides a quick reference for all configuration parameters:
 | `steps.cleaning.aiConfig.overrides` | `object` | No | Uses `ai.default.overrides` | - | Override parameters |
 | `steps.cleaning.aiConfig.overrides.temperature` | `number` | No | Profile-specific presets | 0-2 | Temperature override |
 | `steps.cleaning.aiConfig.overrides.maxTokens` | `number` | No | Not set (model default) | Positive integer | Max tokens override (not recommended for reasoning models) |
+| `steps.cleaning.aiConfig.execution` | `string` | No | `"sync"` | `"sync"`, `"batch"` | Execution mode for cleaning step; `"batch"` requires provider `"openai"` |
 | `steps.handout` | `object` | No | `undefined` | - | Handout step configuration |
 | `steps.handout.enabled` | `boolean` | No | `true` | `true`, `false` | Enable or disable handout step |
 | `steps.handout.prompt` | `string` | No | Profile default | Any string | Inline system prompt override (takes precedence over promptFile) |
@@ -819,6 +903,7 @@ The following table provides a quick reference for all configuration parameters:
 | `steps.handout.aiConfig.overrides` | `object` | No | Uses `ai.default.overrides` | - | Override parameters |
 | `steps.handout.aiConfig.overrides.temperature` | `number` | No | Profile-specific presets | 0-2 | Temperature override |
 | `steps.handout.aiConfig.overrides.maxTokens` | `number` | No | Calculated dynamically | Positive integer | Max tokens override |
+| `steps.handout.aiConfig.execution` | `string` | No | `"sync"` | `"sync"`, `"batch"` | Execution mode for handout step; `"batch"` requires provider `"openai"` |
 | `steps.summary` | `object` | No | `undefined` | - | Summary step configuration |
 | `steps.summary.enabled` | `boolean` | No | `true` | `true`, `false` | Enable or disable summary step |
 | `steps.summary.prompt` | `string` | No | Profile default | Any string | Inline system prompt override (takes precedence over promptFile) |
@@ -829,6 +914,7 @@ The following table provides a quick reference for all configuration parameters:
 | `steps.summary.aiConfig.overrides` | `object` | No | Uses `ai.default.overrides` | - | Override parameters |
 | `steps.summary.aiConfig.overrides.temperature` | `number` | No | Profile-specific presets | 0-2 | Temperature override |
 | `steps.summary.aiConfig.overrides.maxTokens` | `number` | No | Calculated dynamically | Positive integer | Max tokens override |
+| `steps.summary.aiConfig.execution` | `string` | No | `"sync"` | `"sync"`, `"batch"` | Execution mode for summary step; `"batch"` requires provider `"openai"` |
 | **`context`** | `object` | No | `undefined` | - | Context materials |
 | `context.textSources` | `string[]` | No | `undefined` | Array of file paths | Reference text files (.txt or .md) |
 

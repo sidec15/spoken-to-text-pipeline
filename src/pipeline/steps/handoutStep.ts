@@ -5,12 +5,49 @@ import type { AiService, AiGenerateOptions, HandoutAiGenerateOptions } from "../
 import {
   buildMetadataHeader,
   createAiService,
+  createBatchAiService,
+  getBatchTuning,
   getLocalizedStepLabel,
   resolveAiConfig,
+  resolveStepConfig,
 } from "../../services/ai/aiServiceFactory.js";
+import { runBatchStep } from "../batch/batchCoordinator.js";
+import type { BatchRequest } from "../../services/ai/batch/batch.types.js";
 import { loadContextText } from "../../utils/loadContextText.js";
 import type { Logger } from "../../services/logger.js";
 import type { ProgressReporter } from "../../services/progress.js";
+
+const NEIGHBOR_EXCERPT_CHARS = 2000;
+
+/** Appended to the handout system prompt for Stage-1 batch drafts. */
+const HANDOUT_DRAFT_ADDENDUM = `
+
+BATCH DRAFT MODE (ONE PART)
+You are drafting ONE part of a larger multi-part handout. Produce structured notes for THIS part only. Do NOT write a global introduction or conclusion, and do NOT assume global section numbering — parts are merged and renumbered afterward. Never reproduce the neighbor excerpts. If no PRECEDING excerpt is provided, treat this as the FIRST part; if no FOLLOWING excerpt is provided, treat this as the LAST part.`;
+
+/** Builds the Stage-2 sync merge system prompt, with the output-language instruction. */
+export function buildHandoutMergePrompt(langCode: string): string {
+  const code = (langCode ?? "en").trim().toLowerCase();
+  const languageInstruction = `\n\nIMPORTANT: Output language is specified by ISO 639-1 two-letter code "${code}". All output must be written in that language. Write all content, including headings, annotations, and any text, exclusively in the language identified by code "${code}".`;
+  return (
+    `ROLE
+You merge independently drafted parts of a multi-part academic handout into a single, unified document.
+
+TASK
+You receive several handout drafts (in order). Combine them into one coherent handout that reads as if written in a single pass.
+
+RULES
+- Unify the parts into one document; preserve ALL content (no omissions, no summaries).
+- Apply a single, global, hierarchical numbered heading scheme, renumbering sections from 1.
+- Remove duplicated material that appears across adjacent drafts.
+- Smooth the transitions between parts so boundaries are invisible.
+- Do NOT add a title, metadata, or table of contents (the header is added post-processing).
+- Do NOT invent new content or commentary.
+
+OUTPUT
+Return ONLY the merged handout in Markdown.` + languageInstruction
+  );
+}
 
 export class HandoutStep implements Step {
   readonly name = "handout";
@@ -32,15 +69,15 @@ export class HandoutStep implements Step {
     const aiService = createAiService(config, "handout");
     const contextText = loadContextText(config.context?.textSources, baseDir);
 
-    const handout = await this.generateHandoutIncremental(
-      aiService,
-      aiOptions,
-      cleanedFiles,
-      outputDir,
-      contextText,
-      logger,
-      progress,
-    );
+    const execution = resolveStepConfig(config, "handout").execution;
+    const handout =
+      execution === "batch"
+        ? await this.generateHandoutMapReduce(
+            config, aiOptions, cleanedFiles, outputDir, contextText, logger, progress,
+          )
+        : await this.generateHandoutIncremental(
+            aiService, aiOptions, cleanedFiles, outputDir, contextText, logger, progress,
+          );
 
     const stepLabel = await getLocalizedStepLabel(config, "handout", aiService);
     const header = buildMetadataHeader(config, stepLabel);
@@ -149,5 +186,84 @@ export class HandoutStep implements Step {
 
     progress?.stop();
     return accumulatedHandout;
+  }
+
+  private async generateHandoutMapReduce(
+    config: StepContext["config"],
+    aiOptions: Omit<HandoutAiGenerateOptions, "userPrompt">,
+    cleanedFiles: string[],
+    outputDir: string,
+    contextText: string | undefined,
+    logger: Logger,
+    progress: ProgressReporter | undefined,
+  ): Promise<string> {
+    const cleanedDir = path.join(outputDir, "cleaned");
+    const contents = cleanedFiles.map((f) => fs.readFileSync(path.join(cleanedDir, f), "utf-8"));
+    const draftSystemPrompt = aiOptions.systemPrompt + HANDOUT_DRAFT_ADDENDUM;
+
+    // Stage 1 (batch): one independent draft per part.
+    const requests: BatchRequest[] = cleanedFiles.map((file, i) => {
+      const base = path.parse(file).name;
+      const previousChunkExcerpt =
+        i > 0 ? contents[i - 1].slice(-NEIGHBOR_EXCERPT_CHARS).trim() || undefined : undefined;
+      const nextChunkExcerpt =
+        i < contents.length - 1
+          ? contents[i + 1].slice(0, NEIGHBOR_EXCERPT_CHARS).trim() || undefined
+          : undefined;
+      return {
+        customId: `handout::${base}`,
+        options: {
+          systemPrompt: draftSystemPrompt,
+          manualContextText: contextText || undefined,
+          previousChunkExcerpt,
+          nextChunkExcerpt,
+          userPrompt: contents[i],
+          temperature: aiOptions.temperature,
+        },
+      };
+    });
+
+    const batchService = createBatchAiService(config, "handout");
+    const { pollIntervalMs, maxWaitMs } = getBatchTuning(config);
+
+    progress?.start(requests.length, "Handout drafts (batch)");
+    const results = await runBatchStep({
+      step: "handout",
+      outputDir,
+      batchService,
+      requests,
+      pollIntervalMs,
+      maxWaitMs,
+      logger,
+      progress,
+    });
+    progress?.stop();
+
+    // Order drafts by the numeric file order; fail loudly if any draft errored.
+    const byId = new Map(results.map((r) => [r.customId, r]));
+    const drafts: string[] = [];
+    for (const file of cleanedFiles) {
+      const base = path.parse(file).name;
+      const r = byId.get(`handout::${base}`);
+      if (!r || r.error || !r.text) {
+        throw new Error(
+          `Handout draft missing/failed for part '${base}'` +
+            (r?.error ? `: ${r.error}` : "") + ". Re-run to retry.",
+        );
+      }
+      drafts.push(r.text);
+    }
+
+    // Stage 2 (sync merge): single call.
+    const mergeService = createAiService(config, "handout");
+    const langCode = config.language?.output ?? "en";
+    const merged = await mergeService.generateTextAsync({
+      systemPrompt: buildHandoutMergePrompt(langCode),
+      manualContextText: contextText || undefined,
+      userPrompt: drafts.map((d, i) => `--- DRAFT PART ${i + 1} ---\n\n${d}`).join("\n\n"),
+      temperature: aiOptions.temperature,
+    });
+
+    return merged;
   }
 }

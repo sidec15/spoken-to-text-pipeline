@@ -39,6 +39,9 @@ const mockResolveAiConfig = jest.fn().mockReturnValue({
   systemPrompt: 'Create handout',
   temperature: 0,
 });
+const mockResolveStepConfig = jest.fn().mockReturnValue({ execution: 'sync' });
+const mockCreateBatchAiService = jest.fn().mockReturnValue({});
+const mockGetBatchTuning = jest.fn().mockReturnValue({ pollIntervalMs: 5000 });
 
 const mockBuildMetadataHeader = jest.fn().mockReturnValue('');
 const mockGetLocalizedStepLabel = jest.fn().mockResolvedValue('Lecture Handout');
@@ -46,8 +49,18 @@ const mockGetLocalizedStepLabel = jest.fn().mockResolvedValue('Lecture Handout')
 jest.unstable_mockModule('../../../src/services/ai/aiServiceFactory.js', () => ({
   createAiService: mockCreateAiService,
   resolveAiConfig: mockResolveAiConfig,
+  resolveStepConfig: mockResolveStepConfig,
+  createBatchAiService: mockCreateBatchAiService,
+  getBatchTuning: mockGetBatchTuning,
   buildMetadataHeader: mockBuildMetadataHeader,
   getLocalizedStepLabel: mockGetLocalizedStepLabel,
+}));
+
+// Mock runBatchStep
+const mockRunBatchStep = jest.fn<() => Promise<any[]>>().mockResolvedValue([]);
+
+jest.unstable_mockModule('../../../src/pipeline/batch/batchCoordinator.js', () => ({
+  runBatchStep: mockRunBatchStep,
 }));
 
 // Mock loadContextText
@@ -71,6 +84,10 @@ describe('HandoutStep', () => {
     mockCreateAiService.mockReturnValue({
       generateTextAsync: mockGenerateTextAsync,
     });
+    mockResolveStepConfig.mockReturnValue({ execution: 'sync' });
+    mockCreateBatchAiService.mockReturnValue({});
+    mockGetBatchTuning.mockReturnValue({ pollIntervalMs: 5000 });
+    mockRunBatchStep.mockResolvedValue([]);
     const module = await import('../../../src/pipeline/steps/handoutStep.js');
     HandoutStep = module.HandoutStep;
     step = new HandoutStep();
@@ -335,4 +352,154 @@ describe('HandoutStep', () => {
     expect(generateCall.manualContextText).toBeUndefined();
   });
 
+});
+
+describe('buildHandoutMergePrompt', () => {
+  it('includes renumbering instruction and the language code', async () => {
+    const { buildHandoutMergePrompt } = await import('../../../src/pipeline/steps/handoutStep.js');
+    const p = buildHandoutMergePrompt('it');
+    expect(p).toMatch(/renumber/i);
+    expect(p).toContain('"it"');
+  });
+});
+
+describe('HandoutStep batch mode', () => {
+  let step: any;
+  let mockConfig: PipelineConfig;
+  let mockContext: StepContext;
+
+  // A separate merge generateTextAsync so we can distinguish it from Stage-1 batch calls
+  const mockMergeGenerateTextAsync = jest.fn<() => Promise<string>>().mockResolvedValue('merged handout');
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    (mockLoadContextText as jest.Mock).mockReturnValue('');
+
+    // Default: sync; individual tests override to 'batch'
+    mockResolveStepConfig.mockReturnValue({ execution: 'batch' });
+    mockResolveAiConfig.mockReturnValue({ systemPrompt: 'Create handout', temperature: 0 });
+    mockCreateBatchAiService.mockReturnValue({});
+    mockGetBatchTuning.mockReturnValue({ pollIntervalMs: 5000 });
+    mockRunBatchStep.mockResolvedValue([]);
+
+    // Stage-2 merge service
+    mockCreateAiService.mockReturnValue({ generateTextAsync: mockMergeGenerateTextAsync });
+    mockMergeGenerateTextAsync.mockResolvedValue('merged handout');
+
+    const module = await import('../../../src/pipeline/steps/handoutStep.js');
+    const HandoutStep = module.HandoutStep;
+    step = new HandoutStep();
+
+    mockConfig = {
+      profile: 'lecture',
+      language: { input: 'it', output: 'it' },
+      logging: { level: 'info', singleLine: true },
+      paths: { inputDir: './input', outputDir: './output' },
+      asr: {
+        provider: 'whisper',
+        whisper: { serverUrl: 'http://localhost:9000/asr' },
+      },
+      ai: {
+        providers: { openai: { apiKey: 'sk-test' } },
+        default: { provider: 'openai', model: 'gpt-4o-mini' },
+      },
+      steps: { handout: {} },
+    };
+    mockContext = {
+      config: mockConfig,
+      outputDir: './output',
+      logger: createMockLogger(),
+      progress: createMockProgressReporter(),
+    };
+  });
+
+  it('should run batch stage-1 with correct customIds in numeric order, draft addendum, neighbor excerpts, and stage-2 merge via generateTextAsync', async () => {
+    // Arrange: 3 cleaned parts, handout.md does not exist
+    const cleanedFiles = ['part-1.md', 'part-2.md', 'part-3.md'];
+    mockReaddirSync.mockReturnValue(cleanedFiles as any);
+    mockExistsSync.mockImplementation((p: string) => {
+      if ((p as string).includes('handout.md')) return false; // handout not written yet
+      return true; // cleaned dir exists
+    });
+    mockReadFileSync.mockImplementation((p: string) => {
+      if ((p as string).includes('part-1')) return 'content of part 1';
+      if ((p as string).includes('part-2')) return 'content of part 2';
+      if ((p as string).includes('part-3')) return 'content of part 3';
+      return '';
+    });
+
+    // Batch returns one draft per part
+    mockRunBatchStep.mockResolvedValue([
+      { customId: 'handout::part-1', text: 'draft part 1' },
+      { customId: 'handout::part-2', text: 'draft part 2' },
+      { customId: 'handout::part-3', text: 'draft part 3' },
+    ]);
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert: runBatchStep was called once
+    expect(mockRunBatchStep).toHaveBeenCalledTimes(1);
+    const batchArgs = mockRunBatchStep.mock.calls[0][0] as any;
+
+    // 3 requests, one per file
+    expect(batchArgs.requests).toHaveLength(3);
+
+    // customIds are "handout::<base>" in numeric order
+    expect(batchArgs.requests[0].customId).toBe('handout::part-1');
+    expect(batchArgs.requests[1].customId).toBe('handout::part-2');
+    expect(batchArgs.requests[2].customId).toBe('handout::part-3');
+
+    // Draft addendum is present in every stage-1 system prompt
+    for (const req of batchArgs.requests) {
+      expect(req.options.systemPrompt).toContain('BATCH DRAFT MODE');
+    }
+
+    // First part: no previousChunkExcerpt, has nextChunkExcerpt
+    expect(batchArgs.requests[0].options.previousChunkExcerpt).toBeUndefined();
+    expect(batchArgs.requests[0].options.nextChunkExcerpt).toBeDefined();
+
+    // Middle part: both defined
+    expect(batchArgs.requests[1].options.previousChunkExcerpt).toBeDefined();
+    expect(batchArgs.requests[1].options.nextChunkExcerpt).toBeDefined();
+
+    // Last part: has previousChunkExcerpt, no nextChunkExcerpt
+    expect(batchArgs.requests[2].options.previousChunkExcerpt).toBeDefined();
+    expect(batchArgs.requests[2].options.nextChunkExcerpt).toBeUndefined();
+
+    // Stage-2 merge: createAiService called and generateTextAsync called with merge prompt
+    expect(mockCreateAiService).toHaveBeenCalledWith(mockConfig, 'handout');
+    expect(mockMergeGenerateTextAsync).toHaveBeenCalledTimes(1);
+    const mergeCall = (mockMergeGenerateTextAsync.mock.calls[0] as any[])[0] as any;
+    expect(mergeCall.systemPrompt).toMatch(/renumber/i);
+
+    // Final handout.md is written
+    expect(mockWriteFile).toHaveBeenCalledWith(
+      expect.stringContaining('handout.md'),
+      expect.any(String),
+      'utf-8',
+    );
+  });
+
+  it('should throw hard if a batch draft errors', async () => {
+    const cleanedFiles = ['part-1.md', 'part-2.md'];
+    mockReaddirSync.mockReturnValue(cleanedFiles as any);
+    mockExistsSync.mockImplementation((p: string) => {
+      if ((p as string).includes('handout.md')) return false;
+      return true;
+    });
+    mockReadFileSync.mockImplementation((p: string) => {
+      if ((p as string).includes('part-1')) return 'content of part 1';
+      if ((p as string).includes('part-2')) return 'content of part 2';
+      return '';
+    });
+
+    // part-2 fails
+    mockRunBatchStep.mockResolvedValue([
+      { customId: 'handout::part-1', text: 'draft part 1' },
+      { customId: 'handout::part-2', error: 'timeout' },
+    ]);
+
+    await expect(step.runAsync(mockContext)).rejects.toThrow(/part-2/);
+  });
 });

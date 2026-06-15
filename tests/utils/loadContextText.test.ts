@@ -101,6 +101,27 @@ describe('loadContextText', () => {
     expect(mockReadFileSync).not.toHaveBeenCalled();
   });
 
+  it('should skip empty and whitespace-only paths instead of reading them', () => {
+    // Act
+    const result = getLoadContextText()(['', '   ']);
+
+    // Assert
+    expect(result).toBe('');
+    expect(mockReadFileSync).not.toHaveBeenCalled();
+  });
+
+  it('should skip empty paths but still load valid ones', () => {
+    // Arrange
+    mockReadFileSync.mockReturnValue('Content');
+
+    // Act
+    const result = getLoadContextText()(['', './file.txt']);
+
+    // Assert
+    expect(result).toBe('Content');
+    expect(mockReadFileSync).toHaveBeenCalledTimes(1);
+  });
+
   it('should resolve paths relative to process.cwd()', () => {
     // Arrange
     const filePath = './relative/path.txt';

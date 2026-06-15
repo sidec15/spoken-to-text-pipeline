@@ -10,11 +10,12 @@ import path from "node:path";
  * @returns Concatenated content from all files, separated by "---"
  */
 export function loadContextText(paths: string[] = [], baseDir?: string): string {
-  if (paths.length === 0) return "";
+  const validPaths = paths.filter((p) => p.trim().length > 0);
+  if (validPaths.length === 0) return "";
 
   const resolvedBaseDir = baseDir ?? process.cwd();
 
-  return paths
+  return validPaths
     .map((p) => {
       const abs = path.isAbsolute(p) ? p : path.resolve(resolvedBaseDir, p);
       return fs.readFileSync(abs, "utf-8");

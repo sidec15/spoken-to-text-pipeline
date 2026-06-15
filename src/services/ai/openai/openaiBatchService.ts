@@ -96,6 +96,33 @@ export class OpenAiBatchService implements BatchAiService {
     return results;
   }
 
+  /**
+   * Extracts the assistant text from a raw Responses API body.
+   *
+   * The batch output file contains the raw HTTP response JSON — NOT an SDK
+   * object — so there is no top-level `output_text` getter. The text lives in
+   * `output[]`: each `message` item carries `content[]` parts, and the parts of
+   * type `output_text` hold the text. This mirrors the SDK's `output_text`
+   * aggregation. A `body.output_text` string (SDK-hydrated shape) is honored as
+   * a fallback for safety.
+   */
+  private extractOutputText(body: {
+    output_text?: string;
+    output?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }>;
+  }): string {
+    const parts: string[] = [];
+    for (const item of body.output ?? []) {
+      if (item?.type !== "message" || !Array.isArray(item.content)) continue;
+      for (const part of item.content) {
+        if (part?.type === "output_text" && typeof part.text === "string") {
+          parts.push(part.text);
+        }
+      }
+    }
+    if (parts.length > 0) return parts.join("");
+    return typeof body.output_text === "string" ? body.output_text : "";
+  }
+
   async collect(batchId: string): Promise<BatchResult[]> {
     const batch = await this.client.batches.retrieve(batchId);
 
@@ -111,7 +138,14 @@ export class OpenAiBatchService implements BatchAiService {
       const mapped = this.parseJsonlLines(text, (parsed) => {
         const p = parsed as {
           custom_id: string;
-          response?: { status_code?: number; body?: { status?: string; output_text?: string } };
+          response?: {
+            status_code?: number;
+            body?: {
+              status?: string;
+              output_text?: string;
+              output?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }>;
+            };
+          };
           error?: { message?: string } | null;
         };
         if (p.error) {
@@ -121,7 +155,7 @@ export class OpenAiBatchService implements BatchAiService {
         if (body?.status === "incomplete") {
           return { customId: p.custom_id, error: "OpenAI response incomplete" } satisfies BatchResult;
         }
-        return { customId: p.custom_id, text: body?.output_text ?? "" } satisfies BatchResult;
+        return { customId: p.custom_id, text: body ? this.extractOutputText(body) : "" } satisfies BatchResult;
       });
       results.push(...(mapped as BatchResult[]));
     }

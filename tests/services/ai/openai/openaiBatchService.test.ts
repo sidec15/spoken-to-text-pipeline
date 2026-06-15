@@ -15,6 +15,25 @@ jest.unstable_mockModule("openai", () => {
   return { default: MockOpenAI, toFile: mockToFile };
 });
 
+/**
+ * Builds a body matching the REAL raw Responses API batch output shape:
+ * the assistant text lives in `output[]` (a `message` item) under
+ * `content[]` parts of type `output_text` — there is NO top-level
+ * `output_text` field in the raw JSONL (that is an SDK-only getter).
+ */
+function realResponsesBody(text: string, opts?: { withReasoning?: boolean; status?: string }) {
+  const output: unknown[] = [];
+  if (opts?.withReasoning !== false) {
+    output.push({ type: "reasoning", summary: [] });
+  }
+  output.push({
+    type: "message",
+    role: "assistant",
+    content: [{ type: "output_text", text }],
+  });
+  return { status: opts?.status ?? "completed", output };
+}
+
 describe("OpenAiBatchService", () => {
   let OpenAiBatchService: any;
   let service: any;
@@ -66,7 +85,7 @@ describe("OpenAiBatchService", () => {
     expect(res.requestCounts).toEqual({ completed: 3, failed: 0, total: 9 });
   });
 
-  it("collect parses output JSONL into customId -> text", async () => {
+  it("collect extracts text from output[] message parts (real Responses shape)", async () => {
     mockBatchesRetrieve.mockResolvedValue({
       status: "completed",
       output_file_id: "out_1",
@@ -75,12 +94,41 @@ describe("OpenAiBatchService", () => {
     const outJsonl =
       JSON.stringify({
         custom_id: "cleaning::part-01",
-        response: { status_code: 200, body: { status: "completed", output_text: "CLEANED A" } },
+        response: { status_code: 200, body: realResponsesBody("CLEANED A") },
       }) + "\n";
     mockFilesContent.mockResolvedValue({ text: async () => outJsonl });
 
     const results = await service.collect("batch_abc");
     expect(results).toEqual([{ customId: "cleaning::part-01", text: "CLEANED A" }]);
+  });
+
+  it("collect concatenates multiple output_text parts across message items", async () => {
+    mockBatchesRetrieve.mockResolvedValue({
+      status: "completed",
+      output_file_id: "out_1b",
+      error_file_id: null,
+    });
+    const outJsonl =
+      JSON.stringify({
+        custom_id: "cleaning::part-01",
+        response: {
+          status_code: 200,
+          body: {
+            status: "completed",
+            output: [
+              { type: "reasoning", summary: [] },
+              { type: "message", role: "assistant", content: [
+                { type: "output_text", text: "PART ONE" },
+                { type: "output_text", text: " PART TWO" },
+              ] },
+            ],
+          },
+        },
+      }) + "\n";
+    mockFilesContent.mockResolvedValue({ text: async () => outJsonl });
+
+    const results = await service.collect("batch_abc");
+    expect(results).toEqual([{ customId: "cleaning::part-01", text: "PART ONE PART TWO" }]);
   });
 
   it("collect marks customIds from the error file with an error", async () => {
@@ -92,7 +140,7 @@ describe("OpenAiBatchService", () => {
     const outJsonl =
       JSON.stringify({
         custom_id: "cleaning::part-01",
-        response: { status_code: 200, body: { status: "completed", output_text: "OK" } },
+        response: { status_code: 200, body: realResponsesBody("OK") },
       }) + "\n";
     const errJsonl =
       JSON.stringify({ custom_id: "cleaning::part-02", error: { message: "rate limited" } }) + "\n";
@@ -117,7 +165,7 @@ describe("OpenAiBatchService", () => {
     const outJsonl =
       JSON.stringify({
         custom_id: "cleaning::part-03",
-        response: { status_code: 200, body: { status: "incomplete", output_text: "" } },
+        response: { status_code: 200, body: { status: "incomplete", output: [] } },
       }) + "\n";
     mockFilesContent.mockResolvedValue({ text: async () => outJsonl });
 
@@ -148,7 +196,7 @@ describe("OpenAiBatchService", () => {
     });
     const goodLine = JSON.stringify({
       custom_id: "cleaning::part-01",
-      response: { status_code: 200, body: { status: "completed", output_text: "GOOD" } },
+      response: { status_code: 200, body: realResponsesBody("GOOD") },
     });
     const outJsonl = `${goodLine}\nNOT_VALID_JSON\n`;
     mockFilesContent.mockResolvedValue({ text: async () => outJsonl });

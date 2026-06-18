@@ -199,12 +199,82 @@ export class HandoutStep implements Step {
     progress: ProgressReporter | undefined,
   ): Promise<string> {
     const cleanedDir = path.join(outputDir, "cleaned");
+    const draftsDir = path.join(outputDir, "handout-drafts");
+    const bases = cleanedFiles.map((f) => path.parse(f).name);
+
+    // Reuse persisted Stage-1 drafts when every part is already on disk. This
+    // lets a re-run that failed AFTER the batch (e.g. a timed-out Stage-2 merge)
+    // skip resubmitting the whole batch — the batch state is cleared on
+    // completion, so without this we would pay for the full batch again.
+    let drafts = this.loadPersistedDrafts(draftsDir, bases);
+    if (drafts) {
+      logger.info(`Reusing ${bases.length} persisted handout drafts, skipping batch`);
+    } else {
+      drafts = await this.generateDraftsViaBatch(
+        config, aiOptions, cleanedFiles, bases, cleanedDir, outputDir, contextText, logger, progress,
+      );
+      await this.persistDrafts(draftsDir, bases, drafts);
+    }
+
+    // Stage 2 (sync merge): single call using the shared aiService from runAsync.
+    // v1 assumption: all concatenated drafts fit in one model context window;
+    // a future size guard would mirror summaryStep chunking for very large sessions.
+    const langCode = config.language?.output ?? "en";
+    const merged = await aiService.generateTextAsync({
+      systemPrompt: buildHandoutMergePrompt(langCode),
+      manualContextText: contextText || undefined,
+      userPrompt: drafts.map((d, i) => `--- DRAFT PART ${i + 1} ---\n\n${d}`).join("\n\n"),
+      temperature: aiOptions.temperature,
+    });
+
+    return merged;
+  }
+
+  /**
+   * Loads Stage-1 drafts from `draftsDir` in `bases` order, but only if EVERY
+   * part has a persisted draft. Returns null otherwise so the caller falls back
+   * to running the batch (all-or-nothing: a partial set can't be trusted to
+   * align with the persisted batch request set).
+   */
+  private loadPersistedDrafts(draftsDir: string, bases: string[]): string[] | null {
+    if (!fs.existsSync(draftsDir)) {
+      return null;
+    }
+    const paths = bases.map((b) => path.join(draftsDir, `${b}.md`));
+    if (!paths.every((p) => fs.existsSync(p))) {
+      return null;
+    }
+    return paths.map((p) => fs.readFileSync(p, "utf-8"));
+  }
+
+  /** Writes each Stage-1 draft to `draftsDir/<base>.md`, in `bases` order. */
+  private async persistDrafts(draftsDir: string, bases: string[], drafts: string[]): Promise<void> {
+    fs.mkdirSync(draftsDir, { recursive: true });
+    await Promise.all(
+      bases.map((base, i) => fs.promises.writeFile(path.join(draftsDir, `${base}.md`), drafts[i], "utf-8")),
+    );
+  }
+
+  /**
+   * Runs the Stage-1 batch: one independent draft per cleaned part. Returns the
+   * drafts ordered by `cleanedFiles`/`bases`; throws loudly if any draft errored
+   * or is empty so the failure is visible rather than silently merged.
+   */
+  private async generateDraftsViaBatch(
+    config: StepContext["config"],
+    aiOptions: Omit<HandoutAiGenerateOptions, "userPrompt">,
+    cleanedFiles: string[],
+    bases: string[],
+    cleanedDir: string,
+    outputDir: string,
+    contextText: string | undefined,
+    logger: Logger,
+    progress: ProgressReporter | undefined,
+  ): Promise<string[]> {
     const contents = cleanedFiles.map((f) => fs.readFileSync(path.join(cleanedDir, f), "utf-8"));
     const draftSystemPrompt = aiOptions.systemPrompt + HANDOUT_DRAFT_ADDENDUM;
 
-    // Stage 1 (batch): one independent draft per part.
     const requests: BatchRequest[] = cleanedFiles.map((file, i) => {
-      const base = path.parse(file).name;
       const previousChunkExcerpt =
         i > 0 ? contents[i - 1].slice(-NEIGHBOR_EXCERPT_CHARS).trim() || undefined : undefined;
       const nextChunkExcerpt =
@@ -212,7 +282,7 @@ export class HandoutStep implements Step {
           ? contents[i + 1].slice(0, NEIGHBOR_EXCERPT_CHARS).trim() || undefined
           : undefined;
       return {
-        customId: `handout::${base}`,
+        customId: `handout::${bases[i]}`,
         options: {
           systemPrompt: draftSystemPrompt,
           manualContextText: contextText || undefined,
@@ -242,9 +312,7 @@ export class HandoutStep implements Step {
 
     // Order drafts by the numeric file order; fail loudly if any draft errored.
     const byId = new Map(results.map((r) => [r.customId, r]));
-    const drafts: string[] = [];
-    for (const file of cleanedFiles) {
-      const base = path.parse(file).name;
+    return bases.map((base) => {
       const r = byId.get(`handout::${base}`);
       if (!r || r.error || !r.text) {
         throw new Error(
@@ -252,20 +320,7 @@ export class HandoutStep implements Step {
             (r?.error ? `: ${r.error}` : "") + ". Re-run to retry.",
         );
       }
-      drafts.push(r.text);
-    }
-
-    // Stage 2 (sync merge): single call using the shared aiService from runAsync.
-    // v1 assumption: all concatenated drafts fit in one model context window;
-    // a future size guard would mirror summaryStep chunking for very large sessions.
-    const langCode = config.language?.output ?? "en";
-    const merged = await aiService.generateTextAsync({
-      systemPrompt: buildHandoutMergePrompt(langCode),
-      manualContextText: contextText || undefined,
-      userPrompt: drafts.map((d, i) => `--- DRAFT PART ${i + 1} ---\n\n${d}`).join("\n\n"),
-      temperature: aiOptions.temperature,
+      return r.text;
     });
-
-    return merged;
   }
 }

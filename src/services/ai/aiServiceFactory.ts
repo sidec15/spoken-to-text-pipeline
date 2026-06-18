@@ -249,7 +249,7 @@ export function createAiService(config: PipelineConfig, step: AiStepName): AiSer
   const apiKey = getApiKey(config, stepConfig.provider);
 
   if (stepConfig.provider === "openai") {
-    return new OpenAiService(apiKey, stepConfig.model);
+    return new OpenAiService(apiKey, stepConfig.model, config.ai?.providers?.openai?.requestTimeoutMs);
   }
 
   if (stepConfig.provider === "deepseek") {
@@ -275,7 +275,7 @@ export function createBatchAiService(config: PipelineConfig, step: AiStepName): 
     );
   }
   const apiKey = getApiKey(config, "openai");
-  return new OpenAiBatchService(apiKey, stepConfig.model);
+  return new OpenAiBatchService(apiKey, stepConfig.model, config.ai?.providers?.openai?.requestTimeoutMs);
 }
 
 /**

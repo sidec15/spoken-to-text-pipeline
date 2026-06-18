@@ -3,14 +3,14 @@ import type { AiGenerateOptions } from '../../../../src/services/ai/ai.types.js'
 
 // Mock OpenAI for ESM
 const mockCreate = jest.fn();
+const mockOpenAiCtor = jest.fn().mockImplementation(() => ({
+  responses: {
+    create: mockCreate,
+  },
+}));
 jest.unstable_mockModule('openai', () => {
-  const MockOpenAI = jest.fn().mockImplementation(() => ({
-    responses: {
-      create: mockCreate,
-    },
-  }));
   return {
-    default: MockOpenAI,
+    default: mockOpenAiCtor,
   };
 });
 
@@ -201,6 +201,23 @@ describe('OpenAiService', () => {
         }),
         expect.objectContaining({ role: 'user', content: expect.stringContaining('INPUT CONTENT') }),
       ])
+    );
+  });
+
+  it('defaults the OpenAI client request timeout to 30 minutes', () => {
+    // The default OpenAI SDK timeout is 10 minutes, too short for a large
+    // single-pass handout merge. Constructing without an explicit timeout must
+    // raise it to 30 minutes.
+    expect(mockOpenAiCtor).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: 'sk-test-key', timeout: 30 * 60 * 1000 }),
+    );
+  });
+
+  it('passes an explicit request timeout through to the OpenAI client', () => {
+    mockOpenAiCtor.mockClear();
+    new OpenAiService('sk-test-key', 'gpt-4o-mini', 123456);
+    expect(mockOpenAiCtor).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: 'sk-test-key', timeout: 123456 }),
     );
   });
 });

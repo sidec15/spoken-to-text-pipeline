@@ -1,42 +1,51 @@
-import cliProgress from "cli-progress";
 import type { ProgressReporter } from "./progress.js";
 
+export interface CliProgressReporterOptions {
+  /** Output stream for progress lines. Defaults to `process.stdout`. */
+  out?: { write(chunk: string): boolean };
+}
+
+/**
+ * Progress reporter that emits plain, newline-terminated lines.
+ *
+ * A live in-place progress bar was intentionally removed. `cli-progress` writes
+ * to `process.stderr` while the logger writes to `process.stdout`; on a shared
+ * terminal (and with TTY detection that varies across mintty/tmux/winpty) the
+ * two streams collided and could not be coordinated, garbling the output. Plain
+ * lines on the same stream as the logs are deterministic everywhere and never
+ * interleave badly. Progress detail (e.g. batch counts) is carried in the
+ * messages passed to {@link updateMessage}.
+ */
 export class CliProgressReporter implements ProgressReporter {
-  private bar?: cliProgress.SingleBar;
-  private currentMessage: string = "Progress";
+  private total = 0;
+  private value = 0;
+  private readonly out: { write(chunk: string): boolean };
+
+  constructor(options: CliProgressReporterOptions = {}) {
+    this.out = options.out ?? process.stdout;
+  }
 
   start(total: number, label?: string): void {
-    this.currentMessage = label ?? "Progress";
-    this.bar = new cliProgress.SingleBar(
-      {
-        format: (_options, params) => {
-          const percentage = Math.round((params.value / params.total) * 100);
-          const bar = "█".repeat(Math.floor((params.value / params.total) * 20)).padEnd(20, "░");
-          return `|${bar}| ${params.value}/${params.total} ${percentage}% · ${this.currentMessage}`;
-        },
-        clearOnComplete: true,
-        linewrap: false,
-      },
-      cliProgress.Presets.shades_classic,
-    );
-
-    this.bar.start(total, 0);
-  }
-
-  increment(step = 1): void {
-    this.bar?.increment(step);
-  }
-
-  updateMessage(message: string): void {
-    this.currentMessage = message;
-    // Trigger a redraw by updating with current value
-    if (this.bar) {
-      const current = (this.bar as any).value || 0;
-      this.bar.update(current);
+    this.total = total;
+    this.value = 1;
+    if (label) {
+      this.out.write(`${label}\n`);
     }
   }
 
+  increment(step = 1): void {
+    this.value += step;
+  }
+
+  updateMessage(message: string): void {
+    // Append a running count only once increments have happened (per-file sync
+    // path); in batch mode the value stays 0 and the message already carries
+    // the real counts, so the suffix would be redundant.
+    const suffix = this.value > 0 && this.total > 0 ? ` (${this.value}/${this.total})` : "";
+    this.out.write(`${message}${suffix}\n`);
+  }
+
   stop(): void {
-    this.bar?.stop();
+    // No live bar to tear down.
   }
 }

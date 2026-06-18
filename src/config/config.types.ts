@@ -45,6 +45,13 @@ export interface AiProviderPool {
   openai?: {
     /** OpenAI API key (required if openai provider is configured). Can be omitted if SPOKEN_TO_TEXT_OPENAI_API_KEY is set. */
     apiKey: string;
+    /**
+     * Per-request timeout in milliseconds for synchronous Responses API calls (optional).
+     * The OpenAI SDK default is 10 minutes, which is too short for a large single-pass
+     * handout merge (all drafts concatenated). Raise this for long sessions.
+     * Default: 1800000 (30 minutes).
+     */
+    requestTimeoutMs?: number;
   };
   /**
    * DeepSeek provider configuration (optional).

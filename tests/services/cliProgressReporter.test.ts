@@ -1,290 +1,93 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { CliProgressReporter } from '../../src/services/cliProgressReporter.js';
 
-// Mock cli-progress
-const mockStart = jest.fn();
-const mockIncrement = jest.fn();
-const mockUpdate = jest.fn();
-const mockStop = jest.fn();
+describe('CliProgressReporter (plain-line, no live bar)', () => {
+  let writes: string[];
+  let out: { write: (s: string) => boolean };
+  let reporter: CliProgressReporter;
 
-jest.unstable_mockModule('cli-progress', () => ({
-  default: {
-    SingleBar: jest.fn().mockImplementation(() => ({
-      start: mockStart,
-      increment: mockIncrement,
-      update: mockUpdate,
-      stop: mockStop,
-      value: 0,
-    })),
-    Presets: {
-      shades_classic: {},
-    },
-  },
-  SingleBar: jest.fn().mockImplementation(() => ({
-    start: mockStart,
-    increment: mockIncrement,
-    update: mockUpdate,
-    stop: mockStop,
-    value: 0,
-  })),
-  Presets: {
-    shades_classic: {},
-  },
-}));
-
-describe('CliProgressReporter', () => {
-  let reporter: any;
-  let CliProgressReporter: any;
-
-  beforeEach(async () => {
-    jest.clearAllMocks();
-    // Reset mock implementations to default (no-op)
-    mockStart.mockImplementation(() => {});
-    mockIncrement.mockImplementation(() => {});
-    mockUpdate.mockImplementation(() => {});
-    mockStop.mockImplementation(() => {});
-    const module = await import('../../src/services/cliProgressReporter.js');
-    CliProgressReporter = module.CliProgressReporter;
-    reporter = new CliProgressReporter();
+  beforeEach(() => {
+    writes = [];
+    out = { write: (s: string) => { writes.push(s); return true; } };
+    reporter = new CliProgressReporter({ out });
   });
 
-  it('should create CLI progress bar', () => {
-    // Act
-    reporter.start(100, 'Processing');
+  const written = () => writes.join('');
 
-    // Assert
-    expect(mockStart).toHaveBeenCalledWith(100, 0);
+  it('prints the label as a newline-terminated line on start', () => {
+    reporter.start(20, 'Cleaning transcripts (batch)');
+    expect(written()).toBe('Cleaning transcripts (batch)\n');
   });
 
-  it('should update progress', () => {
-    // Arrange
-    reporter.start(100, 'Processing');
-
-    // Act
-    reporter.increment(10);
-
-    // Assert
-    expect(mockIncrement).toHaveBeenCalledWith(10);
+  it('writes nothing on start when no label is given', () => {
+    reporter.start(20);
+    expect(writes).toEqual([]);
   });
 
-  it('should update message', () => {
-    // Arrange
-    reporter.start(100, 'Initial message');
-    (mockUpdate as jest.Mock).mockReturnValue(0);
+  it('prints a newline-terminated line on updateMessage', () => {
+    reporter.start(20, 'Cleaning transcripts (batch)');
+    writes.length = 0;
 
-    // Act
-    reporter.updateMessage('Updated message');
+    reporter.updateMessage("Batch 'cleaning' in_progress: 5/20 done");
 
-    // Assert
-    expect(mockUpdate).toHaveBeenCalled();
+    expect(written()).toBe("Batch 'cleaning' in_progress: 5/20 done\n");
   });
 
-  it('should complete progress bar', () => {
-    // Arrange
-    reporter.start(100, 'Processing');
+  it('omits a redundant count suffix before any increment (batch mode)', () => {
+    reporter.start(20, 'Cleaning transcripts (batch)');
+    writes.length = 0;
 
-    // Act
+    reporter.updateMessage("Batch 'cleaning' in_progress: 12/20 done");
+
+    expect(written()).not.toContain('(0/20)');
+  });
+
+  it('appends a count suffix once increments have occurred (sync mode)', () => {
+    reporter.start(20, 'Cleaning');
+    reporter.increment();
+    reporter.increment();
+    writes.length = 0;
+
+    reporter.updateMessage("Cleaning 'parte-03.txt'");
+
+    expect(written()).toBe("Cleaning 'parte-03.txt' (3/20)\n");
+  });
+
+  it('does not emit on increment alone', () => {
+    reporter.start(20, 'Cleaning');
+    writes.length = 0;
+    reporter.increment();
+    expect(writes).toEqual([]);
+  });
+
+  it('never writes a live progress bar (no carriage-return redraw)', () => {
+    reporter.start(20, 'X');
+    reporter.increment();
+    reporter.updateMessage('msg');
     reporter.stop();
-
-    // Assert
-    expect(mockStop).toHaveBeenCalled();
+    expect(written()).not.toContain('\r');
+    expect(written()).not.toContain('░');
+    expect(written()).not.toContain('█');
   });
 
-  it('should handle errors', () => {
-    // Arrange
-    mockStart.mockImplementationOnce(() => {
-      throw new Error('Start error');
-    });
-
-    // Act & Assert
-    expect(() => reporter.start(100)).toThrow('Start error');
+  it('start/increment/updateMessage/stop never throw', () => {
+    expect(() => {
+      reporter.start(0);
+      reporter.increment();
+      reporter.updateMessage('x');
+      reporter.stop();
+    }).not.toThrow();
   });
 
-  it('should use default label when not provided', () => {
-    // Act
-    reporter.start(100);
-
-    // Assert
-    expect(mockStart).toHaveBeenCalledWith(100, 0);
-  });
-
-  it('should handle increment without start', () => {
-    // Act & Assert - Should not throw
-    expect(() => reporter.increment()).not.toThrow();
-  });
-
-  it('should handle stop without start', () => {
-    // Act & Assert - Should not throw
-    expect(() => reporter.stop()).not.toThrow();
-  });
-
-  it('should format progress bar correctly', async () => {
-    // Arrange
-    const mockSingleBarCtor = jest.fn().mockImplementation(() => ({
-      start: mockStart,
-      increment: mockIncrement,
-      update: mockUpdate,
-      stop: mockStop,
-      value: 0,
-    }));
-    
-    // Clear module cache and re-mock
-    jest.resetModules();
-    jest.unstable_mockModule('cli-progress', () => ({
-      default: {
-        SingleBar: mockSingleBarCtor,
-        Presets: {
-          shades_classic: {},
-        },
-      },
-      SingleBar: mockSingleBarCtor,
-      Presets: {
-        shades_classic: {},
-      },
-    }));
-
-    // Re-import to get new mock
-    const module = await import('../../src/services/cliProgressReporter.js');
-    const CliProgressReporter = module.CliProgressReporter;
-    const testReporter = new CliProgressReporter();
-
-    // Act
-    testReporter.start(100, 'Test message');
-
-    // Assert
-    expect(mockSingleBarCtor).toHaveBeenCalledWith(
-      expect.objectContaining({
-        format: expect.any(Function),
-        clearOnComplete: true,
-      }),
-      {}
-    );
-  });
-
-  it('should update message and trigger redraw', async () => {
-    // Arrange
-    const mockBar = {
-      start: mockStart,
-      increment: mockIncrement,
-      update: mockUpdate,
-      stop: mockStop,
-      value: 50,
-    };
-    const mockSingleBarCtor = jest.fn().mockReturnValue(mockBar);
-    
-    // Clear module cache and re-mock
-    jest.resetModules();
-    jest.unstable_mockModule('cli-progress', () => ({
-      default: {
-        SingleBar: mockSingleBarCtor,
-        Presets: {
-          shades_classic: {},
-        },
-      },
-      SingleBar: mockSingleBarCtor,
-      Presets: {
-        shades_classic: {},
-      },
-    }));
-
-    // Re-import to get new mock
-    const module = await import('../../src/services/cliProgressReporter.js');
-    const CliProgressReporter = module.CliProgressReporter;
-    const testReporter = new CliProgressReporter();
-
-    testReporter.start(100, 'Initial');
-    testReporter.updateMessage('Updated');
-
-    // Assert
-    expect(mockUpdate).toHaveBeenCalledWith(50);
-  });
-
-  it('should format progress bar with correct percentage and bar', async () => {
-    // Arrange
-    let formatFn: any;
-    const mockSingleBarCtor = jest.fn().mockImplementation((options: any) => {
-      formatFn = options.format;
-      return {
-        start: mockStart,
-        increment: mockIncrement,
-        update: mockUpdate,
-        stop: mockStop,
-        value: 0,
-      };
-    });
-    
-    jest.resetModules();
-    jest.unstable_mockModule('cli-progress', () => ({
-      default: {
-        SingleBar: mockSingleBarCtor,
-        Presets: {
-          shades_classic: {},
-        },
-      },
-      SingleBar: mockSingleBarCtor,
-      Presets: {
-        shades_classic: {},
-      },
-    }));
-
-    // Re-import to get new mock
-    const module = await import('../../src/services/cliProgressReporter.js');
-    const CliProgressReporter = module.CliProgressReporter;
-    const testReporter = new CliProgressReporter();
-
-    // Act
-    testReporter.start(100, 'Test Progress');
-
-    // Assert
-    expect(formatFn).toBeDefined();
-    const formatted = formatFn({}, { value: 50, total: 100 });
-    expect(formatted).toContain('50%');
-    expect(formatted).toContain('50/100');
-    expect(formatted).toContain('Test Progress');
-  });
-
-  it('should handle format function with edge cases', async () => {
-    // Arrange
-    let formatFn: any;
-    const mockSingleBarCtor = jest.fn().mockImplementation((options: any) => {
-      formatFn = options.format;
-      return {
-        start: mockStart,
-        increment: mockIncrement,
-        update: mockUpdate,
-        stop: mockStop,
-        value: 0,
-      };
-    });
-    
-    jest.resetModules();
-    jest.unstable_mockModule('cli-progress', () => ({
-      default: {
-        SingleBar: mockSingleBarCtor,
-        Presets: {
-          shades_classic: {},
-        },
-      },
-      SingleBar: mockSingleBarCtor,
-      Presets: {
-        shades_classic: {},
-      },
-    }));
-
-    // Re-import to get new mock
-    const module = await import('../../src/services/cliProgressReporter.js');
-    const CliProgressReporter = module.CliProgressReporter;
-    const testReporter = new CliProgressReporter();
-
-    testReporter.start(100, 'Test');
-
-    // Act & Assert - Test format with 0 progress
-    const formattedZero = formatFn({}, { value: 0, total: 100 });
-    expect(formattedZero).toContain('0%');
-    expect(formattedZero).toContain('0/100');
-
-    // Act & Assert - Test format with 100% progress
-    const formattedComplete = formatFn({}, { value: 100, total: 100 });
-    expect(formattedComplete).toContain('100%');
-    expect(formattedComplete).toContain('100/100');
+  it('defaults to process.stdout when no out is provided', () => {
+    const spy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    try {
+      const r = new CliProgressReporter();
+      r.start(3, 'Header');
+      const seen = spy.mock.calls.map((c) => String(c[0])).join('');
+      expect(seen).toContain('Header');
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

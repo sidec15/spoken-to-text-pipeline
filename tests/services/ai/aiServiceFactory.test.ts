@@ -22,6 +22,7 @@ const mockOllamaService = jest.fn().mockImplementation(() => ({
 
 jest.unstable_mockModule('../../../src/services/ai/openai/openaiAiService.js', () => ({
   OpenAiService: mockOpenAiService,
+  DEFAULT_OPENAI_TIMEOUT_MS: 30 * 60 * 1000,
 }));
 
 jest.unstable_mockModule('../../../src/services/ai/deepseek/deepseekAiService.js', () => ({
@@ -119,7 +120,7 @@ describe('aiServiceFactory', () => {
       const service = createAiService(config, 'cleaning');
 
       // Assert
-      expect(mockOpenAiService).toHaveBeenCalledWith('sk-openai-test', 'gpt-4o-mini');
+      expect(mockOpenAiService).toHaveBeenCalledWith('sk-openai-test', 'gpt-4o-mini', undefined);
       expect(service).toBeDefined();
     });
 
@@ -130,7 +131,7 @@ describe('aiServiceFactory', () => {
       process.env.SPOKEN_TO_TEXT_OPENAI_API_KEY = 'sk-env-openai';
       try {
         createAiService(config, 'cleaning');
-        expect(mockOpenAiService).toHaveBeenCalledWith('sk-env-openai', 'gpt-4o-mini');
+        expect(mockOpenAiService).toHaveBeenCalledWith('sk-env-openai', 'gpt-4o-mini', undefined);
       } finally {
         if (prev !== undefined) process.env.SPOKEN_TO_TEXT_OPENAI_API_KEY = prev;
         else delete process.env.SPOKEN_TO_TEXT_OPENAI_API_KEY;

@@ -419,6 +419,7 @@ describe('HandoutStep batch mode', () => {
     mockReaddirSync.mockReturnValue(cleanedFiles as any);
     mockExistsSync.mockImplementation((p: string) => {
       if ((p as string).includes('handout.md')) return false; // handout not written yet
+      if ((p as string).includes('handout-drafts')) return false; // no persisted drafts yet
       return true; // cleaned dir exists
     });
     mockReadFileSync.mockImplementation((p: string) => {
@@ -486,6 +487,7 @@ describe('HandoutStep batch mode', () => {
     mockReaddirSync.mockReturnValue(cleanedFiles as any);
     mockExistsSync.mockImplementation((p: string) => {
       if ((p as string).includes('handout.md')) return false;
+      if ((p as string).includes('handout-drafts')) return false;
       return true;
     });
     mockReadFileSync.mockImplementation((p: string) => {
@@ -501,5 +503,64 @@ describe('HandoutStep batch mode', () => {
     ]);
 
     await expect(step.runAsync(mockContext)).rejects.toThrow(/part-2/);
+  });
+
+  it('persists each stage-1 draft to handout-drafts/ after the batch', async () => {
+    const cleanedFiles = ['part-1.md', 'part-2.md'];
+    mockReaddirSync.mockReturnValue(cleanedFiles as any);
+    mockExistsSync.mockImplementation((p: string) => {
+      if ((p as string).includes('handout.md')) return false;
+      if ((p as string).includes('handout-drafts')) return false; // no persisted drafts yet
+      return true;
+    });
+    mockReadFileSync.mockReturnValue('cleaned content');
+    mockRunBatchStep.mockResolvedValue([
+      { customId: 'handout::part-1', text: 'draft part 1' },
+      { customId: 'handout::part-2', text: 'draft part 2' },
+    ]);
+
+    await step.runAsync(mockContext);
+
+    // Each draft written under handout-drafts/, keyed by part base name.
+    const draftWrites = mockWriteFile.mock.calls.filter((c: any[]) =>
+      String(c[0]).includes('handout-drafts'),
+    );
+    expect(draftWrites).toHaveLength(2);
+    const draftPaths = draftWrites.map((c: any[]) => String(c[0]));
+    expect(draftPaths.some((p) => p.includes('part-1.md'))).toBe(true);
+    expect(draftPaths.some((p) => p.includes('part-2.md'))).toBe(true);
+    const part1Write = draftWrites.find((c: any[]) => String(c[0]).includes('part-1.md'))!;
+    expect(part1Write[1]).toBe('draft part 1');
+  });
+
+  it('reuses persisted drafts and skips the batch when all draft files exist', async () => {
+    const cleanedFiles = ['part-1.md', 'part-2.md'];
+    mockReaddirSync.mockReturnValue(cleanedFiles as any);
+    mockExistsSync.mockImplementation((p: string) => {
+      if ((p as string).includes('handout.md')) return false; // final handout not written
+      return true; // cleaned dir AND handout-drafts/* all present
+    });
+    mockReadFileSync.mockImplementation((p: string) => {
+      if ((p as string).includes('handout-drafts')) {
+        return String(p).includes('part-1') ? 'persisted draft 1' : 'persisted draft 2';
+      }
+      return 'cleaned content';
+    });
+
+    await step.runAsync(mockContext);
+
+    // Batch must NOT run — drafts came from disk.
+    expect(mockRunBatchStep).not.toHaveBeenCalled();
+    // Stage-2 merge still runs, using the persisted drafts.
+    expect(mockMergeGenerateTextAsync).toHaveBeenCalledTimes(1);
+    const mergeCall = (mockMergeGenerateTextAsync.mock.calls[0] as any[])[0] as any;
+    expect(mergeCall.userPrompt).toContain('persisted draft 1');
+    expect(mergeCall.userPrompt).toContain('persisted draft 2');
+    // Final handout is still written.
+    expect(mockWriteFile).toHaveBeenCalledWith(
+      expect.stringContaining('handout.md'),
+      expect.any(String),
+      'utf-8',
+    );
   });
 });

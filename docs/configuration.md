@@ -341,6 +341,7 @@ The `providers` object contains configuration for all providers that may be used
 
 - **`openai`** (optional): OpenAI provider configuration
   - `apiKey` (required if `openai` is provided): Your OpenAI API key (starts with `sk-`). If omitted, `SPOKEN_TO_TEXT_OPENAI_API_KEY` is used.
+  - `requestTimeoutMs` (optional): Per-request timeout (in milliseconds) for **synchronous** Responses API calls. The OpenAI SDK default is 10 minutes, which can be too short for a large single-pass handout merge (all part drafts are concatenated into one request). Default: `1800000` (30 minutes). Raise it for very long sessions if the handout step fails with "Request timed out".
 
 - **`deepseek`** (optional): DeepSeek provider configuration
   - `apiKey` (required if `deepseek` is provided): Your DeepSeek API key. If omitted, `SPOKEN_TO_TEXT_DEEPSEEK_API_KEY` is used.
@@ -589,6 +590,8 @@ The optional `ai.batch` object controls polling behaviour:
 When a batch job is submitted, its state is persisted to `<outputDir>/.batch/state.json`. If the run is interrupted (Ctrl-C, process kill, `maxWaitMs` timeout), **re-running the same command resumes the existing batch job** — it does not resubmit. This ensures you are never charged twice for the same work.
 
 On terminal failure (OpenAI reports status `failed`, `expired`, or `cancelled`), the state for that step is cleared automatically and the run throws an error including the batch id and counts. A subsequent re-run will resubmit a fresh batch job for that step.
+
+**Handout draft persistence:** the handout step is a two-stage map-reduce — a Stage-1 batch produces one draft per part, then a synchronous Stage-2 call merges them. Because the batch state is cleared once the batch completes, a failure in the Stage-2 merge (e.g. a timeout) would otherwise force the whole batch to be resubmitted on re-run. To avoid that, each Stage-1 draft is persisted to `<outputDir>/handout-drafts/<part>.md`. On re-run, if **every** part already has a persisted draft, the batch is skipped entirely and the merge runs directly against the saved drafts. (Like `cleaned/`, these files persist across runs; delete the folder to force a fresh batch.)
 
 **Note:** `dryRun` mode never submits a batch job.
 

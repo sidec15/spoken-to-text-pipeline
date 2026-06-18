@@ -7,13 +7,14 @@ import type {
   BatchResult,
 } from "../batch/batch.types.js";
 import { buildResponsesRequest } from "./buildResponsesRequest.js";
+import { DEFAULT_OPENAI_TIMEOUT_MS } from "./openaiAiService.js";
 
 export class OpenAiBatchService implements BatchAiService {
   private client: OpenAI;
   private model: string;
 
-  constructor(apiKey: string, model: string) {
-    this.client = new OpenAI({ apiKey });
+  constructor(apiKey: string, model: string, timeoutMs?: number) {
+    this.client = new OpenAI({ apiKey, timeout: timeoutMs ?? DEFAULT_OPENAI_TIMEOUT_MS });
     this.model = model;
   }
 

@@ -32,7 +32,7 @@ Final Artifacts
 
 The ASR (Automatic Speech Recognition) step transcribes audio files into raw text.
 
-**Input:** Audio files (`.wav` format) from `paths.inputDir`
+**Input:** Audio files (`.wav` or `.mp3` format) from `paths.inputDir`
 
 **Output:** Raw transcript files (`.txt` format) written to `paths.outputDir`
 

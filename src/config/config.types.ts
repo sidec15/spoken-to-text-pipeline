@@ -258,7 +258,7 @@ export interface PipelineConfig {
    */
   paths?: {
     /**
-     * Directory containing input audio files (.wav format) (optional).
+     * Directory containing input audio files (.wav or .mp3 format) (optional).
      * Files are processed in alphabetical order.
      * Default: "./input"
      */

@@ -17,7 +17,7 @@ Before starting, ensure you have:
 
 1. **A Whisper ASR server** running and accessible (see [Whisper Integration](whisper-integration.md))
 2. **An AI provider API key** (OpenAI or DeepSeek) for post-processing steps
-3. **Audio files** in `.wav` format ready to process
+3. **Audio files** in `.wav` or `.mp3` format ready to process
 
 ## Step 1: Install
 
@@ -70,7 +70,7 @@ For detailed configuration options, see the [Configuration Reference](configurat
 
 ## Step 3: Run
 
-Place your `.wav` audio files in the `inputDir` directory, then run:
+Place your `.wav` or `.mp3` audio files in the `inputDir` directory, then run:
 
 ```bash
 spoken-to-text

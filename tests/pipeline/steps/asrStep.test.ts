@@ -96,6 +96,35 @@ describe('AsrStep', () => {
     expect(mockContext.progress.start).toHaveBeenCalled();
   });
 
+  it('should process .mp3 audio files', async () => {
+    // Arrange
+    mockReaddirSync.mockReturnValue(['audio1.mp3', 'audio2.MP3'] as any);
+    mockExistsSync.mockReturnValue(false);
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert: both mp3 files (case-insensitive) are transcribed
+    expect(mockTranscribeFileAsync).toHaveBeenCalledTimes(2);
+    expect(mockContext.progress.start).toHaveBeenCalled();
+  });
+
+  it('should process a mix of .wav and .mp3 files and skip other extensions', async () => {
+    // Arrange: input dir holds audio + non-audio files; transcripts dir starts empty
+    mockReaddirSync.mockImplementation((dir: string) =>
+      dir.includes('transcripts')
+        ? []
+        : ['audio1.wav', 'audio2.mp3', 'notes.txt', 'cover.jpg']
+    );
+    mockExistsSync.mockReturnValue(false);
+
+    // Act
+    await step.runAsync(mockContext);
+
+    // Assert: only the two audio files are transcribed
+    expect(mockTranscribeFileAsync).toHaveBeenCalledTimes(2);
+  });
+
   it('should call ASR service with correct parameters', async () => {
     // Arrange
     mockReaddirSync.mockReturnValue(['audio.wav'] as any);

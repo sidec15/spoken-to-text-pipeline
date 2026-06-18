@@ -77,7 +77,10 @@ export class AsrStep implements Step {
   private getAudioFiles(inputDir: string): string[] {
     return fs
       .readdirSync(inputDir)
-      .filter((f) => f.toLowerCase().endsWith(".wav"));
+      .filter((f) => {
+        const ext = path.extname(f).toLowerCase();
+        return ext === ".wav" || ext === ".mp3";
+      });
   }
 
   private getFilesToProcess(

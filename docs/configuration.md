@@ -211,7 +211,7 @@ The `paths` object defines input and output directories.
 }
 ```
 
-- **`inputDir`** (optional): Directory containing input audio files. Only `.wav` files are processed. Files are processed in alphabetical order. Use absolute paths or paths relative to the [path resolution](#paths-configuration) base (command-line base dir or config file directory). Default: `"./input"`
+- **`inputDir`** (optional): Directory containing input audio files. Only `.wav` and `.mp3` files are processed. Files are processed in alphabetical order. Use absolute paths or paths relative to the [path resolution](#paths-configuration) base (command-line base dir or config file directory). Default: `"./input"`
 
 - **`outputDir`** (optional): Base output directory where all pipeline outputs are written. All outputs (raw transcripts, cleaned files, handouts, summaries) are written directly to this directory (no subfolders). If `output.addTimestamp` is `true`, a timestamp suffix (`yyyyMMddHHmmss`) is appended to this path. Use absolute paths or paths relative to the [path resolution](#paths-configuration) base. Default: `"./output"`
 
@@ -221,10 +221,10 @@ If `outputDir` is `"./output"` and `output.addTimestamp` is `true`, the actual o
 
 ## Input Audio Files
 
-Audio files must be in `.wav` format and placed in the `paths.inputDir` directory. The pipeline:
+Audio files must be in `.wav` or `.mp3` format and placed in the `paths.inputDir` directory. The pipeline:
 
 - Processes files in alphabetical order
-- Skips files that don't end with `.wav` (case-insensitive)
+- Skips files that don't end with `.wav` or `.mp3` (case-insensitive)
 - For each file, generates a corresponding output file with the same base name
 - Example: `part-1.wav` → `part-1.txt` (raw transcript) → `part-1.md` (cleaned)
 

@@ -289,7 +289,7 @@ To use a fixed word count instead:
 ### Audio File Preparation
 
 - **Split long files:** Break very long recordings into smaller chunks (10-15 minutes)
-- **Use appropriate format:** `.wav` format is required
+- **Use a supported format:** `.wav` or `.mp3` files are accepted
 - **Zero-pad filenames:** Use `part-01.wav`, `part-02.wav` for correct ordering
 
 ### Whisper Configuration

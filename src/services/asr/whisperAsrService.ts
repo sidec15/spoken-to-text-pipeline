@@ -18,6 +18,17 @@ function getErrCode(err: unknown): string | undefined {
   return undefined;
 }
 
+function getAudioMimeType(fileName: string): string {
+  const ext = path.extname(fileName).toLowerCase();
+  switch (ext) {
+    case ".mp3":
+      return "audio/mpeg";
+    case ".wav":
+    default:
+      return "audio/wav";
+  }
+}
+
 function buildQuery(opts: AsrTranscribeOptions): string {
   const q = new URLSearchParams();
 
@@ -67,7 +78,7 @@ export class WhisperAsrService implements AsrService {
       this.logger.debug(`File size: ${fileBuffer.length} bytes`);
 
       const form = new FormData();
-      const blob = new Blob([fileBuffer], { type: "audio/wav" });
+      const blob = new Blob([fileBuffer], { type: getAudioMimeType(fileName) });
       form.append("audio_file", blob, fileName);
 
       let res: Response;

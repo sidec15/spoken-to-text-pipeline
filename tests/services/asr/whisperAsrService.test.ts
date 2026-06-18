@@ -87,6 +87,50 @@ describe('WhisperAsrService', () => {
     expect(fetchCall[0]).toContain('temperature=0.5');
   });
 
+  it('should send .wav files with the audio/wav MIME type', async () => {
+    // Arrange
+    const mockResponse = {
+      ok: true,
+      arrayBuffer: jest.fn<() => Promise<ArrayBuffer>>().mockResolvedValue(Buffer.from('transcript').buffer),
+    };
+    (global.fetch as any).mockResolvedValue(mockResponse);
+
+    const options: AsrTranscribeOptions = {
+      task: 'transcribe',
+      outputFormat: 'txt',
+    };
+
+    // Act
+    await service.transcribeFileAsync('/path/to/audio.wav', options);
+
+    // Assert
+    const form = (global.fetch as any).mock.calls[0][1].body as FormData;
+    const blob = form.get('audio_file') as Blob;
+    expect(blob.type).toBe('audio/wav');
+  });
+
+  it('should send .mp3 files with the audio/mpeg MIME type', async () => {
+    // Arrange
+    const mockResponse = {
+      ok: true,
+      arrayBuffer: jest.fn<() => Promise<ArrayBuffer>>().mockResolvedValue(Buffer.from('transcript').buffer),
+    };
+    (global.fetch as any).mockResolvedValue(mockResponse);
+
+    const options: AsrTranscribeOptions = {
+      task: 'transcribe',
+      outputFormat: 'txt',
+    };
+
+    // Act
+    await service.transcribeFileAsync('/path/to/audio.MP3', options);
+
+    // Assert: extension match is case-insensitive
+    const form = (global.fetch as any).mock.calls[0][1].body as FormData;
+    const blob = form.get('audio_file') as Blob;
+    expect(blob.type).toBe('audio/mpeg');
+  });
+
   it('should use VAD when enabled', async () => {
     // Arrange
     const mockResponse = {

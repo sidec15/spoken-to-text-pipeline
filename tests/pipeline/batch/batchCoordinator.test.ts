@@ -3,12 +3,12 @@ import { createMockLogger } from "../../mocks/logger.mock.js";
 import { createMockProgressReporter } from "../../mocks/progress.mock.js";
 import type { BatchAiService } from "../../../src/services/ai/batch/batch.types.js";
 
-const mockReadBatchState = jest.fn();
+const mockReadBatchJob = jest.fn();
 const mockWriteBatchJob = jest.fn();
 const mockClearBatchJob = jest.fn();
 
 jest.unstable_mockModule("../../../src/services/batch/batchState.js", () => ({
-  readBatchState: mockReadBatchState,
+  readBatchJob: mockReadBatchJob,
   writeBatchJob: mockWriteBatchJob,
   clearBatchJob: mockClearBatchJob,
 }));
@@ -32,7 +32,7 @@ describe("runBatchStep", () => {
   });
 
   it("submits, persists state, watches to completion, then clears state", async () => {
-    mockReadBatchState.mockReturnValue({ version: 1, jobs: {} });
+    mockReadBatchJob.mockReturnValue(undefined);
     const service = makeService();
     (service.poll as ReturnType<typeof jest.fn>)
       .mockResolvedValueOnce({ status: "in_progress", requestCounts: { completed: 0, failed: 0, total: 1 } })
@@ -55,10 +55,7 @@ describe("runBatchStep", () => {
   });
 
   it("resumes a stored batchId instead of resubmitting", async () => {
-    mockReadBatchState.mockReturnValue({
-      version: 1,
-      jobs: { cleaning: { batchId: "batch_stored", submittedAt: "t", customIds: ["c::1"] } },
-    });
+    mockReadBatchJob.mockReturnValue({ batchId: "batch_stored", submittedAt: "t", customIds: ["c::1"] });
     const service = makeService();
     (service.poll as ReturnType<typeof jest.fn>)
       .mockResolvedValueOnce({ status: "completed", requestCounts: { completed: 1, failed: 0, total: 1 } });
@@ -77,10 +74,7 @@ describe("runBatchStep", () => {
   });
 
   it("resumes a stored batchId, polls multiple times, then collects", async () => {
-    mockReadBatchState.mockReturnValue({
-      version: 1,
-      jobs: { cleaning: { batchId: "batch_stored", submittedAt: "t", customIds: ["c::1"] } },
-    });
+    mockReadBatchJob.mockReturnValue({ batchId: "batch_stored", submittedAt: "t", customIds: ["c::1"] });
     const service = makeService();
     (service.poll as ReturnType<typeof jest.fn>)
       .mockResolvedValueOnce({ status: "in_progress", requestCounts: { completed: 0, failed: 0, total: 1 } })
@@ -102,7 +96,7 @@ describe("runBatchStep", () => {
   });
 
   it("clears state and throws on terminal failure", async () => {
-    mockReadBatchState.mockReturnValue({ version: 1, jobs: {} });
+    mockReadBatchJob.mockReturnValue(undefined);
     const service = makeService();
     (service.poll as ReturnType<typeof jest.fn>)
       .mockResolvedValueOnce({ status: "failed", requestCounts: { completed: 0, failed: 1, total: 1 } });
@@ -128,7 +122,7 @@ describe("runBatchStep", () => {
   });
 
   it("leaves state and throws when maxWaitMs is exceeded", async () => {
-    mockReadBatchState.mockReturnValue({ version: 1, jobs: {} });
+    mockReadBatchJob.mockReturnValue(undefined);
     const service = makeService();
     (service.poll as ReturnType<typeof jest.fn>)
       .mockResolvedValue({ status: "in_progress", requestCounts: { completed: 0, failed: 0, total: 1 } });
@@ -148,7 +142,7 @@ describe("runBatchStep", () => {
   });
 
   it("deduplicates progress messages for identical poll counts", async () => {
-    mockReadBatchState.mockReturnValue({ version: 1, jobs: {} });
+    mockReadBatchJob.mockReturnValue(undefined);
     const service = makeService();
     // Same counts twice, then completed
     (service.poll as ReturnType<typeof jest.fn>)

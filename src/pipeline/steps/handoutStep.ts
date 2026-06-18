@@ -14,6 +14,8 @@ import {
 import { runBatchStep } from "../batch/batchCoordinator.js";
 import type { BatchRequest } from "../../services/ai/batch/batch.types.js";
 import { loadContextText } from "../../utils/loadContextText.js";
+import { mergeHandoutDrafts } from "../../utils/mergeHandoutDrafts.js";
+import { handoutDraftsDir } from "../../utils/cachePaths.js";
 import type { Logger } from "../../services/logger.js";
 import type { ProgressReporter } from "../../services/progress.js";
 
@@ -24,30 +26,6 @@ const HANDOUT_DRAFT_ADDENDUM = `
 
 BATCH DRAFT MODE (ONE PART)
 You are drafting ONE part of a larger multi-part handout. Produce structured notes for THIS part only. Do NOT write a global introduction or conclusion, and do NOT assume global section numbering — parts are merged and renumbered afterward. Never reproduce the neighbor excerpts. If no PRECEDING excerpt is provided, treat this as the FIRST part; if no FOLLOWING excerpt is provided, treat this as the LAST part.`;
-
-/** Builds the Stage-2 sync merge system prompt, with the output-language instruction. */
-export function buildHandoutMergePrompt(langCode: string): string {
-  const code = (langCode ?? "en").trim().toLowerCase();
-  const languageInstruction = `\n\nIMPORTANT: Output language is specified by ISO 639-1 two-letter code "${code}". All output must be written in that language. Write all content, including headings, annotations, and any text, exclusively in the language identified by code "${code}".`;
-  return (
-    `ROLE
-You merge independently drafted parts of a multi-part academic handout into a single, unified document.
-
-TASK
-You receive several handout drafts (in order). Combine them into one coherent handout that reads as if written in a single pass.
-
-RULES
-- Unify the parts into one document; preserve ALL content (no omissions, no summaries).
-- Apply a single, global, hierarchical numbered heading scheme, renumbering sections from 1.
-- Remove duplicated material that appears across adjacent drafts.
-- Smooth the transitions between parts so boundaries are invisible.
-- Do NOT add a title, metadata, or table of contents (the header is added post-processing).
-- Do NOT invent new content or commentary.
-
-OUTPUT
-Return ONLY the merged handout in Markdown.` + languageInstruction
-  );
-}
 
 export class HandoutStep implements Step {
   readonly name = "handout";
@@ -73,7 +51,7 @@ export class HandoutStep implements Step {
     const handout =
       execution === "batch"
         ? await this.generateHandoutMapReduce(
-            config, aiService, aiOptions, cleanedFiles, outputDir, contextText, logger, progress,
+            config, aiOptions, cleanedFiles, outputDir, contextText, logger, progress,
           )
         : await this.generateHandoutIncremental(
             aiService, aiOptions, cleanedFiles, outputDir, contextText, logger, progress,
@@ -148,11 +126,28 @@ export class HandoutStep implements Step {
     progress: ProgressReporter | undefined,
   ): Promise<string> {
     const cleanedDir = path.join(outputDir, "cleaned");
-    let accumulatedHandout = "";
+    const fragmentsDir = handoutDraftsDir(outputDir, "incremental");
+    const bases = cleanedFiles.map((f) => path.parse(f).name);
+
+    // Resume from any persisted fragments: each part's AI result is written to
+    // disk right after the call, so a run that fails partway through can pick up
+    // where it stopped instead of re-issuing (and re-paying for) calls already
+    // made. We trust only the contiguous leading run of fragments — processing
+    // is strictly sequential, so a gap means a later part has no valid prefix.
+    const { fragments, count } = this.loadIncrementalFragments(fragmentsDir, bases);
+    let accumulatedHandout = fragments.join("\n\n");
 
     progress?.start(cleanedFiles.length, "Handout (incremental)");
+    for (let k = 0; k < count; k++) {
+      progress?.increment();
+    }
+    if (count > 0) {
+      logger.info(
+        `Resuming incremental handout from part ${count + 1}/${cleanedFiles.length} (${count} reused from cache)`,
+      );
+    }
 
-    for (let i = 0; i < cleanedFiles.length; i++) {
+    for (let i = count; i < cleanedFiles.length; i++) {
       const file = cleanedFiles[i];
       const content = fs.readFileSync(path.join(cleanedDir, file), "utf-8");
 
@@ -177,6 +172,11 @@ export class HandoutStep implements Step {
         temperature: aiOptions.temperature,
       });
 
+      // Persist this part's fragment BEFORE moving on, so a later failure does
+      // not discard it. Written atomically (temp + rename) to avoid leaving a
+      // truncated fragment that would corrupt a resumed run.
+      await this.persistIncrementalFragment(fragmentsDir, bases[i], result);
+
       accumulatedHandout =
         accumulatedHandout === ""
           ? result
@@ -188,9 +188,45 @@ export class HandoutStep implements Step {
     return accumulatedHandout;
   }
 
+  /**
+   * Loads the contiguous leading run of persisted incremental fragments in
+   * `bases` order. Stops at the first missing part so the returned fragments are
+   * always a valid prefix of the handout (parts 1..count). Returns an empty set
+   * if the directory does not exist yet.
+   */
+  private loadIncrementalFragments(
+    fragmentsDir: string,
+    bases: string[],
+  ): { fragments: string[]; count: number } {
+    if (!fs.existsSync(fragmentsDir)) {
+      return { fragments: [], count: 0 };
+    }
+    const fragments: string[] = [];
+    for (const base of bases) {
+      const p = path.join(fragmentsDir, `${base}.md`);
+      if (!fs.existsSync(p)) {
+        break;
+      }
+      fragments.push(fs.readFileSync(p, "utf-8"));
+    }
+    return { fragments, count: fragments.length };
+  }
+
+  /** Atomically writes one incremental fragment to `fragmentsDir/<base>.md`. */
+  private async persistIncrementalFragment(
+    fragmentsDir: string,
+    base: string,
+    text: string,
+  ): Promise<void> {
+    fs.mkdirSync(fragmentsDir, { recursive: true });
+    const finalPath = path.join(fragmentsDir, `${base}.md`);
+    const tmpPath = `${finalPath}.tmp`;
+    await fs.promises.writeFile(tmpPath, text, "utf-8");
+    await fs.promises.rename(tmpPath, finalPath);
+  }
+
   private async generateHandoutMapReduce(
     config: StepContext["config"],
-    aiService: AiService,
     aiOptions: Omit<HandoutAiGenerateOptions, "userPrompt">,
     cleanedFiles: string[],
     outputDir: string,
@@ -199,7 +235,7 @@ export class HandoutStep implements Step {
     progress: ProgressReporter | undefined,
   ): Promise<string> {
     const cleanedDir = path.join(outputDir, "cleaned");
-    const draftsDir = path.join(outputDir, "handout-drafts");
+    const draftsDir = handoutDraftsDir(outputDir, "batch");
     const bases = cleanedFiles.map((f) => path.parse(f).name);
 
     // Reuse persisted Stage-1 drafts when every part is already on disk. This
@@ -216,18 +252,12 @@ export class HandoutStep implements Step {
       await this.persistDrafts(draftsDir, bases, drafts);
     }
 
-    // Stage 2 (sync merge): single call using the shared aiService from runAsync.
-    // v1 assumption: all concatenated drafts fit in one model context window;
-    // a future size guard would mirror summaryStep chunking for very large sessions.
-    const langCode = config.language?.output ?? "en";
-    const merged = await aiService.generateTextAsync({
-      systemPrompt: buildHandoutMergePrompt(langCode),
-      manualContextText: contextText || undefined,
-      userPrompt: drafts.map((d, i) => `--- DRAFT PART ${i + 1} ---\n\n${d}`).join("\n\n"),
-      temperature: aiOptions.temperature,
-    });
-
-    return merged;
+    // Stage 2 (mechanical merge): concatenate the ordered drafts and apply a
+    // single global hierarchical heading numbering, entirely in-process. This
+    // replaces the former single AI merge call, which timed out for real
+    // sessions because the whole handout was sent in one request. Cross-seam
+    // de-duplication / transition smoothing are intentionally out of scope here.
+    return mergeHandoutDrafts(drafts);
   }
 
   /**

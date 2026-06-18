@@ -210,6 +210,9 @@ function validateUserConfig(config: Record<string, unknown>, configPath: string)
       if ("addTimestamp" in output && typeof output.addTimestamp !== "boolean") {
         errors.push("Invalid 'output.addTimestamp' field (must be boolean)");
       }
+      if ("dropCache" in output && typeof output.dropCache !== "boolean") {
+        errors.push("Invalid 'output.dropCache' field (must be boolean)");
+      }
       if ("summaryWordCount" in output) {
         if (typeof output.summaryWordCount !== "number" || output.summaryWordCount <= 0) {
           errors.push("Invalid 'output.summaryWordCount' field (must be a positive number)");

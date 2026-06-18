@@ -696,6 +696,29 @@ describe('loadConfig', () => {
       expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'output.summaryWordCount'/);
     });
 
+    it('should throw error for invalid output.dropCache', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      configObj.output.dropCache = 'not-boolean';
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act & Assert
+      expect(() => loadConfig(validConfigPath)).toThrow(/Invalid 'output.dropCache'/);
+    });
+
+    it('should default output.dropCache to true when omitted', () => {
+      // Arrange
+      const configObj = JSON.parse(validConfigContent);
+      delete configObj.output?.dropCache;
+      mockReadFileSync.mockReturnValue(JSON.stringify(configObj));
+
+      // Act
+      const result = loadConfig(validConfigPath);
+
+      // Assert
+      expect(result.output?.dropCache).toBe(true);
+    });
+
     it('should throw error for missing asr.whisper', () => {
       // Arrange
       const configObj = JSON.parse(validConfigContent);

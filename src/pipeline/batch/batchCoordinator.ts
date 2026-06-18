@@ -1,7 +1,7 @@
 import type { Logger } from "../../services/logger.js";
 import type { ProgressReporter } from "../../services/progress.js";
 import type { BatchAiService, BatchRequest, BatchResult } from "../../services/ai/batch/batch.types.js";
-import { readBatchState, writeBatchJob, clearBatchJob } from "../../services/batch/batchState.js";
+import { readBatchJob, writeBatchJob, clearBatchJob } from "../../services/batch/batchState.js";
 
 export interface RunBatchStepArgs {
   step: string;
@@ -52,8 +52,7 @@ export async function runBatchStep(args: RunBatchStepArgs): Promise<BatchResult[
   const now = args.now ?? (() => Date.now());
 
   // 1. Resume an existing job, or submit a new one.
-  const state = readBatchState(outputDir);
-  const existing = state.jobs[step];
+  const existing = readBatchJob(outputDir, step);
   let batchId: string;
   if (existing?.batchId) {
     batchId = existing.batchId;

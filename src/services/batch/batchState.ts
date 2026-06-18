@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { stepBatchDir } from "../../utils/cachePaths.js";
 
 export interface BatchJobRecord {
   batchId: string;
@@ -7,45 +8,43 @@ export interface BatchJobRecord {
   customIds: string[];
 }
 
-export interface BatchState {
+/** On-disk shape of a single step's batch state file. */
+interface BatchStateFile {
   version: 1;
-  jobs: Record<string, BatchJobRecord | undefined>;
+  job: BatchJobRecord;
 }
 
-const STATE_DIR = ".batch";
 const STATE_FILE = "state.json";
 
-function stateDir(outputDir: string): string {
-  return path.join(outputDir, STATE_DIR);
-}
-function statePath(outputDir: string): string {
-  return path.join(stateDir(outputDir), STATE_FILE);
+function statePath(outputDir: string, step: string): string {
+  return path.join(stepBatchDir(outputDir, step), STATE_FILE);
 }
 
-export function readBatchState(outputDir: string): BatchState {
-  const file = statePath(outputDir);
+/**
+ * Reads the persisted batch job for `step`, or undefined if none is in flight.
+ * Each step keeps its own file (`.cache/<step>/batch/state.json`) so states
+ * cannot be confused across steps.
+ */
+export function readBatchJob(outputDir: string, step: string): BatchJobRecord | undefined {
+  const file = statePath(outputDir, step);
   if (!fs.existsSync(file)) {
-    return { version: 1, jobs: {} };
+    return undefined;
   }
   const raw = fs.readFileSync(file, "utf-8");
   // A corrupt state.json intentionally throws here — resume treats it as a hard error rather than silently discarding progress.
-  const parsed = JSON.parse(raw) as BatchState;
-  return { version: 1, jobs: parsed.jobs ?? {} };
+  const parsed = JSON.parse(raw) as BatchStateFile;
+  return parsed.job;
 }
 
-function writeState(outputDir: string, state: BatchState): void {
-  fs.mkdirSync(stateDir(outputDir), { recursive: true });
-  fs.writeFileSync(statePath(outputDir), JSON.stringify(state, null, 2), "utf-8");
-}
-
+/** Persists the in-flight batch job for `step`. */
 export function writeBatchJob(outputDir: string, step: string, job: BatchJobRecord): void {
-  const state = readBatchState(outputDir);
-  state.jobs[step] = job;
-  writeState(outputDir, state);
+  const dir = stepBatchDir(outputDir, step);
+  fs.mkdirSync(dir, { recursive: true });
+  const file: BatchStateFile = { version: 1, job };
+  fs.writeFileSync(path.join(dir, STATE_FILE), JSON.stringify(file, null, 2), "utf-8");
 }
 
+/** Clears `step`'s batch job (removes its state file; a no-op if absent). */
 export function clearBatchJob(outputDir: string, step: string): void {
-  const state = readBatchState(outputDir);
-  delete state.jobs[step];
-  writeState(outputDir, state);
+  fs.rmSync(statePath(outputDir, step), { force: true });
 }

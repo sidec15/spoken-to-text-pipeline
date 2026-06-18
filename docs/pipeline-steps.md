@@ -76,7 +76,7 @@ The cleaning step uses AI to clean and normalize raw transcripts.
 **Batch behaviour** (when `execution: "batch"` is set for this step):
 - One batch request is submitted per raw transcript part.
 - Each request carries reference-only excerpts of the adjacent raw parts (approximately the last 2000 characters of the previous part and the first 2000 characters of the next part) so the model can maintain cross-part continuity without having access to the full neighbour files.
-- The batch job is submitted once and its id is persisted to `<outputDir>/.batch/state.json`. If the run is interrupted, re-running the same command resumes the same job (does not resubmit).
+- The batch job is submitted once and its id is persisted to `<outputDir>/.cache/cleaning/batch/state.json`. If the run is interrupted, re-running the same command resumes the same job (does not resubmit).
 - When results arrive, each part's cleaned file is written independently. If individual parts errored inside the batch, those output files are left missing; a re-run will detect the missing files and reprocess only those parts (a new batch job is submitted for the missing parts only).
 - On terminal batch failure (`failed`, `expired`, or `cancelled`) the state is cleared and the run throws. A re-run resubmits the full cleaning batch.
 
@@ -92,6 +92,7 @@ The handout step generates a structured handout document from cleaned transcript
 - Processes one cleaned transcript file at a time (incremental generation)
 - Each file is sent to the AI along with the last portion of the previously generated handout
 - The handout is built progressively, file by file
+- Each part's AI result is persisted to `<outputDir>/.cache/handout/incremental/drafts/<part>.md` immediately after the call, so a run that fails partway through **resumes from the last completed part** on re-run instead of re-issuing (and re-paying for) calls already made
 - Organizes content into hierarchical sections
 - Uses profile-specific prompts from `profilePresets` (lecture, meeting, other)
 - Creates a polished handout suitable for study or distribution
@@ -112,11 +113,11 @@ The handout step generates a structured handout document from cleaned transcript
 The handout step uses a **map-reduce approach** when running in batch mode:
 
 - **Stage 1 (batch):** One batch request is submitted per cleaned transcript part. Each request produces an independent draft section — no global introduction, conclusion, or global numbering is produced at this stage. Neighbor excerpts from adjacent cleaned parts (approximately the last 2000 characters of the previous part and the first 2000 characters of the next part) are included to smooth transitions. All Stage 1 drafts are batched into a single OpenAI Batch API job.
-- **Stage 2 (sync):** After the batch completes, a single synchronous merge call unifies all drafts into the final handout. The merge pass re-numbers all sections globally from 1, deduplicates overlapping content, and smooths cross-section transitions. This call runs at full price but is a single request — negligible cost compared to the batch savings.
+- **Stage 2 (mechanical merge):** After the batch completes, the ordered drafts are merged **in-process, with no AI call**. The merge concatenates the drafts and applies one global hierarchical heading numbering — re-numbering all sections from 1, with subsections inheriting their parent's number (`## 1.`, `## 2.`, `### 2.1`, …). Because there is no model request, this stage is instant and cannot time out, regardless of session size. (Cross-draft de-duplication and transition smoothing are not performed mechanically; Stage 1 already drafts each part with neighbor excerpts and an instruction never to reproduce them, so seam overlap is minimal.)
 
-If any Stage 1 draft fails inside the batch, the run throws before writing `handout.md` (no partial output is written). A re-run will resubmit the Stage 1 batch job in full.
+If any Stage 1 draft fails inside the batch, the run throws before writing `handout.md` (no partial output is written). A re-run will resubmit the Stage 1 batch job in full. Completed Stage 1 drafts are persisted to `<outputDir>/.cache/handout/batch/drafts/<part>.md`; if the batch succeeded but a later step failed, the re-run reuses those drafts instead of resubmitting the batch.
 
-The batch job id is persisted to `<outputDir>/.batch/state.json` at submit time. If the run is interrupted during Stage 1 polling, re-running resumes the same batch job. On terminal failure the state is cleared and the run throws.
+The batch job id is persisted to `<outputDir>/.cache/handout/batch/state.json` at submit time. If the run is interrupted during Stage 1 polling, re-running resumes the same batch job. On terminal failure the state is cleared and the run throws.
 
 ## Summary Step
 
@@ -148,7 +149,7 @@ The summary step generates a summary of the processed content.
 
 The summary step adapts based on input size:
 
-- **Single-pass** (input is ≤ 90,000 tokens): One batch request is submitted for the entire input. The batch job id is persisted to `<outputDir>/.batch/state.json`. If the batch result contains an error, the run throws before writing `summary.md`. A re-run resumes the batch job if it is still running, or resubmits if the state has been cleared by a terminal failure.
+- **Single-pass** (input is ≤ 90,000 tokens): One batch request is submitted for the entire input. The batch job id is persisted to `<outputDir>/.cache/summary/batch/state.json`. If the batch result contains an error, the run throws before writing `summary.md`. A re-run resumes the batch job if it is still running, or resubmits if the state has been cleared by a terminal failure.
 - **Chunked** (input exceeds 90,000 tokens): The input is split into chunks and one batch request per chunk is submitted in a single batch job. After the batch completes, a single synchronous merge call combines the per-chunk summaries into the final summary (same merge logic as sync mode). The merge runs at full price but is one call.
 
 In both cases, `summary.md` is the idempotency marker — if it already exists the entire step is skipped. A failed batch result throws before the file is written, so a re-run always retries cleanly.
@@ -162,7 +163,7 @@ Each step operates independently:
 - **Safe re-runs:** You can safely re-run the pipeline without reprocessing completed steps
 - **Incremental processing:** Add new audio files and only new files will be processed
 
-In batch mode, idempotency has an additional dimension: in-flight batch jobs are also idempotent. Job state is persisted to `<outputDir>/.batch/state.json` immediately after submission. Re-running the pipeline before the batch completes resumes the same job rather than submitting a new one.
+In batch mode, idempotency has an additional dimension: in-flight batch jobs are also idempotent. Each step's job state is persisted to `<outputDir>/.cache/<step>/batch/state.json` immediately after submission. Re-running the pipeline before the batch completes resumes the same job rather than submitting a new one.
 
 ## Batch Execution Mode
 
@@ -171,10 +172,12 @@ An overview of how batch execution affects each step:
 | Step | Batch strategy | Sync fallback within step | Partial-failure behaviour |
 |---|---|---|---|
 | **Cleaning** | One request per raw part; neighbor excerpts included for context | None — all outputs written from batch results | Missing output files on re-run are reprocessed in a new batch |
-| **Handout** | Stage 1: one draft per cleaned part (batch); Stage 2: global merge (sync) | Stage 2 merge is always sync | Any Stage 1 failure throws before writing `handout.md`; re-run resubmits Stage 1 |
+| **Handout** | Stage 1: one draft per cleaned part (batch); Stage 2: global merge (mechanical, in-process) | Stage 2 merge is a no-AI in-process concatenation + heading renumber | Any Stage 1 failure throws before writing `handout.md`; re-run resubmits Stage 1 |
 | **Summary** | Single-pass (≤90k tokens): one request; Chunked (>90k): one request per chunk | Chunked merge is always sync | Failure throws before writing `summary.md`; re-run resumes or resubmits |
 
-**Resume contract:** `<outputDir>/.batch/state.json` stores one record per step (keyed by step name). The record is written at submission and cleared when the batch completes successfully or fails terminally. Corrupt state (invalid JSON) is treated as a hard error rather than silently discarding progress.
+**Resume contract:** each step stores its own batch record at `<outputDir>/.cache/<step>/batch/state.json` (e.g. `.cache/cleaning/batch/state.json`, `.cache/handout/batch/state.json`). The record is written at submission and cleared when the batch completes successfully or fails terminally. Corrupt state (invalid JSON) is treated as a hard error rather than silently discarding progress.
+
+**Auxiliary cache:** all of the above progress artifacts — per-step batch state, handout batch drafts, and handout incremental fragments — live under a single `<outputDir>/.cache` folder. On a **successful** run this folder is deleted (controlled by [`output.dropCache`](configuration.md#output-configuration), default `true`); on failure it is kept so the next run can resume.
 
 **Terminal failures** (`failed`, `expired`, `cancelled`): state is cleared and the run throws with the batch id and failure counts. A re-run will resubmit a fresh batch job for that step.
 

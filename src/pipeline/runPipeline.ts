@@ -1,5 +1,6 @@
 import type { PipelineOptions, PipelineResult } from "../types.js";
 import { createLogger } from "../services/logger.js";
+import type { Logger } from "../services/logger.js";
 import { PipelineRunner } from "./pipelineRunner.js";
 import { LoadProfileStep } from "./steps/loadProfileStep.js";
 import { AsrStep } from "./steps/asrStep.js";
@@ -8,6 +9,8 @@ import { HandoutStep } from "./steps/handoutStep.js";
 import { SummaryStep } from "./steps/summaryStep.js";
 import type { ProgressReporter } from "../services/progress.js";
 import { resolveOutputDir } from "../utils/resolveOutputDir.js";
+import { cacheRoot } from "../utils/cachePaths.js";
+import fs from "node:fs";
 
 /**
  * No-op progress reporter for programmatic usage when no progress reporter is provided.
@@ -100,6 +103,11 @@ export async function runPipeline(options: PipelineOptions): Promise<PipelineRes
 
   try {
     await runner.run({ config, baseDir: effectiveBaseDir, outputDir, dryRun, logger, progress });
+    // Drop the auxiliary `.cache` folder only on success (default behaviour);
+    // on failure it is kept so a re-run can resume from persisted progress.
+    if (config.output?.dropCache !== false) {
+      await dropCache(outputDir, logger);
+    }
     logger.info("Pipeline completed successfully");
     return { success: true };
   } catch (error) {
@@ -109,5 +117,20 @@ export async function runPipeline(options: PipelineOptions): Promise<PipelineRes
       success: false,
       error: errorMessage,
     };
+  }
+}
+
+/**
+ * Removes the auxiliary `.cache` folder for a completed run. A cleanup failure
+ * must never fail an otherwise-successful pipeline, so it is logged and swallowed.
+ */
+async function dropCache(outputDir: string, logger: Logger): Promise<void> {
+  const dir = cacheRoot(outputDir);
+  try {
+    await fs.promises.rm(dir, { recursive: true, force: true });
+    logger.debug(`Dropped auxiliary cache '${dir}'`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.warn(`Failed to drop auxiliary cache '${dir}': ${message}`);
   }
 }

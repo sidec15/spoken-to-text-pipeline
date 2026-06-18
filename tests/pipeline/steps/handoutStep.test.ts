@@ -10,6 +10,7 @@ const mockReaddirSync = jest.fn();
 const mockExistsSync = jest.fn();
 const mockReadFileSync = jest.fn();
 const mockWriteFile = jest.fn();
+const mockRename = jest.fn();
 
 jest.unstable_mockModule('node:fs', () => ({
   default: {
@@ -19,6 +20,7 @@ jest.unstable_mockModule('node:fs', () => ({
     readFileSync: mockReadFileSync,
     promises: {
       writeFile: mockWriteFile,
+      rename: mockRename,
     },
   },
   mkdirSync: mockMkdirSync,
@@ -27,6 +29,7 @@ jest.unstable_mockModule('node:fs', () => ({
   readFileSync: mockReadFileSync,
   promises: {
     writeFile: mockWriteFile,
+    rename: mockRename,
   },
 }));
 
@@ -125,7 +128,7 @@ describe('HandoutStep', () => {
     mockConfig.steps = {};
     mockReaddirSync.mockReturnValue(['cleaned1.md'] as any);
     mockExistsSync.mockImplementation((path: string) => {
-      return path.includes('handout.md') ? false : true;
+      return path.includes('handout.md') || path.includes('.cache') ? false : true;
     });
     mockReadFileSync.mockReturnValue('cleaned text');
 
@@ -139,7 +142,7 @@ describe('HandoutStep', () => {
     // Arrange
     mockReaddirSync.mockReturnValue(['cleaned1.md'] as any);
     mockExistsSync.mockImplementation((path: string) => {
-      return path.includes('handout.md') ? false : true; // handout.md doesn't exist, other files do
+      return path.includes('handout.md') || path.includes('.cache') ? false : true; // handout.md doesn't exist, other files do
     });
     mockReadFileSync.mockReturnValue('cleaned text');
 
@@ -154,7 +157,7 @@ describe('HandoutStep', () => {
     // Arrange
     mockReaddirSync.mockReturnValue(['cleaned1.md'] as any);
     mockExistsSync.mockImplementation((path: string) => {
-      return path.includes('handout.md') ? false : true;
+      return path.includes('handout.md') || path.includes('.cache') ? false : true;
     });
     mockReadFileSync.mockReturnValue('cleaned text');
 
@@ -169,7 +172,7 @@ describe('HandoutStep', () => {
     // Arrange
     mockReaddirSync.mockReturnValue(['cleaned1.md'] as any);
     mockExistsSync.mockImplementation((path: string) => {
-      return path.includes('handout.md') ? false : true;
+      return path.includes('handout.md') || path.includes('.cache') ? false : true;
     });
     mockReadFileSync.mockReturnValue('cleaned text');
     const mockErrorGenerateTextAsync = jest.fn<() => Promise<string>>().mockRejectedValue(new Error('AI error'));
@@ -185,7 +188,7 @@ describe('HandoutStep', () => {
     // Arrange
     mockReaddirSync.mockReturnValue(['cleaned1.md'] as any);
     mockExistsSync.mockImplementation((path: string) => {
-      return path.includes('handout.md') ? false : true;
+      return path.includes('handout.md') || path.includes('.cache') ? false : true;
     });
     mockReadFileSync.mockReturnValue('cleaned text');
 
@@ -201,7 +204,7 @@ describe('HandoutStep', () => {
     mockConfig.profile = 'meeting';
     mockReaddirSync.mockReturnValue(['cleaned1.md'] as any);
     mockExistsSync.mockImplementation((path: string) => {
-      return path.includes('handout.md') ? false : true;
+      return path.includes('handout.md') || path.includes('.cache') ? false : true;
     });
     mockReadFileSync.mockReturnValue('cleaned text');
 
@@ -251,7 +254,7 @@ describe('HandoutStep', () => {
     // Arrange
     mockReaddirSync.mockReturnValue(['part-10.md', 'part-2.md', 'part-1.md'] as any);
     mockExistsSync.mockImplementation((path: string) => {
-      return path.includes('handout.md') ? false : true;
+      return path.includes('handout.md') || path.includes('.cache') ? false : true;
     });
     mockReadFileSync.mockReturnValue('content');
 
@@ -274,7 +277,7 @@ describe('HandoutStep', () => {
     // Arrange
     mockReaddirSync.mockReturnValue(['cleaned.md', 'other.md'] as any);
     mockExistsSync.mockImplementation((path: string) => {
-      return path.includes('handout.md') ? false : true;
+      return path.includes('handout.md') || path.includes('.cache') ? false : true;
     });
     mockReadFileSync.mockReturnValue('content');
 
@@ -315,7 +318,7 @@ describe('HandoutStep', () => {
     mockConfig.context = { textSources: ['ref1.txt', 'ref2.md'] };
     mockReaddirSync.mockReturnValue(['cleaned1.md'] as any);
     mockExistsSync.mockImplementation((path: string) => {
-      return path.includes('handout.md') ? false : true;
+      return path.includes('handout.md') || path.includes('.cache') ? false : true;
     });
     mockReadFileSync.mockReturnValue('cleaned text');
 
@@ -338,7 +341,7 @@ describe('HandoutStep', () => {
     mockConfig.context = undefined;
     mockReaddirSync.mockReturnValue(['cleaned1.md'] as any);
     mockExistsSync.mockImplementation((path: string) => {
-      return path.includes('handout.md') ? false : true;
+      return path.includes('handout.md') || path.includes('.cache') ? false : true;
     });
     mockReadFileSync.mockReturnValue('cleaned text');
 
@@ -354,22 +357,17 @@ describe('HandoutStep', () => {
 
 });
 
-describe('buildHandoutMergePrompt', () => {
-  it('includes renumbering instruction and the language code', async () => {
-    const { buildHandoutMergePrompt } = await import('../../../src/pipeline/steps/handoutStep.js');
-    const p = buildHandoutMergePrompt('it');
-    expect(p).toMatch(/renumber/i);
-    expect(p).toContain('"it"');
-  });
-});
-
 describe('HandoutStep batch mode', () => {
   let step: any;
   let mockConfig: PipelineConfig;
   let mockContext: StepContext;
 
-  // A separate merge generateTextAsync so we can distinguish it from Stage-1 batch calls
-  const mockMergeGenerateTextAsync = jest.fn<() => Promise<string>>().mockResolvedValue('merged handout');
+  // Reads the content written to handout.md (Stage-2 is now a mechanical merge,
+  // so we assert on the final file rather than on an AI merge call).
+  const writtenHandout = (): string => {
+    const call = mockWriteFile.mock.calls.find((c: any[]) => String(c[0]).includes('handout.md'));
+    return call ? String(call[1]) : '';
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -382,9 +380,9 @@ describe('HandoutStep batch mode', () => {
     mockGetBatchTuning.mockReturnValue({ pollIntervalMs: 5000, maxWaitMs: undefined });
     mockRunBatchStep.mockResolvedValue([]);
 
-    // Stage-2 merge service
-    mockCreateAiService.mockReturnValue({ generateTextAsync: mockMergeGenerateTextAsync });
-    mockMergeGenerateTextAsync.mockResolvedValue('merged handout');
+    // aiService is still created in runAsync (incremental mode + localized label),
+    // but Stage-2 batch merge no longer calls it.
+    mockCreateAiService.mockReturnValue({ generateTextAsync: jest.fn() });
 
     const module = await import('../../../src/pipeline/steps/handoutStep.js');
     const HandoutStep = module.HandoutStep;
@@ -413,13 +411,13 @@ describe('HandoutStep batch mode', () => {
     };
   });
 
-  it('should run batch stage-1 with correct customIds in numeric order, draft addendum, neighbor excerpts, and stage-2 merge via generateTextAsync', async () => {
+  it('should run batch stage-1 with correct customIds in numeric order, draft addendum, neighbor excerpts, and a mechanical stage-2 merge', async () => {
     // Arrange: 3 cleaned parts, handout.md does not exist
     const cleanedFiles = ['part-1.md', 'part-2.md', 'part-3.md'];
     mockReaddirSync.mockReturnValue(cleanedFiles as any);
     mockExistsSync.mockImplementation((p: string) => {
       if ((p as string).includes('handout.md')) return false; // handout not written yet
-      if ((p as string).includes('handout-drafts')) return false; // no persisted drafts yet
+      if ((p as string).includes('.cache')) return false; // no persisted drafts yet
       return true; // cleaned dir exists
     });
     mockReadFileSync.mockImplementation((p: string) => {
@@ -468,11 +466,12 @@ describe('HandoutStep batch mode', () => {
     expect(batchArgs.requests[2].options.previousChunkExcerpt).toBeDefined();
     expect(batchArgs.requests[2].options.nextChunkExcerpt).toBeUndefined();
 
-    // Stage-2 merge: createAiService called and generateTextAsync called with merge prompt
-    expect(mockCreateAiService).toHaveBeenCalledWith(mockConfig, 'handout');
-    expect(mockMergeGenerateTextAsync).toHaveBeenCalledTimes(1);
-    const mergeCall = (mockMergeGenerateTextAsync.mock.calls[0] as any[])[0] as any;
-    expect(mergeCall.systemPrompt).toMatch(/renumber/i);
+    // Stage-2 is a mechanical, in-process merge: no AI merge call is made and
+    // the final handout.md contains every draft's content (in order).
+    const handout = writtenHandout();
+    expect(handout).toContain('draft part 1');
+    expect(handout).toContain('draft part 2');
+    expect(handout).toContain('draft part 3');
 
     // Final handout.md is written
     expect(mockWriteFile).toHaveBeenCalledWith(
@@ -487,7 +486,7 @@ describe('HandoutStep batch mode', () => {
     mockReaddirSync.mockReturnValue(cleanedFiles as any);
     mockExistsSync.mockImplementation((p: string) => {
       if ((p as string).includes('handout.md')) return false;
-      if ((p as string).includes('handout-drafts')) return false;
+      if ((p as string).includes('.cache')) return false;
       return true;
     });
     mockReadFileSync.mockImplementation((p: string) => {
@@ -510,7 +509,7 @@ describe('HandoutStep batch mode', () => {
     mockReaddirSync.mockReturnValue(cleanedFiles as any);
     mockExistsSync.mockImplementation((p: string) => {
       if ((p as string).includes('handout.md')) return false;
-      if ((p as string).includes('handout-drafts')) return false; // no persisted drafts yet
+      if ((p as string).includes('.cache')) return false; // no persisted drafts yet
       return true;
     });
     mockReadFileSync.mockReturnValue('cleaned content');
@@ -521,9 +520,9 @@ describe('HandoutStep batch mode', () => {
 
     await step.runAsync(mockContext);
 
-    // Each draft written under handout-drafts/, keyed by part base name.
+    // Each draft written under the cache (.cache/handout/batch/drafts), keyed by part base name.
     const draftWrites = mockWriteFile.mock.calls.filter((c: any[]) =>
-      String(c[0]).includes('handout-drafts'),
+      String(c[0]).includes('.cache'),
     );
     expect(draftWrites).toHaveLength(2);
     const draftPaths = draftWrites.map((c: any[]) => String(c[0]));
@@ -538,10 +537,10 @@ describe('HandoutStep batch mode', () => {
     mockReaddirSync.mockReturnValue(cleanedFiles as any);
     mockExistsSync.mockImplementation((p: string) => {
       if ((p as string).includes('handout.md')) return false; // final handout not written
-      return true; // cleaned dir AND handout-drafts/* all present
+      return true; // cleaned dir AND .cache/handout/batch/drafts/* all present
     });
     mockReadFileSync.mockImplementation((p: string) => {
-      if ((p as string).includes('handout-drafts')) {
+      if ((p as string).includes('.cache')) {
         return String(p).includes('part-1') ? 'persisted draft 1' : 'persisted draft 2';
       }
       return 'cleaned content';
@@ -551,16 +550,155 @@ describe('HandoutStep batch mode', () => {
 
     // Batch must NOT run — drafts came from disk.
     expect(mockRunBatchStep).not.toHaveBeenCalled();
-    // Stage-2 merge still runs, using the persisted drafts.
-    expect(mockMergeGenerateTextAsync).toHaveBeenCalledTimes(1);
-    const mergeCall = (mockMergeGenerateTextAsync.mock.calls[0] as any[])[0] as any;
-    expect(mergeCall.userPrompt).toContain('persisted draft 1');
-    expect(mergeCall.userPrompt).toContain('persisted draft 2');
+    // Stage-2 mechanical merge still runs, using the persisted drafts.
+    const handout = writtenHandout();
+    expect(handout).toContain('persisted draft 1');
+    expect(handout).toContain('persisted draft 2');
     // Final handout is still written.
     expect(mockWriteFile).toHaveBeenCalledWith(
       expect.stringContaining('handout.md'),
       expect.any(String),
       'utf-8',
     );
+  });
+});
+
+describe('HandoutStep incremental cache & resume', () => {
+  let step: any;
+  let mockConfig: PipelineConfig;
+  let mockContext: StepContext;
+
+  const incrementalGenerateTextAsync = jest.fn<() => Promise<string>>();
+
+  // Content written to the final handout.md (the metadata header is mocked to '').
+  const writtenHandout = (): string => {
+    const call = mockWriteFile.mock.calls.find((c: any[]) => String(c[0]).endsWith('handout.md'));
+    return call ? String(call[1]) : '';
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    (mockLoadContextText as jest.Mock).mockReturnValue('');
+    mockResolveStepConfig.mockReturnValue({ execution: 'sync' });
+    mockResolveAiConfig.mockReturnValue({ systemPrompt: 'Create handout', temperature: 0 });
+    mockCreateAiService.mockReturnValue({ generateTextAsync: incrementalGenerateTextAsync });
+    incrementalGenerateTextAsync.mockReset();
+
+    const module = await import('../../../src/pipeline/steps/handoutStep.js');
+    step = new module.HandoutStep();
+
+    mockConfig = {
+      profile: 'lecture',
+      language: { input: 'it', output: 'it' },
+      logging: { level: 'info', singleLine: true },
+      paths: { inputDir: './input', outputDir: './output' },
+      asr: { provider: 'whisper', whisper: { serverUrl: 'http://localhost:9000/asr' } },
+      ai: {
+        providers: { openai: { apiKey: 'sk-test' } },
+        default: { provider: 'openai', model: 'gpt-4o-mini' },
+      },
+      steps: { handout: {} },
+    } as any;
+    mockContext = {
+      config: mockConfig,
+      outputDir: './output',
+      logger: createMockLogger(),
+      progress: createMockProgressReporter(),
+    } as any;
+  });
+
+  it('persists each part fragment to the incremental cache after each AI call', async () => {
+    mockReaddirSync.mockReturnValue(['part-1.md', 'part-2.md'] as any);
+    // No handout.md, no cache yet → fresh run.
+    mockExistsSync.mockImplementation((p: string) =>
+      p.includes('handout.md') || p.includes('.cache') ? false : true,
+    );
+    mockReadFileSync.mockReturnValue('cleaned content');
+    incrementalGenerateTextAsync
+      .mockResolvedValueOnce('result 1')
+      .mockResolvedValueOnce('result 2');
+
+    await step.runAsync(mockContext);
+
+    // Each fragment is written atomically (temp file + rename) under the cache.
+    const fragmentWrites = mockWriteFile.mock.calls.filter((c: any[]) =>
+      String(c[0]).includes('.cache') && String(c[0]).includes('incremental'),
+    );
+    expect(fragmentWrites).toHaveLength(2);
+    expect(fragmentWrites.map((c: any[]) => c[1])).toEqual(['result 1', 'result 2']);
+    // Every temp write is promoted to its final name via rename.
+    expect(mockRename).toHaveBeenCalledTimes(2);
+    // Final handout still contains both parts.
+    expect(writtenHandout()).toContain('result 1');
+    expect(writtenHandout()).toContain('result 2');
+  });
+
+  it('resumes from cached fragments, calling the AI only for the missing parts', async () => {
+    mockReaddirSync.mockReturnValue(['part-1.md', 'part-2.md', 'part-3.md'] as any);
+    // part-1 fragment already cached; part-2 and part-3 are missing.
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p.includes('handout.md')) return false;
+      if (p.includes('.cache')) {
+        // The incremental drafts dir exists, and only part-1's fragment is present.
+        if (p.endsWith('part-2.md') || p.endsWith('part-3.md')) return false;
+        return true;
+      }
+      return true;
+    });
+    mockReadFileSync.mockImplementation((p: string) => {
+      if (p.includes('.cache')) return 'cached part 1';
+      return 'cleaned content';
+    });
+    incrementalGenerateTextAsync
+      .mockResolvedValueOnce('result 2')
+      .mockResolvedValueOnce('result 3');
+
+    await step.runAsync(mockContext);
+
+    // Only parts 2 and 3 hit the AI; part 1 was reused from cache.
+    expect(incrementalGenerateTextAsync).toHaveBeenCalledTimes(2);
+    const handout = writtenHandout();
+    expect(handout).toContain('cached part 1');
+    expect(handout).toContain('result 2');
+    expect(handout).toContain('result 3');
+  });
+
+  it('skips the AI entirely when every fragment is already cached', async () => {
+    mockReaddirSync.mockReturnValue(['part-1.md', 'part-2.md'] as any);
+    mockExistsSync.mockImplementation((p: string) => (p.includes('handout.md') ? false : true));
+    mockReadFileSync.mockImplementation((p: string) => {
+      if (p.includes('.cache')) return p.includes('part-1') ? 'cached 1' : 'cached 2';
+      return 'cleaned content';
+    });
+
+    await step.runAsync(mockContext);
+
+    expect(incrementalGenerateTextAsync).not.toHaveBeenCalled();
+    const handout = writtenHandout();
+    expect(handout).toContain('cached 1');
+    expect(handout).toContain('cached 2');
+  });
+
+  it('keeps the completed fragment when a later part fails', async () => {
+    mockReaddirSync.mockReturnValue(['part-1.md', 'part-2.md'] as any);
+    mockExistsSync.mockImplementation((p: string) =>
+      p.includes('handout.md') || p.includes('.cache') ? false : true,
+    );
+    mockReadFileSync.mockReturnValue('cleaned content');
+    incrementalGenerateTextAsync
+      .mockResolvedValueOnce('result 1')
+      .mockRejectedValueOnce(new Error('AI error'));
+
+    await expect(step.runAsync(mockContext)).rejects.toThrow('AI error');
+
+    // part-1's fragment was persisted before the part-2 failure, so a re-run resumes.
+    expect(mockRename).toHaveBeenCalledTimes(1);
+    const fragmentWrites = mockWriteFile.mock.calls.filter((c: any[]) =>
+      String(c[0]).includes('.cache') && String(c[0]).includes('incremental'),
+    );
+    expect(fragmentWrites).toHaveLength(1);
+    expect(fragmentWrites[0][1]).toBe('result 1');
+    // No final handout.md is written on failure.
+    expect(mockWriteFile.mock.calls.some((c: any[]) => String(c[0]).endsWith('handout.md'))).toBe(false);
   });
 });

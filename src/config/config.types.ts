@@ -300,6 +300,15 @@ export interface PipelineConfig {
      * Default: undefined (uses dynamic calculation)
      */
     summaryWordCount?: number;
+    /**
+     * Whether to drop the auxiliary `.cache` folder (batch state, handout draft
+     * fragments, and other progress artifacts) after a SUCCESSFUL run (optional).
+     * - true: remove `<outputDir>/.cache` once the pipeline finishes successfully.
+     * - false: keep it (useful for debugging/inspection).
+     * On failure the cache is always kept so a re-run can resume.
+     * Default: true
+     */
+    dropCache?: boolean;
   };
 
   /**

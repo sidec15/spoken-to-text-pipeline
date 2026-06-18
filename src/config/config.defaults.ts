@@ -87,6 +87,7 @@ export const CONFIG_DEFAULTS: Omit<PipelineConfig, "profile"> = {
   output: {
     addTimestamp: false,
     // summaryWordCount is undefined by default - uses dynamic calculation based on input size and profile
+    dropCache: true,
   },
   asr: {
     provider: "whisper",

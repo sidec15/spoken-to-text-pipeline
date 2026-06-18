@@ -54,7 +54,7 @@ When fields are not provided in the configuration file, the following defaults a
 - **`language`**: `{ input: "en", output: "en" }`
 - **`logging`**: `{ level: "info", singleLine: false }`
 - **`paths`**: `{ inputDir: "./input", outputDir: "./output" }`
-- **`output`**: `{ addTimestamp: false }` (summaryWordCount calculated dynamically if not set)
+- **`output`**: `{ addTimestamp: false, dropCache: true }` (summaryWordCount calculated dynamically if not set)
 - **`asr.provider`**: `"whisper"`
 - **`asr.whisper.serverUrl`**: `"http://localhost:9000/asr"`
 - **`asr.whisper.task`**, **`asr.whisper.outputFormat`**, **`asr.whisper.temperature`**, **`asr.whisper.beamSize`**, **`asr.whisper.bestOf`**, and **`asr.whisper.vad`**: Profile-specific defaults (see [Profiles](#profiles) section)
@@ -341,7 +341,7 @@ The `providers` object contains configuration for all providers that may be used
 
 - **`openai`** (optional): OpenAI provider configuration
   - `apiKey` (required if `openai` is provided): Your OpenAI API key (starts with `sk-`). If omitted, `SPOKEN_TO_TEXT_OPENAI_API_KEY` is used.
-  - `requestTimeoutMs` (optional): Per-request timeout (in milliseconds) for **synchronous** Responses API calls. The OpenAI SDK default is 10 minutes, which can be too short for a large single-pass handout merge (all part drafts are concatenated into one request). Default: `1800000` (30 minutes). Raise it for very long sessions if the handout step fails with "Request timed out".
+  - `requestTimeoutMs` (optional): Per-request timeout (in milliseconds) for **synchronous** Responses API calls (e.g. incremental/`sync` handout generation, or the chunked-summary merge). The OpenAI SDK default is 10 minutes, which can be too short for a large single request. Default: `1800000` (30 minutes). Raise it for very long sessions if a synchronous step fails with "Request timed out". (The batch handout Stage-2 merge is mechanical and in-process, so it is unaffected by this timeout.)
 
 - **`deepseek`** (optional): DeepSeek provider configuration
   - `apiKey` (required if `deepseek` is provided): Your DeepSeek API key. If omitted, `SPOKEN_TO_TEXT_DEEPSEEK_API_KEY` is used.
@@ -587,17 +587,21 @@ The optional `ai.batch` object controls polling behaviour:
 
 ### Resume / idempotency contract
 
-When a batch job is submitted, its state is persisted to `<outputDir>/.batch/state.json`. If the run is interrupted (Ctrl-C, process kill, `maxWaitMs` timeout), **re-running the same command resumes the existing batch job** — it does not resubmit. This ensures you are never charged twice for the same work.
+When a batch job is submitted, its state is persisted per step to `<outputDir>/.cache/<step>/batch/state.json` (e.g. `.cache/cleaning/batch/state.json`). If the run is interrupted (Ctrl-C, process kill, `maxWaitMs` timeout), **re-running the same command resumes the existing batch job** — it does not resubmit. This ensures you are never charged twice for the same work.
 
 On terminal failure (OpenAI reports status `failed`, `expired`, or `cancelled`), the state for that step is cleared automatically and the run throws an error including the batch id and counts. A subsequent re-run will resubmit a fresh batch job for that step.
 
-**Handout draft persistence:** the handout step is a two-stage map-reduce — a Stage-1 batch produces one draft per part, then a synchronous Stage-2 call merges them. Because the batch state is cleared once the batch completes, a failure in the Stage-2 merge (e.g. a timeout) would otherwise force the whole batch to be resubmitted on re-run. To avoid that, each Stage-1 draft is persisted to `<outputDir>/handout-drafts/<part>.md`. On re-run, if **every** part already has a persisted draft, the batch is skipped entirely and the merge runs directly against the saved drafts. (Like `cleaned/`, these files persist across runs; delete the folder to force a fresh batch.)
+**Handout draft persistence:** the handout step is a two-stage map-reduce — a Stage-1 batch produces one draft per part, then a mechanical (in-process) Stage-2 merge combines them. Because the batch state is cleared once the batch completes, a failure after the batch would otherwise force the whole batch to be resubmitted on re-run. To avoid that, each Stage-1 draft is persisted to `<outputDir>/.cache/handout/batch/drafts/<part>.md`. On re-run, if **every** part already has a persisted draft, the batch is skipped entirely and the merge runs directly against the saved drafts.
+
+**Incremental handout resume:** in sync (incremental) mode the handout is built one part at a time. Each part's AI result is persisted to `<outputDir>/.cache/handout/incremental/drafts/<part>.md` right after the call, so a run that fails partway through resumes from the last completed part instead of re-issuing earlier calls.
+
+**Auxiliary cache cleanup:** all of these progress artifacts live under a single `<outputDir>/.cache` folder. By default it is **deleted after a successful run** and **kept after a failure** (so the next run can resume). Set [`output.dropCache`](#output-configuration) to `false` to always keep it.
 
 **Note:** `dryRun` mode never submits a batch job.
 
 ### Cost and timing trade-offs
 
-A full batch run may involve up to three sequential batch jobs — cleaning, handout (Stage 1 drafts), and summary — each subject to the OpenAI "within 24 hours" SLA. Between stages the pipeline runs a short synchronous merge call (the handout Stage 2 global merge and the chunked-summary merge), which runs at full price but is a single call and negligible in cost compared to the batch savings.
+A full batch run may involve up to three sequential batch jobs — cleaning, handout (Stage 1 drafts), and summary — each subject to the OpenAI "within 24 hours" SLA. The handout Stage 2 merge is **mechanical and in-process** (concatenation + global heading renumbering, no AI call), so it adds no cost or latency. The chunked-summary merge is still a short synchronous call, which runs at full price but is a single call and negligible in cost compared to the batch savings.
 
 In practice:
 - **Cost**: approximately 50% cheaper than synchronous calls for the batched requests.
@@ -709,6 +713,12 @@ The optional `output` object controls output behavior.
 - **`addTimestamp`** (optional): If `true`, appends a timestamp suffix (`yyyyMMddHHmmss`) to `outputDir`. Default: `false`
   - Example: `"output"` becomes `"output_20250125143000"`
   - Useful for creating timestamped output directories for each run
+
+- **`dropCache`** (optional): Whether to delete the auxiliary `<outputDir>/.cache` folder after a **successful** run. Default: `true`
+  - The `.cache` folder holds progress/resume artifacts only (per-step batch state, handout batch drafts, handout incremental fragments) — never user-facing outputs.
+  - `true` (default): remove `.cache` once the pipeline finishes successfully, keeping the output directory clean.
+  - `false`: always keep `.cache` (useful for debugging or inspecting intermediate drafts).
+  - On **failure** the cache is always kept regardless of this flag, so a re-run can resume from where it stopped.
 
 - **`summaryWordCount`** (optional): Static override for target word count in summary generation. 
   - **If not provided**: Word count is calculated **dynamically** based on:
@@ -848,8 +858,9 @@ The following table provides a quick reference for all configuration parameters:
 | **`paths`** | `object` | No | `{ inputDir: "./input", outputDir: "./output" }` | - | File system paths |
 | `paths.inputDir` | `string` | No | `"./input"` | Valid directory path | Input audio directory |
 | `paths.outputDir` | `string` | No | `"./output"` | Valid directory path | Output directory (timestamp suffix added if `output.addTimestamp` is true) |
-| **`output`** | `object` | No | `{ addTimestamp: false, summaryWordCount: undefined }` | - | Output configuration |
+| **`output`** | `object` | No | `{ addTimestamp: false, dropCache: true, summaryWordCount: undefined }` | - | Output configuration |
 | `output.addTimestamp` | `boolean` | No | `false` | `true`, `false` | Append timestamp to outputDir |
+| `output.dropCache` | `boolean` | No | `true` | `true`, `false` | Delete the `.cache` progress folder after a successful run (kept on failure) |
 | `output.summaryWordCount` | `number` | No | `undefined` (dynamic) | Positive integer | Target word count for summaries (200-5000 range when calculated dynamically) |
 | **`asr`** | `object` | No | Profile-specific | - | ASR configuration |
 | `asr.provider` | `string` | No | `"whisper"` | `"whisper"` | ASR provider (currently only Whisper supported) |

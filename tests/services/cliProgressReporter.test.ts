@@ -28,9 +28,9 @@ describe('CliProgressReporter (plain-line, no live bar)', () => {
     reporter.start(20, 'Cleaning transcripts (batch)');
     writes.length = 0;
 
-    reporter.updateMessage("Batch 'cleaning' in_progress: 5/20 done");
+    reporter.updateMessage("Batch 'cleaning' in_progress");
 
-    expect(written()).toBe("Batch 'cleaning' in_progress: 5/20 done\n");
+    expect(written()).toBe("Batch 'cleaning' in_progress (1/20)\n");
   });
 
   it('omits a redundant count suffix before any increment (batch mode)', () => {

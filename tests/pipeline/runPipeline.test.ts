@@ -5,6 +5,13 @@ import { createMockLogger } from '../mocks/logger.mock.js';
 import { createMockProgressReporter } from '../mocks/progress.mock.js';
 import type { PipelineConfig } from '../../src/config/config.types.js';
 
+// Mock fs (runPipeline only uses fs.promises.rm to drop the cache on success)
+const mockRm = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+jest.unstable_mockModule('node:fs', () => ({
+  default: { promises: { rm: mockRm } },
+  promises: { rm: mockRm },
+}));
+
 // Mock PipelineRunner
 const mockRun = jest.fn().mockResolvedValue(undefined);
 const mockPipelineRunner = jest.fn().mockImplementation(() => ({
@@ -40,6 +47,7 @@ describe('runPipeline', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     mockRun.mockResolvedValue(undefined);
+    mockRm.mockResolvedValue(undefined);
     const module = await import('../../src/pipeline/runPipeline.js');
     runPipeline = module.runPipeline;
     mockConfig = {
@@ -177,6 +185,41 @@ describe('runPipeline', () => {
       error: 'String error',
     });
     expect(mockLogger.error).toHaveBeenCalledWith('Pipeline failed', error);
+  });
+
+  it('drops the .cache folder on success by default (dropCache unset)', async () => {
+    const { runPipeline: runPipelineFn } = await import('../../src/pipeline/runPipeline.js');
+    await runPipelineFn({ config: mockConfig, logger: mockLogger, progress: mockProgress });
+
+    expect(mockRm).toHaveBeenCalledTimes(1);
+    expect(mockRm).toHaveBeenCalledWith(
+      expect.stringContaining(path.join('output', '.cache')),
+      { recursive: true, force: true },
+    );
+  });
+
+  it('keeps the .cache folder on success when output.dropCache is false', async () => {
+    const { runPipeline: runPipelineFn } = await import('../../src/pipeline/runPipeline.js');
+    const config: PipelineConfig = { ...mockConfig, output: { dropCache: false } };
+    await runPipelineFn({ config, logger: mockLogger, progress: mockProgress });
+
+    expect(mockRm).not.toHaveBeenCalled();
+  });
+
+  it('keeps the .cache folder when the pipeline fails (enables resume)', async () => {
+    const { runPipeline: runPipelineFn } = await import('../../src/pipeline/runPipeline.js');
+    mockRun.mockRejectedValue(new Error('boom'));
+    await runPipelineFn({ config: mockConfig, logger: mockLogger, progress: mockProgress });
+
+    expect(mockRm).not.toHaveBeenCalled();
+  });
+
+  it('does not fail the run if cache cleanup throws', async () => {
+    const { runPipeline: runPipelineFn } = await import('../../src/pipeline/runPipeline.js');
+    mockRm.mockRejectedValue(new Error('EBUSY'));
+    const result = await runPipelineFn({ config: mockConfig, logger: mockLogger, progress: mockProgress });
+
+    expect(result).toEqual({ success: true });
   });
 
   it('should use config logging settings for default logger', async () => {

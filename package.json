@@ -1,6 +1,6 @@
 {
   "name": "spoken-to-text-pipeline",
-  "version": "1.0.1",
+  "version": "1.4.0",
   "description": "A Node.js CLI tool that automates the transformation of spoken audio into structured, editable text through transcription and controlled post-processing stages.",
   "homepage": "https://github.com/sidec15/spoken-to-text-pipeline",
   "repository": {
@@ -33,7 +33,9 @@
   "bin": {
     "spoken-to-text": "./dist/cli.js"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "format": "prettier --write .",
     "build": "tsc",
